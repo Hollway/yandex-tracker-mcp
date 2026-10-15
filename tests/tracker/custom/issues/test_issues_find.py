@@ -125,3 +125,18 @@ class TestIssuesFind:
 
         capture.assert_called_once()
         assert "fields" not in capture.last_request.params
+
+    async def test_a_text_version_does_not_fail_the_issue(
+        self, tracker_client: TrackerClient, sample_issue_data: dict[str, Any]
+    ) -> None:
+        sample_issue_data["version"] = "MVP-0"
+
+        with aioresponses() as m:
+            m.post(
+                "https://api.tracker.yandex.net/v3/issues/_search?page=1&perPage=15",
+                payload=[sample_issue_data],
+            )
+
+            result = await tracker_client.issues_find("Queue: TEST")
+
+        assert result.values[0].version == "MVP-0"

@@ -28,7 +28,11 @@ class Issue(CreatedUpdatedMixin, BaseTrackerEntity):
     model_config = ConfigDict(
         extra="allow",
     )
-    version: int | None = NoneExcludedField
+    # The optimistic-locking counter is an integer, but in some queues Tracker
+    # answers with a string such as "MVP-0" here, and rejecting it would fail
+    # the whole issue - and with it every listing that contains one
+    # (aikts/yandex-tracker-mcp#49).
+    version: int | str | None = NoneExcludedField
     unique: str | None = NoneExcludedField
     key: str | None = NoneExcludedField
     summary: str | None = NoneExcludedField
