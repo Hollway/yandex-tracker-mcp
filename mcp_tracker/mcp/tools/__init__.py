@@ -5,6 +5,7 @@ This package organizes MCP tools by category:
 - queue_write.py: Queue write tools (conditional on read-only mode)
 - field.py: Global field and metadata tools (read-only)
 - template.py: Issue and comment template tools (read-only)
+- application.py: External application tools (read-only)
 - board.py: Board and sprint tools (read-only)
 - component.py: Queue component tools (read-only)
 - component_write.py: Queue component write tools (conditional on read-only mode)
@@ -28,6 +29,7 @@ from typing import Any
 
 from mcp.server import FastMCP
 
+from mcp_tracker.mcp.tools.application import register_application_tools
 from mcp_tracker.mcp.tools.attachment_write import (
     register_attachment_file_upload_tools,
 )
@@ -74,6 +76,7 @@ def register_all_tools(settings: Settings, mcp: FastMCP[Any]) -> None:
     register_field_tools(settings, mcp)
     register_template_tools(settings, mcp)
     register_board_tools(settings, mcp)
+    register_application_tools(settings, mcp)
     register_component_tools(settings, mcp)
     register_issue_read_tools(settings, mcp)
     register_user_tools(settings, mcp)

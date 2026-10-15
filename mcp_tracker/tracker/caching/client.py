@@ -47,12 +47,14 @@ from mcp_tracker.tracker.proto.types.issues import (
     ChangelogPage,
     ChecklistItem,
     CommentsPage,
+    ExternalApplication,
     Issue,
     IssueAttachment,
     IssueComment,
     IssueLink,
     IssueLinkRelationship,
     IssueTransition,
+    RemoteLink,
     Worklog,
 )
 from mcp_tracker.tracker.proto.types.pagination import PaginatedResult
@@ -281,6 +283,44 @@ def make_cached_protocols(
                 maillist_summonees=maillist_summonees,
                 markup_type=markup_type,
                 auth=auth,
+            )
+
+        @cached(**cache_config)
+        async def applications_list(
+            self, *, auth: YandexAuth | None = None
+        ) -> list[ExternalApplication]:
+            return await self._original.applications_list(auth=auth)
+
+        @cached(**cache_config)
+        async def issue_get_remote_links(
+            self, issue_id: str, *, auth: YandexAuth | None = None
+        ) -> list[RemoteLink]:
+            return await self._original.issue_get_remote_links(issue_id, auth=auth)
+
+        async def issue_add_remote_link(
+            self,
+            issue_id: str,
+            *,
+            origin: str,
+            key: str,
+            relationship: str = "relates",
+            backlink: bool = False,
+            auth: YandexAuth | None = None,
+        ) -> RemoteLink:
+            return await self._original.issue_add_remote_link(
+                issue_id,
+                origin=origin,
+                key=key,
+                relationship=relationship,
+                backlink=backlink,
+                auth=auth,
+            )
+
+        async def issue_delete_remote_link(
+            self, issue_id: str, link_id: int, *, auth: YandexAuth | None = None
+        ) -> None:
+            return await self._original.issue_delete_remote_link(
+                issue_id, link_id, auth=auth
             )
 
         @cached(**cache_config)

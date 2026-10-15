@@ -615,6 +615,10 @@ These four are organization-wide. A queue may accept only some of the values the
 | `issue_get_links` | Links to related, blocking and duplicate issues | `issue_id` |
 | `issue_add_link` | Link two issues | `issue_id`, `relationship`, `issue` |
 | `issue_delete_link` | Remove a link | `issue_id`, `link_id` (from `issue_get_links`) |
+| `issue_get_remote_links` | Links to objects in other applications (pull requests, documents, ...) | `issue_id` |
+| `issue_add_remote_link` | Link the issue to an object in another application | `issue_id`, `origin` (from `applications_get_all`), `key`, `backlink` |
+| `issue_delete_remote_link` | Remove such a link | `issue_id`, `link_id` (from `issue_get_remote_links`) |
+| `applications_get_all` | The applications an issue can be linked to | - |
 | `issue_get_worklogs` | The time logged on one or more issues | `issue_ids`, `fields` |
 | `worklogs_find` | The time one user logged across all issues over a period; Tracker filters by the day a record was entered, so `start_*` misses time logged in advance | `author` (default: you), `start_from`, `start_to`, `created_from`, `created_to`, `fields` |
 | `issue_add_worklog` | Log spent time | `issue_id`, `duration` (ISO-8601, `PT1H30M`), `comment`, `start` |

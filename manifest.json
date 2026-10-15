@@ -350,6 +350,22 @@
       "description": "Delete a comment from a Yandex Tracker issue"
     },
     {
+      "name": "issue_get_remote_links",
+      "description": "Get the links of an issue to objects in other applications"
+    },
+    {
+      "name": "issue_add_remote_link",
+      "description": "Link an issue to an object in another application"
+    },
+    {
+      "name": "issue_delete_remote_link",
+      "description": "Delete a link from an issue to an object in another application"
+    },
+    {
+      "name": "applications_get_all",
+      "description": "List the applications an issue can be linked to"
+    },
+    {
       "name": "issue_add_link",
       "description": "Create a link between a Yandex Tracker issue and another issue"
     },

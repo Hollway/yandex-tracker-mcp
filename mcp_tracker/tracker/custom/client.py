@@ -89,12 +89,14 @@ from mcp_tracker.tracker.proto.types.issues import (
     ChangelogPage,
     ChecklistItem,
     CommentsPage,
+    ExternalApplication,
     Issue,
     IssueAttachment,
     IssueComment,
     IssueLink,
     IssueLinkRelationship,
     IssueTransition,
+    RemoteLink,
     Worklog,
 )
 from mcp_tracker.tracker.proto.types.pagination import ItemT, PaginatedResult
@@ -125,6 +127,8 @@ IssueList = RootModel[list[Issue]]
 IssueCommentList = RootModel[list[IssueComment]]
 WorklogList = RootModel[list[Worklog]]
 IssueAttachmentList = RootModel[list[IssueAttachment]]
+ExternalApplicationList = RootModel[list[ExternalApplication]]
+RemoteLinkList = RootModel[list[RemoteLink]]
 
 
 class AbsenceSearchPage(BaseModel):
@@ -1010,6 +1014,65 @@ class TrackerClient(
                 json=body,
                 not_found=IssueNotFound(issue_id),
             )
+        )
+
+    async def applications_list(
+        self, *, auth: YandexAuth | None = None
+    ) -> list[ExternalApplication]:
+        return ExternalApplicationList.model_validate_json(
+            await self._read("GET", "v3/applications", auth=auth)
+        ).root
+
+    async def issue_get_remote_links(
+        self, issue_id: str, *, auth: YandexAuth | None = None
+    ) -> list[RemoteLink]:
+        return RemoteLinkList.model_validate_json(
+            await self._read(
+                "GET",
+                f"v3/issues/{issue_id}/remotelinks",
+                auth=auth,
+                not_found=IssueNotFound(issue_id),
+            )
+        ).root
+
+    async def issue_add_remote_link(
+        self,
+        issue_id: str,
+        *,
+        origin: str,
+        key: str,
+        relationship: str = "relates",
+        backlink: bool = False,
+        auth: YandexAuth | None = None,
+    ) -> RemoteLink:
+        """Link an issue to object `key` of application `origin`.
+
+        `backlink` asks Tracker to create the mirror link in the other
+        application too; it is sent only when set.
+        """
+        return RemoteLink.model_validate_json(
+            await self._read(
+                "POST",
+                f"v3/issues/{issue_id}/remotelinks",
+                auth=auth,
+                params={"backlink": "true"} if backlink else None,
+                json={
+                    "relationship": relationship.upper(),
+                    "key": key,
+                    "origin": origin,
+                },
+                not_found=IssueNotFound(issue_id),
+            )
+        )
+
+    async def issue_delete_remote_link(
+        self, issue_id: str, link_id: int, *, auth: YandexAuth | None = None
+    ) -> None:
+        await self._read(
+            "DELETE",
+            f"v3/issues/{issue_id}/remotelinks/{link_id}",
+            auth=auth,
+            not_found=IssueNotFound(issue_id),
         )
 
     async def issue_get_comment(

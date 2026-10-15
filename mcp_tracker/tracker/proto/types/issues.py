@@ -157,6 +157,28 @@ class LinkTypeReference(BaseReference):
     outward: str | None = None
 
 
+class ExternalApplication(BaseTrackerEntity):
+    """An application an issue can be linked to (`GET v3/applications`)."""
+
+    id: str
+    type: str | None = NoneExcludedField
+    name: str | None = NoneExcludedField
+
+
+class RemoteLink(BaseTrackerEntity):
+    """A link from an issue to an object in another application."""
+
+    id: int
+    type: LinkTypeReference | None = NoneExcludedField
+    direction: str | None = NoneExcludedField
+    object: dict[str, Any] | None = Field(
+        None,
+        description="The linked object: its `key` in the other application and the "
+        "`application` it lives in.",
+        exclude_if=none_excluder,
+    )
+
+
 # Link relationship types accepted by the Yandex Tracker "link issue" API.
 IssueLinkRelationship = Literal[
     "relates",

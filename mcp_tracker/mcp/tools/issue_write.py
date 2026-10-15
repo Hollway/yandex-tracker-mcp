@@ -50,6 +50,7 @@ from mcp_tracker.tracker.proto.types.issues import (
     IssueLink,
     IssueLinkRelationship,
     IssueTransition,
+    RemoteLink,
     Worklog,
 )
 
@@ -674,6 +675,59 @@ def register_issue_write_tools(settings: Settings, mcp: FastMCP[Any]) -> None:
             issue_id,
             comment_id,
             auth=get_yandex_auth(ctx),
+        )
+
+    @mcp.tool(
+        title="Add Issue Remote Link",
+        description="Link a Yandex Tracker issue to an object in another "
+        "application, e.g. a pull request or a document. `origin` is an "
+        "application `id` from applications_get_all.",
+        annotations=ToolAnnotations(readOnlyHint=False),
+    )
+    async def issue_add_remote_link(
+        ctx: Context[Any, AppContext],
+        issue_id: IssueID,
+        origin: Annotated[
+            str,
+            Field(description="Application `id` from applications_get_all."),
+        ],
+        key: Annotated[
+            str,
+            Field(description="The object's key in that application."),
+        ],
+        backlink: Annotated[
+            bool,
+            Field(description="Also create the mirror link in the other application."),
+        ] = False,
+    ) -> RemoteLink:
+        check_issue_access(settings, issue_id, write=True)
+
+        return await ctx.request_context.lifespan_context.issues.issue_add_remote_link(
+            issue_id,
+            origin=origin,
+            key=key,
+            backlink=backlink,
+            auth=get_yandex_auth(ctx),
+        )
+
+    @mcp.tool(
+        title="Delete Issue Remote Link",
+        description="Delete a link from a Yandex Tracker issue to an object in "
+        "another application; take the id from issue_get_remote_links.",
+        annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True),
+    )
+    async def issue_delete_remote_link(
+        ctx: Context[Any, AppContext],
+        issue_id: IssueID,
+        link_id: Annotated[
+            int,
+            Field(description="Link `id` from issue_get_remote_links."),
+        ],
+    ) -> None:
+        check_issue_access(settings, issue_id, write=True)
+
+        await ctx.request_context.lifespan_context.issues.issue_delete_remote_link(
+            issue_id, link_id, auth=get_yandex_auth(ctx)
         )
 
     @mcp.tool(

@@ -19,6 +19,7 @@ from tests.mcp.server.tool_listing import REGISTERED_TOOLS, TOOL_NAMES
 # anything through.
 TOOL_NAME_ENTITIES = frozenset(
     {
+        "applications",
         "attachment",
         "board",
         "boards",

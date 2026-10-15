@@ -19,6 +19,7 @@ All notable changes to this project will be documented in this file.
 - **`issue_delete_attachment`** - delete a file attached to an issue
 - **`queue_get_triggers`** - the automation triggers of a queue with their conditions and actions; webhook credentials are left out
 - **`queue_update_version`, `queue_delete_version`** - change or delete a queue version; versions could only be listed and created
+- **Links to other applications** - `issue_get_remote_links`, `issue_add_remote_link` and `issue_delete_remote_link`, with `applications_get_all` for the applications an issue can be linked to
 
 ### Bug Fixes
 

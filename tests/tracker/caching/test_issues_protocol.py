@@ -206,6 +206,37 @@ class TestCachingIssuesProtocol:
         )
         assert result == mock_original.worklogs_find.return_value
 
+    async def test_remote_link_methods_call_original(
+        self,
+        caching_issues_protocol: Any,
+        mock_original: AsyncMock,
+        yandex_auth: YandexAuth,
+    ) -> None:
+        await caching_issues_protocol.applications_list(auth=yandex_auth)
+        await caching_issues_protocol.issue_get_remote_links("TEST-1", auth=yandex_auth)
+        await caching_issues_protocol.issue_add_remote_link(
+            "TEST-1", origin="o", key="k", auth=yandex_auth
+        )
+        await caching_issues_protocol.issue_delete_remote_link(
+            "TEST-1", 51, auth=yandex_auth
+        )
+
+        mock_original.applications_list.assert_called_once_with(auth=yandex_auth)
+        mock_original.issue_get_remote_links.assert_called_once_with(
+            "TEST-1", auth=yandex_auth
+        )
+        mock_original.issue_add_remote_link.assert_called_once_with(
+            "TEST-1",
+            origin="o",
+            key="k",
+            relationship="relates",
+            backlink=False,
+            auth=yandex_auth,
+        )
+        mock_original.issue_delete_remote_link.assert_called_once_with(
+            "TEST-1", 51, auth=yandex_auth
+        )
+
     async def test_issue_get_comment_calls_original(
         self,
         caching_issues_protocol: Any,

@@ -25,6 +25,7 @@ from mcp_tracker.tracker.proto.types.issues import (
     IssueComment,
     IssueLink,
     IssueTransition,
+    RemoteLink,
     Worklog,
 )
 from tests.mcp.conftest import (
@@ -952,3 +953,33 @@ class TestIssueGetComment:
 
         assert result.isError
         mock_issues_protocol.issue_get_comment.assert_not_called()
+
+
+class TestIssueGetRemoteLinks:
+    async def test_returns_the_links(
+        self,
+        client_session: ClientSession,
+        mock_issues_protocol: AsyncMock,
+    ) -> None:
+        mock_issues_protocol.issue_get_remote_links.return_value = [
+            RemoteLink(id=51, direction="outward", object={"key": "repo/pr/7"})
+        ]
+
+        result = await client_session.call_tool(
+            "issue_get_remote_links", {"issue_id": "TEST-1"}
+        )
+
+        assert not result.isError
+        assert get_tool_result_content(result)[0]["object"]["key"] == "repo/pr/7"
+
+    async def test_restricted_queue_is_refused(
+        self,
+        client_session_with_limits: ClientSession,
+        mock_issues_protocol: AsyncMock,
+    ) -> None:
+        result = await client_session_with_limits.call_tool(
+            "issue_get_remote_links", {"issue_id": "RESTRICTED-1"}
+        )
+
+        assert result.isError
+        mock_issues_protocol.issue_get_remote_links.assert_not_called()

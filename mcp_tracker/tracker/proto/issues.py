@@ -19,12 +19,14 @@ from .types.issues import (
     ChangelogPage,
     ChecklistItem,
     CommentsPage,
+    ExternalApplication,
     Issue,
     IssueAttachment,
     IssueComment,
     IssueLink,
     IssueLinkRelationship,
     IssueTransition,
+    RemoteLink,
     Worklog,
 )
 from .types.pagination import PaginatedResult
@@ -55,6 +57,25 @@ class IssueProtocol(Protocol):
         attachment_ids: list[str] | None = None,
         auth: YandexAuth | None = None,
     ) -> IssueComment: ...
+    async def applications_list(
+        self, *, auth: YandexAuth | None = None
+    ) -> list[ExternalApplication]: ...
+    async def issue_get_remote_links(
+        self, issue_id: str, *, auth: YandexAuth | None = None
+    ) -> list[RemoteLink]: ...
+    async def issue_add_remote_link(
+        self,
+        issue_id: str,
+        *,
+        origin: str,
+        key: str,
+        relationship: str = "relates",
+        backlink: bool = False,
+        auth: YandexAuth | None = None,
+    ) -> RemoteLink: ...
+    async def issue_delete_remote_link(
+        self, issue_id: str, link_id: int, *, auth: YandexAuth | None = None
+    ) -> None: ...
     async def issue_get_comment(
         self,
         issue_id: str,

@@ -13,7 +13,7 @@
 
 ## Entities
 
-`attachment` (a temporary attachment, not yet bound to an issue), `board`,
+`applications` (external applications an issue links to), `attachment` (a temporary attachment, not yet bound to an issue), `board`,
 `boards`, `comment`, `component`, `goal`, `issue`, `issues`, `portfolio`,
 `project`, `queue`, `queues`, `user`, `users`, `worklogs` (records across issues).
 

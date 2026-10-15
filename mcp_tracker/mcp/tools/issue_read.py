@@ -38,6 +38,7 @@ from mcp_tracker.tracker.proto.types.issues import (
     IssueLink,
     IssuesCount,
     IssueTransition,
+    RemoteLink,
     Worklog,
     WorklogFieldsEnum,
     resolve_issue_field,
@@ -128,6 +129,23 @@ def register_issue_read_tools(settings: Settings, mcp: FastMCP[Any]) -> None:
         return await ctx.request_context.lifespan_context.issues.issues_get_links(
             issue_id,
             auth=get_yandex_auth(ctx),
+        )
+
+    @mcp.tool(
+        title="Get Issue Remote Links",
+        description="Get the links of a Yandex Tracker issue to objects in other "
+        "applications (pull requests, documents, CRM records, ...); links between "
+        "issues come from issue_get_links.",
+        annotations=ToolAnnotations(readOnlyHint=True),
+    )
+    async def issue_get_remote_links(
+        ctx: Context[Any, AppContext],
+        issue_id: IssueID,
+    ) -> list[RemoteLink]:
+        check_issue_access(settings, issue_id)
+
+        return await ctx.request_context.lifespan_context.issues.issue_get_remote_links(
+            issue_id, auth=get_yandex_auth(ctx)
         )
 
     @mcp.tool(

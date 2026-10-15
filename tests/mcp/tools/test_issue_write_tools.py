@@ -22,6 +22,7 @@ from mcp_tracker.tracker.proto.types.issues import (
     IssueComment,
     IssueLink,
     IssueTransition,
+    RemoteLink,
     Worklog,
 )
 from tests.mcp.conftest import get_tool_result_content, safe_client_session
@@ -1673,3 +1674,54 @@ class TestIssueDeleteAttachment:
         annotations = tools["issue_delete_attachment"].annotations
         assert annotations is not None
         assert annotations.destructiveHint is True
+
+
+class TestIssueRemoteLinkWrites:
+    async def test_add_passes_the_link(
+        self,
+        client_session: ClientSession,
+        mock_issues_protocol: AsyncMock,
+    ) -> None:
+        mock_issues_protocol.issue_add_remote_link.return_value = RemoteLink(id=51)
+
+        result = await client_session.call_tool(
+            "issue_add_remote_link",
+            {"issue_id": "TEST-1", "origin": "ru.yandex.bitbucket", "key": "repo/pr/7"},
+        )
+
+        assert not result.isError
+        call = mock_issues_protocol.issue_add_remote_link.call_args
+        assert call.args == ("TEST-1",)
+        assert (call.kwargs["origin"], call.kwargs["key"], call.kwargs["backlink"]) == (
+            "ru.yandex.bitbucket",
+            "repo/pr/7",
+            False,
+        )
+
+    async def test_delete_passes_the_id(
+        self,
+        client_session: ClientSession,
+        mock_issues_protocol: AsyncMock,
+    ) -> None:
+        result = await client_session.call_tool(
+            "issue_delete_remote_link", {"issue_id": "TEST-1", "link_id": 51}
+        )
+
+        assert not result.isError
+        assert mock_issues_protocol.issue_delete_remote_link.call_args.args == (
+            "TEST-1",
+            51,
+        )
+
+    async def test_read_only_queue_is_refused(
+        self,
+        client_session_with_read_only_queues: ClientSession,
+        mock_issues_protocol: AsyncMock,
+    ) -> None:
+        result = await client_session_with_read_only_queues.call_tool(
+            "issue_add_remote_link",
+            {"issue_id": "READONLY-1", "origin": "x", "key": "y"},
+        )
+
+        assert result.isError
+        mock_issues_protocol.issue_add_remote_link.assert_not_called()

@@ -32,6 +32,7 @@ uv run mcp-tracker # Run the server
   - `queue.py` / `queue_write.py`: Queue read-only / write tools
   - `field.py`: Global field and metadata tools (read-only)
   - `template.py`: Issue and comment template tools (read-only)
+  - `application.py`: External application tools (read-only)
   - `board.py`: Board and sprint tools (read-only)
   - `component.py` / `component_write.py`: Queue component read-only / write tools (`queue_get_components` itself lives with the queue tools)
   - `issue_read.py` / `issue_write.py`: Issue read-only / write tools
@@ -150,6 +151,7 @@ For paginated methods, use `side_effect` for sequential returns: `mock.method.si
 | Queue Write     | `queue_write.py`     | No        |
 | Field           | `field.py`           | Yes       |
 | Template        | `template.py`        | Yes       |
+| Application     | `application.py`     | Yes       |
 | Board           | `board.py`           | Yes       |
 | Component       | `component.py`       | Yes       |
 | Component Write | `component_write.py` | No        |

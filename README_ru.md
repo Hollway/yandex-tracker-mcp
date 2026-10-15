@@ -612,6 +612,10 @@ claude mcp add yandex-tracker docker "run --rm -i -e TRACKER_TOKEN=ваш_ток
 | `issue_get_links` | Связи со связанными, блокирующими и дублирующими задачами | `issue_id` |
 | `issue_add_link` | Связать две задачи | `issue_id`, `relationship`, `issue` |
 | `issue_delete_link` | Удалить связь | `issue_id`, `link_id` (из `issue_get_links`) |
+| `issue_get_remote_links` | Связи с объектами других приложений (pull request'ы, документы, ...) | `issue_id` |
+| `issue_add_remote_link` | Связать задачу с объектом другого приложения | `issue_id`, `origin` (из `applications_get_all`), `key`, `backlink` |
+| `issue_delete_remote_link` | Удалить такую связь | `issue_id`, `link_id` (из `issue_get_remote_links`) |
+| `applications_get_all` | Приложения, с которыми можно связать задачу | - |
 | `issue_get_worklogs` | Списанное время по одной или нескольким задачам | `issue_ids`, `fields` |
 | `worklogs_find` | Время, списанное одним пользователем по всем задачам за период; Трекер фильтрует по дню внесения записи, поэтому `start_*` не найдёт время, списанное заранее | `author` (по умолчанию — вы), `start_from`, `start_to`, `created_from`, `created_to`, `fields` |
 | `issue_add_worklog` | Списать время | `issue_id`, `duration` (ISO-8601, `PT1H30M`), `comment`, `start` |
