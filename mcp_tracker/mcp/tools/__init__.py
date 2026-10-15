@@ -46,6 +46,7 @@ from mcp_tracker.mcp.tools.issue_read import (
     register_issue_read_tools,
 )
 from mcp_tracker.mcp.tools.issue_write import (
+    register_issue_bulk_tools,
     register_issue_file_upload_tools,
     register_issue_write_tools,
 )
@@ -99,6 +100,9 @@ def register_all_tools(settings: Settings, mcp: FastMCP[Any]) -> None:
         register_board_write_tools(settings, mcp)
         register_component_write_tools(settings, mcp)
         register_issue_write_tools(settings, mcp)
+
+        if settings.tracker_bulk_enabled:
+            register_issue_bulk_tools(settings, mcp)
 
         if settings.tracker_file_upload_enabled:
             register_issue_file_upload_tools(settings, mcp)

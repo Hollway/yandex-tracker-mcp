@@ -26,7 +26,8 @@
         "TRACKER_ORG_ID": "${user_config.tracker_org_id}",
         "TRACKER_ENTITIES_ENABLED": "${user_config.tracker_entities_enabled}",
         "TRACKER_FILE_UPLOAD_ENABLED": "${user_config.tracker_file_upload_enabled}",
-        "TRACKER_ATTACHMENT_DOWNLOAD_ENABLED": "${user_config.tracker_attachment_download_enabled}"
+        "TRACKER_ATTACHMENT_DOWNLOAD_ENABLED": "${user_config.tracker_attachment_download_enabled}",
+        "TRACKER_BULK_ENABLED": "${user_config.tracker_bulk_enabled}"
       }
     }
   },
@@ -354,6 +355,22 @@
       "description": "Fetch a page of comments for an issue (cursor-paginated)"
     },
     {
+      "name": "issues_bulk_update",
+      "description": "Set the same fields on many issues at once (requires TRACKER_BULK_ENABLED)"
+    },
+    {
+      "name": "issues_bulk_transition",
+      "description": "Run one status transition on many issues at once (requires TRACKER_BULK_ENABLED)"
+    },
+    {
+      "name": "issues_bulk_move",
+      "description": "Move many issues to another queue at once (requires TRACKER_BULK_ENABLED)"
+    },
+    {
+      "name": "issues_get_bulk_change",
+      "description": "Get the state of a bulk change and the issues it failed on (requires TRACKER_BULK_ENABLED)"
+    },
+    {
       "name": "issue_get_comment",
       "description": "Get one comment of an issue by its id, with its attached files"
     },
@@ -535,6 +552,14 @@
       "type": "boolean",
       "title": "Enable File Upload to Issues",
       "description": "Register issue_add_attachment and attachment_create, which upload a file from this computer to an issue or a comment. They can read any file you can, so they are off by default.",
+      "required": false,
+      "sensitive": false,
+      "default": false
+    },
+    "tracker_bulk_enabled": {
+      "type": "boolean",
+      "title": "Enable Bulk Changes",
+      "description": "Register the tools that change, transition or move up to 10 000 issues at once. They cannot be undone, so they are off by default.",
       "required": false,
       "sensitive": false,
       "default": false

@@ -152,9 +152,20 @@ ATTACHMENT_DOWNLOAD_TOOL_NAMES = [
     "issue_download_attachment",
 ]
 
+# Bulk changes - require both write mode and TRACKER_BULK_ENABLED
+BULK_TOOL_NAMES = [
+    "issues_bulk_update",
+    "issues_bulk_transition",
+    "issues_bulk_move",
+    "issues_get_bulk_change",
+]
+
 ALL_READ_ONLY_TOOL_NAMES = READ_ONLY_TOOL_NAMES + ENTITY_READ_ONLY_TOOL_NAMES
 ALL_WRITE_TOOL_NAMES = (
-    WRITE_TOOL_NAMES + ENTITY_WRITE_TOOL_NAMES + FILE_UPLOAD_TOOL_NAMES
+    WRITE_TOOL_NAMES
+    + ENTITY_WRITE_TOOL_NAMES
+    + FILE_UPLOAD_TOOL_NAMES
+    + BULK_TOOL_NAMES
 )
 
 # All tool names that should be registered in normal mode (entity tools enabled)
@@ -259,6 +270,7 @@ class TestEntityToolRegistration:
         READ_ONLY_TOOL_NAMES
         + WRITE_TOOL_NAMES
         + FILE_UPLOAD_TOOL_NAMES
+        + BULK_TOOL_NAMES
         + ATTACHMENT_DOWNLOAD_TOOL_NAMES,
     )
     async def test_non_entity_tools_stay_registered(
@@ -281,6 +293,7 @@ class TestEntityToolRegistration:
             len(READ_ONLY_TOOL_NAMES)
             + len(WRITE_TOOL_NAMES)
             + len(FILE_UPLOAD_TOOL_NAMES)
+            + len(BULK_TOOL_NAMES)
             + len(ATTACHMENT_DOWNLOAD_TOOL_NAMES)
         )
         assert len(result.tools) == expected, (
@@ -374,6 +387,46 @@ class TestAttachmentDownloadToolRegistration:
         disabled_names = {tool.name for tool in await disabled.list_tools()}
 
         assert enabled_names - disabled_names == set(ATTACHMENT_DOWNLOAD_TOOL_NAMES)
+
+
+class TestBulkToolRegistration:
+    """Bulk changes are irreversible over up to 10 000 issues: opt-in through
+    TRACKER_BULK_ENABLED, on top of a writable server."""
+
+    @pytest.mark.parametrize(
+        ("read_only", "bulk_enabled", "registered"),
+        [
+            pytest.param(False, False, False, id="default-flag-off"),
+            pytest.param(True, True, False, id="read-only-despite-flag"),
+            pytest.param(False, True, True, id="enabled"),
+        ],
+    )
+    @pytest.mark.parametrize("tool_name", BULK_TOOL_NAMES)
+    async def test_registered_only_when_enabled_and_writable(
+        self,
+        tool_name: str,
+        read_only: bool,
+        bulk_enabled: bool,
+        registered: bool,
+    ) -> None:
+        server = create_mcp_server(
+            settings=create_test_settings(
+                read_only=read_only, bulk_enabled=bulk_enabled
+            )
+        )
+
+        tool_names = {tool.name for tool in await server.list_tools()}
+
+        assert (tool_name in tool_names) is registered
+
+    async def test_the_flag_gates_nothing_else(self) -> None:
+        enabled = create_mcp_server(settings=create_test_settings())
+        disabled = create_mcp_server(settings=create_test_settings(bulk_enabled=False))
+
+        enabled_names = {tool.name for tool in await enabled.list_tools()}
+        disabled_names = {tool.name for tool in await disabled.list_tools()}
+
+        assert enabled_names - disabled_names == set(BULK_TOOL_NAMES)
 
 
 class TestResourceRegistration:

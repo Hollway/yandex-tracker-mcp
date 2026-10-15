@@ -642,12 +642,18 @@ claude mcp add yandex-tracker docker "run --rm -i -e TRACKER_TOKEN=ваш_ток
 | `issue_create` | Создать задачу и вернуть её | `queue`, `summary`, `type`, `description`, `markup_type`, `assignee`, `priority`, `parent`, `sprint`, `followers`, `components`, `tags`, `project`, `fields` |
 | `issue_update` | Изменить любое из этих полей; непереданные остаются как были | `issue_id`, `version` и аргументы `issue_create` |
 | `issue_move` | Перенести задачу в другую очередь, что меняет её ключ (`TASKS-1` → `NEWQUEUE-42`) | `issue_id`, `queue`, `notify`, `notify_author`, `move_all_fields`, `initial_status` |
+| `issues_bulk_update` | Задать одни и те же поля до 10 000 задач; возвращает `id` операции | `issues`, `values`, `notify` |
+| `issues_bulk_transition` | Выполнить один переход для многих задач | `issues`, `transition`, `values` (резолюция при закрытии), `notify` |
+| `issues_bulk_move` | Перенести много задач в другую очередь | `issues`, `queue`, `move_all_fields`, `initial_status`, `values`, `notify` |
+| `issues_get_bulk_change` | Состояние пакетной операции; после завершения - задачи, на которых она не прошла, и причины | `bulk_change_id` |
 
 - **`version` протухает сам по себе.** Триггеры очереди и автоматизации срабатывают сразу после `issue_create` и увеличивают его, так что возвращённая версия обычно уже устарела. Перечитайте её через `issue_get` прямо перед `issue_update` или не передавайте вовсе, чтобы изменить последнюю версию безусловно: на устаревшей вызов падает с конфликтом редактирования.
 - **Ссылочные поля принимают одни и те же значения и при создании, и при изменении:** объект с `id` и/или `key`, а для `type`, `priority` и `parent` — ещё и голый ключ или id. `components` принимают `{"id": ...}` или `{"name": ...}`, причём `components` / `followers` заменяют текущий список, а не дополняют его. Всё, для чего нет отдельного аргумента, передаётся в карте `fields` по `id` поля из `queue_get_fields`; запись там перекрывает отдельный аргумент, а явный `null` очищает поле.
 - **Переходы не угадываются.** `issue_execute_transition` принимает только id из `issue_get_transitions`, а перед `issue_close` прочитайте `type` задачи через `issue_get` и допустимые для этого типа резолюции через `queue_get_metadata` с `expand: ["issueTypesConfig"]` — у каждого типа свой набор. Если клиент поддерживает elicitation, `issue_move` сначала просит подтвердить свои флаги, и отказ отменяет перенос.
 
 Все инструменты этого раздела учитывают `TRACKER_LIMIT_QUEUES` и `TRACKER_READ_ONLY_QUEUES`; те, что пишут, регистрируются, только если не задан `TRACKER_READ_ONLY`.
+
+Пакетные инструменты включаются явно: регистрируются только при `TRACKER_BULK_ENABLED=true` на сервере с записью. Пакетную операцию нельзя отменить, и она выполняется в фоне - опрашивайте `issues_get_bulk_change`, пока статус не станет `COMPLETE` или `FAILED`. Каждая задача проверяется по ограничениям очередей до отправки, а если клиент поддерживает elicitation, пользователь сначала подтверждает операцию.
 
 Инструменты для файлов вложений включаются явно и работают только локально. `issue_add_attachment` и `attachment_create` регистрируются только при `TRACKER_FILE_UPLOAD_ENABLED=true`, потому что читают любой файл, доступный процессу сервера; `issue_download_attachment` — только при `TRACKER_ATTACHMENT_DOWNLOAD_ENABLED=true`, в том числе в режиме только для чтения. Оба флага по умолчанию `false`, и ни с одним из них сервер не запустится на сетевом транспорте или с `OAUTH_ENABLED`, где клиент — или prompt injection в тексте задачи — мог бы выгрузить секреты хоста в задачу.
 
@@ -1031,6 +1037,7 @@ TRACKER_LIMIT_QUEUES=PROJ1,PROJ2,DEV      # Ключи очередей чере
 TRACKER_READ_ONLY_QUEUES=PROJ2            # Ключи очередей через запятую - доступны для чтения, но запись отклоняется (режим только для чтения по очередям)
 TRACKER_ENTITIES_ENABLED=true             # По умолчанию: false - регистрировать инструменты проектов/портфелей/целей (НЕ подчиняются ограничениям по очередям выше)
 TRACKER_FILE_UPLOAD_ENABLED=true          # По умолчанию: false - регистрировать issue_add_attachment и attachment_create, загружающие локальные файлы (только stdio: с сетевым транспортом или OAUTH_ENABLED сервер не запустится)
+TRACKER_BULK_ENABLED=true                 # По умолчанию: false - регистрировать пакетные инструменты (до 10 000 задач за раз, необратимо)
 TRACKER_ATTACHMENT_DOWNLOAD_ENABLED=true  # По умолчанию: false - регистрировать issue_download_attachment, сохраняющий вложения на эту машину (только stdio, как флаг выше)
 TRACKER_ATTACHMENTS_DIR=/path/to/dir      # По умолчанию: <системный temp>/yandex-tracker-mcp/attachments - куда сохраняются скачанные вложения
 TRACKER_MAX_ATTACHMENT_BYTES=52428800     # По умолчанию: 52428800 (50 МиБ) - вложения больше не скачиваются

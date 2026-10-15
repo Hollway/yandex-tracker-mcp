@@ -392,3 +392,65 @@ class IssuesCount(BaseTrackerEntity):
     count: int = Field(
         description="Number of issues matching the query - a count, not an HTTP status.",
     )
+
+
+class BulkChange(BaseTrackerEntity):
+    """A bulk change: queued at once, applied in the background."""
+
+    id: str
+    status: str | None = Field(
+        None,
+        description="CREATED, RUNNING and RUNNING_FAILING go on; COMPLETE and FAILED "
+        "are final.",
+        exclude_if=none_excluder,
+    )
+    status_text: str | None = Field(
+        None,
+        validation_alias=AliasChoices("statusText", "status_text"),
+        serialization_alias="statusText",
+        exclude_if=none_excluder,
+    )
+    total_issues: int | None = Field(
+        None,
+        validation_alias=AliasChoices("totalIssues", "total_issues"),
+        serialization_alias="totalIssues",
+        exclude_if=none_excluder,
+    )
+    total_completed_issues: int | None = Field(
+        None,
+        validation_alias=AliasChoices("totalCompletedIssues", "total_completed_issues"),
+        serialization_alias="totalCompletedIssues",
+        exclude_if=none_excluder,
+    )
+    created_at: datetime.datetime | None = Field(
+        None,
+        validation_alias=AliasChoices("createdAt", "created_at"),
+        serialization_alias="createdAt",
+        exclude_if=none_excluder,
+    )
+
+
+class BulkChangeFailure(BaseTrackerEntity):
+    """One issue a bulk change could not apply to, with Tracker's reason."""
+
+    issue: IssueReference | None = NoneExcludedField
+    status: str | None = NoneExcludedField
+    status_text: str | None = Field(
+        None,
+        validation_alias=AliasChoices("statusText", "status_text"),
+        serialization_alias="statusText",
+        exclude_if=none_excluder,
+    )
+    error: dict[str, Any] | None = NoneExcludedField
+
+
+class BulkChangeReport(BaseModel):
+    """A bulk change's state and, once it is over, the issues it failed on."""
+
+    change: BulkChange
+    failures: list[BulkChangeFailure] | None = Field(
+        None,
+        description="Issues the change failed on; read only once the change is "
+        "final and did not complete for every issue.",
+        exclude_if=none_excluder,
+    )

@@ -10,6 +10,7 @@ from mcp.client.session import ClientSession
 
 from tests.mcp.server.test_server_creation import (
     ATTACHMENT_DOWNLOAD_TOOL_NAMES,
+    BULK_TOOL_NAMES,
     ENTITY_READ_ONLY_TOOL_NAMES,
     ENTITY_WRITE_TOOL_NAMES,
     FILE_UPLOAD_TOOL_NAMES,
@@ -19,6 +20,7 @@ from tests.mcp.server.tool_listing import TOOL_NAMES
 ENTITIES_FLAG_NOTE = "(requires TRACKER_ENTITIES_ENABLED)"
 FILE_UPLOAD_FLAG_NOTE = "(requires TRACKER_FILE_UPLOAD_ENABLED)"
 ATTACHMENT_DOWNLOAD_FLAG_NOTE = "(requires TRACKER_ATTACHMENT_DOWNLOAD_ENABLED)"
+BULK_FLAG_NOTE = "(requires TRACKER_BULK_ENABLED)"
 MANIFEST_PATH = Path(__file__).parents[3] / "manifest.json"
 
 
@@ -131,4 +133,21 @@ async def test_manifest_declares_the_attachment_download_flag(
     assert (
         manifest["server"]["mcp_config"]["env"]["TRACKER_ATTACHMENT_DOWNLOAD_ENABLED"]
         == "${user_config.tracker_attachment_download_enabled}"
+    )
+
+
+@pytest.mark.parametrize("tool_name", BULK_TOOL_NAMES)
+def test_bulk_tools_are_marked_as_opt_in(
+    manifest: dict[str, Any], tool_name: str
+) -> None:
+    descriptions = {tool["name"]: tool["description"] for tool in manifest["tools"]}
+
+    assert descriptions[tool_name].endswith(BULK_FLAG_NOTE)
+
+
+async def test_manifest_declares_the_bulk_flag(manifest: dict[str, Any]) -> None:
+    assert manifest["user_config"]["tracker_bulk_enabled"]["default"] is False
+    assert (
+        manifest["server"]["mcp_config"]["env"]["TRACKER_BULK_ENABLED"]
+        == "${user_config.tracker_bulk_enabled}"
     )

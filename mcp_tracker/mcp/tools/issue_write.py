@@ -43,6 +43,8 @@ from mcp_tracker.tracker.proto.types.inputs import (
     IssueTypeRef,
 )
 from mcp_tracker.tracker.proto.types.issues import (
+    BulkChange,
+    BulkChangeReport,
     ChecklistItem,
     Issue,
     IssueAttachment,
@@ -917,3 +919,183 @@ def register_issue_file_upload_tools(settings: Settings, mcp: FastMCP[Any]) -> N
             filename=filename or path.name,
             auth=get_yandex_auth(ctx),
         )
+
+
+# The API's own cap on one bulk change.
+MAX_BULK_ISSUES = 10_000
+
+BulkIssuesParam = Annotated[
+    list[str],
+    Field(
+        min_length=1,
+        max_length=MAX_BULK_ISSUES,
+        description="Issue keys, at most 10 000; each is checked against the queue "
+        "restrictions.",
+    ),
+]
+
+BulkValuesParam = Annotated[
+    dict[str, Any] | None,
+    Field(
+        description="Fields to set, as in issue_update's `fields` map: keyed by field "
+        '`id`; e.g. {"tags": {"add": ["x"]}}.'
+    ),
+]
+
+BulkNotifyParam = Annotated[
+    bool, Field(description="Notify the people in the issues' fields. Default: off.")
+]
+
+
+class _BulkConfirmation(BaseModel):
+    confirm: bool = Field(
+        default=False, description="Yes - apply this change to all listed issues."
+    )
+
+
+async def _confirm_bulk(ctx: Context[Any, AppContext], what: str, count: int) -> None:
+    """Ask the user to confirm a bulk change, where the client can ask.
+
+    A client without elicitation goes ahead: TRACKER_BULK_ENABLED, which the
+    user set, is then the consent.
+    """
+    if not ctx.session.check_client_capability(
+        ClientCapabilities(elicitation=ElicitationCapability())
+    ):
+        return
+    answer = await ctx.elicit(
+        message=f"{what} for {count} issue(s). This cannot be undone. Proceed?",
+        schema=_BulkConfirmation,
+    )
+    if answer.action != "accept" or not answer.data.confirm:
+        raise TrackerError(f"{what} was cancelled by the user.")
+
+
+def register_issue_bulk_tools(settings: Settings, mcp: FastMCP[Any]) -> None:
+    """Register the bulk-change tools (`TRACKER_BULK_ENABLED`, writable server)."""
+
+    def check_all(issues: list[str]) -> None:
+        for issue_id in issues:
+            check_issue_access(settings, issue_id, write=True)
+
+    @mcp.tool(
+        title="Bulk Update Issues",
+        description="Set the same fields on up to 10 000 Yandex Tracker issues at "
+        "once ('массовое редактирование'). Irreversible and asynchronous: poll "
+        "issues_get_bulk_change with the returned `id` (requires TRACKER_BULK_ENABLED).",
+        annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True),
+    )
+    async def issues_bulk_update(
+        ctx: Context[Any, AppContext],
+        issues: BulkIssuesParam,
+        values: Annotated[
+            dict[str, Any],
+            Field(
+                description="Fields to set, keyed by field `id`, as in issue_update's "
+                "`fields` map."
+            ),
+        ],
+        notify: BulkNotifyParam = False,
+    ) -> BulkChange:
+        check_all(issues)
+        await _confirm_bulk(ctx, f"Update fields {sorted(values)}", len(issues))
+        return await ctx.request_context.lifespan_context.issues.issues_bulk_update(
+            issues, values=values, notify=notify, auth=get_yandex_auth(ctx)
+        )
+
+    @mcp.tool(
+        title="Bulk Transition Issues",
+        description="Run one status transition on up to 10 000 Yandex Tracker issues "
+        "at once; a closing one needs `values` with a resolution. Irreversible and "
+        "asynchronous: poll issues_get_bulk_change (requires TRACKER_BULK_ENABLED).",
+        annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True),
+    )
+    async def issues_bulk_transition(
+        ctx: Context[Any, AppContext],
+        issues: BulkIssuesParam,
+        transition: Annotated[
+            str,
+            Field(description="Transition `id` from issue_get_transitions."),
+        ],
+        values: BulkValuesParam = None,
+        notify: BulkNotifyParam = False,
+    ) -> BulkChange:
+        check_all(issues)
+        await _confirm_bulk(ctx, f"Run transition `{transition}`", len(issues))
+        return await ctx.request_context.lifespan_context.issues.issues_bulk_transition(
+            issues,
+            transition=transition,
+            values=values,
+            notify=notify,
+            auth=get_yandex_auth(ctx),
+        )
+
+    @mcp.tool(
+        title="Bulk Move Issues",
+        description="Move up to 10 000 Yandex Tracker issues to another queue at "
+        "once. Irreversible and asynchronous: poll issues_get_bulk_change "
+        "(requires TRACKER_BULK_ENABLED).",
+        annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True),
+    )
+    async def issues_bulk_move(
+        ctx: Context[Any, AppContext],
+        issues: BulkIssuesParam,
+        queue: Annotated[str, Field(description="Key of the target queue.")],
+        move_all_fields: Annotated[
+            bool,
+            Field(
+                description="Keep versions, components and projects that exist in the "
+                "target queue; by default they are cleared."
+            ),
+        ] = False,
+        initial_status: Annotated[
+            bool,
+            Field(
+                description="Reset the status to the target queue's initial one - "
+                "needed when its workflow differs."
+            ),
+        ] = False,
+        values: BulkValuesParam = None,
+        notify: BulkNotifyParam = False,
+    ) -> BulkChange:
+        check_all(issues)
+        check_queue_access(settings, queue, write=True)
+        await _confirm_bulk(ctx, f"Move to queue `{queue}`", len(issues))
+        return await ctx.request_context.lifespan_context.issues.issues_bulk_move(
+            issues,
+            queue=queue,
+            values=values,
+            move_all_fields=move_all_fields,
+            initial_status=initial_status,
+            notify=notify,
+            auth=get_yandex_auth(ctx),
+        )
+
+    @mcp.tool(
+        title="Get Bulk Change",
+        description="Get the state of a bulk change by the `id` an issues_bulk_* tool "
+        "returned; once it is final, also the issues it failed on and why (requires "
+        "TRACKER_BULK_ENABLED).",
+        annotations=ToolAnnotations(readOnlyHint=True),
+    )
+    async def issues_get_bulk_change(
+        ctx: Context[Any, AppContext],
+        bulk_change_id: Annotated[
+            str, Field(description="The `id` an issues_bulk_* tool returned.")
+        ],
+    ) -> BulkChangeReport:
+        issues = ctx.request_context.lifespan_context.issues
+        auth = get_yandex_auth(ctx)
+        change = await issues.bulk_change_get(bulk_change_id, auth=auth)
+
+        failures = None
+        incomplete = (
+            change.total_issues is not None
+            and change.total_completed_issues is not None
+            and change.total_completed_issues < change.total_issues
+        )
+        if change.status in ("COMPLETE", "FAILED") and (
+            incomplete or change.status == "FAILED"
+        ):
+            failures = await issues.bulk_change_get_failures(bulk_change_id, auth=auth)
+        return BulkChangeReport(change=change, failures=failures)

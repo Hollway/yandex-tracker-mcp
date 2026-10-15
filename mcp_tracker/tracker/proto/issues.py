@@ -16,6 +16,8 @@ from .types.inputs import (
     IssueTypeRef,
 )
 from .types.issues import (
+    BulkChange,
+    BulkChangeFailure,
     ChangelogPage,
     ChecklistItem,
     CommentsPage,
@@ -57,6 +59,40 @@ class IssueProtocol(Protocol):
         attachment_ids: list[str] | None = None,
         auth: YandexAuth | None = None,
     ) -> IssueComment: ...
+    async def issues_bulk_update(
+        self,
+        issues: list[str],
+        *,
+        values: dict[str, Any],
+        notify: bool = False,
+        auth: YandexAuth | None = None,
+    ) -> BulkChange: ...
+    async def issues_bulk_transition(
+        self,
+        issues: list[str],
+        *,
+        transition: str,
+        values: dict[str, Any] | None = None,
+        notify: bool = False,
+        auth: YandexAuth | None = None,
+    ) -> BulkChange: ...
+    async def issues_bulk_move(
+        self,
+        issues: list[str],
+        *,
+        queue: str,
+        values: dict[str, Any] | None = None,
+        move_all_fields: bool = False,
+        initial_status: bool = False,
+        notify: bool = False,
+        auth: YandexAuth | None = None,
+    ) -> BulkChange: ...
+    async def bulk_change_get(
+        self, bulk_change_id: str, *, auth: YandexAuth | None = None
+    ) -> BulkChange: ...
+    async def bulk_change_get_failures(
+        self, bulk_change_id: str, *, auth: YandexAuth | None = None
+    ) -> list[BulkChangeFailure]: ...
     async def applications_list(
         self, *, auth: YandexAuth | None = None
     ) -> list[ExternalApplication]: ...

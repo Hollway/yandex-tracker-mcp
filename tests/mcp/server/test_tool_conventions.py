@@ -55,7 +55,9 @@ MAX_DESCRIPTION_LENGTH = 350
 
 TOOL_NAME_PATTERN = re.compile(r"^([a-z]+)(?:_[a-z0-9]+)+$")
 
-READ_ONLY_NAMES = frozenset(ALL_READ_ONLY_TOOL_NAMES)
+# The bulk-change status read is gated with the bulk writes, not listed with
+# the always-on read-only tools - but it is read-only all the same.
+READ_ONLY_NAMES = frozenset([*ALL_READ_ONLY_TOOL_NAMES, "issues_get_bulk_change"])
 NAMED_BY_THE_RULE = [
     tool for tool in REGISTERED_TOOLS if tool.name not in LEGACY_TOOL_NAMES
 ]

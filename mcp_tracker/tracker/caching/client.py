@@ -44,6 +44,8 @@ from mcp_tracker.tracker.proto.types.inputs import (
 )
 from mcp_tracker.tracker.proto.types.issue_types import IssueType
 from mcp_tracker.tracker.proto.types.issues import (
+    BulkChange,
+    BulkChangeFailure,
     ChangelogPage,
     ChecklistItem,
     CommentsPage,
@@ -283,6 +285,65 @@ def make_cached_protocols(
                 maillist_summonees=maillist_summonees,
                 markup_type=markup_type,
                 auth=auth,
+            )
+
+        async def issues_bulk_update(
+            self,
+            issues: list[str],
+            *,
+            values: dict[str, Any],
+            notify: bool = False,
+            auth: YandexAuth | None = None,
+        ) -> BulkChange:
+            return await self._original.issues_bulk_update(
+                issues, values=values, notify=notify, auth=auth
+            )
+
+        async def issues_bulk_transition(
+            self,
+            issues: list[str],
+            *,
+            transition: str,
+            values: dict[str, Any] | None = None,
+            notify: bool = False,
+            auth: YandexAuth | None = None,
+        ) -> BulkChange:
+            return await self._original.issues_bulk_transition(
+                issues, transition=transition, values=values, notify=notify, auth=auth
+            )
+
+        async def issues_bulk_move(
+            self,
+            issues: list[str],
+            *,
+            queue: str,
+            values: dict[str, Any] | None = None,
+            move_all_fields: bool = False,
+            initial_status: bool = False,
+            notify: bool = False,
+            auth: YandexAuth | None = None,
+        ) -> BulkChange:
+            return await self._original.issues_bulk_move(
+                issues,
+                queue=queue,
+                values=values,
+                move_all_fields=move_all_fields,
+                initial_status=initial_status,
+                notify=notify,
+                auth=auth,
+            )
+
+        # Not cached: a bulk change is polled until it ends.
+        async def bulk_change_get(
+            self, bulk_change_id: str, *, auth: YandexAuth | None = None
+        ) -> BulkChange:
+            return await self._original.bulk_change_get(bulk_change_id, auth=auth)
+
+        async def bulk_change_get_failures(
+            self, bulk_change_id: str, *, auth: YandexAuth | None = None
+        ) -> list[BulkChangeFailure]:
+            return await self._original.bulk_change_get_failures(
+                bulk_change_id, auth=auth
             )
 
         @cached(**cache_config)

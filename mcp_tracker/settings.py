@@ -46,6 +46,8 @@ class Settings(BaseSettings):
     # `issue_download_attachment` is opt-in and stdio-only as well: it writes to
     # the server's disk, and the path it returns means nothing to a remote client.
     tracker_attachment_download_enabled: bool = False
+    # Bulk changes (up to 10 000 issues at once, irreversible) are opt-in.
+    tracker_bulk_enabled: bool = False
     # Where downloads go; `None` means `<system temp>/yandex-tracker-mcp/attachments`
     # (see `attachments_dir`). Files are kept - a later download of the same
     # attachment reuses them.

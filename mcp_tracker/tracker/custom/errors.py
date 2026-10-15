@@ -393,3 +393,12 @@ class SprintEmptyUpdate(YandexTrackerError):
             "A sprint update must change something: pass at least one of `name`, "
             "`start_date`, `end_date` or `status`."
         )
+
+
+class BulkChangeNotFound(YandexTrackerError):
+    def __init__(self, bulk_change_id: str):
+        super().__init__(
+            f"Bulk change '{bulk_change_id}' not found - use the `id` an issues_bulk_* "
+            f"tool returned."
+        )
+        self.bulk_change_id = bulk_change_id

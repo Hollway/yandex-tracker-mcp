@@ -25,6 +25,7 @@ from mcp_tracker.tracker.custom.errors import (
     AttachmentNotFound,
     AttachmentTooLarge,
     BoardNotFound,
+    BulkChangeNotFound,
     ChecklistBatchPartiallyAdded,
     ChecklistItemEmptyUpdate,
     ChecklistItemNotFound,
@@ -88,6 +89,8 @@ from mcp_tracker.tracker.proto.types.inputs import (
 )
 from mcp_tracker.tracker.proto.types.issue_types import IssueType
 from mcp_tracker.tracker.proto.types.issues import (
+    BulkChange,
+    BulkChangeFailure,
     ChangelogEntry,
     ChangelogPage,
     ChecklistItem,
@@ -130,6 +133,7 @@ IssueList = RootModel[list[Issue]]
 IssueCommentList = RootModel[list[IssueComment]]
 WorklogList = RootModel[list[Worklog]]
 IssueAttachmentList = RootModel[list[IssueAttachment]]
+BulkChangeFailureList = RootModel[list[BulkChangeFailure]]
 ExternalApplicationList = RootModel[list[ExternalApplication]]
 RemoteLinkList = RootModel[list[RemoteLink]]
 
@@ -1023,6 +1027,96 @@ class TrackerClient(
                 not_found=IssueNotFound(issue_id),
             )
         )
+
+    async def issues_bulk_update(
+        self,
+        issues: list[str],
+        *,
+        values: dict[str, Any],
+        notify: bool = False,
+        auth: YandexAuth | None = None,
+    ) -> BulkChange:
+        return await self._bulk_change(
+            "_update", {"issues": issues, "values": values}, notify, auth=auth
+        )
+
+    async def issues_bulk_transition(
+        self,
+        issues: list[str],
+        *,
+        transition: str,
+        values: dict[str, Any] | None = None,
+        notify: bool = False,
+        auth: YandexAuth | None = None,
+    ) -> BulkChange:
+        body: dict[str, Any] = {"transition": transition, "issues": issues}
+        if values:
+            body["values"] = values
+        return await self._bulk_change("_transition", body, notify, auth=auth)
+
+    async def issues_bulk_move(
+        self,
+        issues: list[str],
+        *,
+        queue: str,
+        values: dict[str, Any] | None = None,
+        move_all_fields: bool = False,
+        initial_status: bool = False,
+        notify: bool = False,
+        auth: YandexAuth | None = None,
+    ) -> BulkChange:
+        body: dict[str, Any] = {"queue": queue, "issues": issues}
+        if values:
+            body["values"] = values
+        if move_all_fields:
+            body["moveAllFields"] = True
+        if initial_status:
+            body["initialStatus"] = True
+        return await self._bulk_change("_move", body, notify, auth=auth)
+
+    async def _bulk_change(
+        self,
+        operation: str,
+        body: dict[str, Any],
+        notify: bool,
+        *,
+        auth: YandexAuth | None,
+    ) -> BulkChange:
+        """Queue a bulk change. `notify` is false on Tracker's side by default and
+        is sent only when set."""
+        return BulkChange.model_validate_json(
+            await self._read(
+                "POST",
+                f"v3/bulkchange/{operation}",
+                auth=auth,
+                params={"notify": "true"} if notify else None,
+                json=body,
+            )
+        )
+
+    async def bulk_change_get(
+        self, bulk_change_id: str, *, auth: YandexAuth | None = None
+    ) -> BulkChange:
+        return BulkChange.model_validate_json(
+            await self._read(
+                "GET",
+                f"v3/bulkchange/{quote(bulk_change_id, safe='')}",
+                auth=auth,
+                not_found=BulkChangeNotFound(bulk_change_id),
+            )
+        )
+
+    async def bulk_change_get_failures(
+        self, bulk_change_id: str, *, auth: YandexAuth | None = None
+    ) -> list[BulkChangeFailure]:
+        return BulkChangeFailureList.model_validate_json(
+            await self._read(
+                "GET",
+                f"v3/bulkchange/{quote(bulk_change_id, safe='')}/issues",
+                auth=auth,
+                not_found=BulkChangeNotFound(bulk_change_id),
+            )
+        ).root
 
     async def applications_list(
         self, *, auth: YandexAuth | None = None

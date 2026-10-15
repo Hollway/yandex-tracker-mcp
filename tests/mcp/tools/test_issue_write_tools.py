@@ -16,6 +16,8 @@ from mcp_tracker.tracker.proto.types.inputs import (
     IssueFollowerRef,
 )
 from mcp_tracker.tracker.proto.types.issues import (
+    BulkChange,
+    BulkChangeFailure,
     ChecklistItem,
     Issue,
     IssueAttachment,
@@ -1725,3 +1727,124 @@ class TestIssueRemoteLinkWrites:
 
         assert result.isError
         mock_issues_protocol.issue_add_remote_link.assert_not_called()
+
+
+class TestBulkTools:
+    async def test_update_without_elicitation_goes_ahead(
+        self,
+        client_session: ClientSession,
+        mock_issues_protocol: AsyncMock,
+    ) -> None:
+        mock_issues_protocol.issues_bulk_update.return_value = BulkChange(id="b1")
+
+        result = await client_session.call_tool(
+            "issues_bulk_update",
+            {"issues": ["TEST-1", "TEST-2"], "values": {"priority": "minor"}},
+        )
+
+        assert not result.isError
+        call = mock_issues_protocol.issues_bulk_update.call_args
+        assert call.args == (["TEST-1", "TEST-2"],)
+        assert call.kwargs["values"] == {"priority": "minor"}
+        assert get_tool_result_content(result)["id"] == "b1"
+
+    async def test_one_restricted_issue_stops_the_whole_change(
+        self,
+        client_session_with_limits: ClientSession,
+        mock_issues_protocol: AsyncMock,
+    ) -> None:
+        result = await client_session_with_limits.call_tool(
+            "issues_bulk_update",
+            {"issues": ["ALLOWED-1", "RESTRICTED-1"], "values": {"tags": ["x"]}},
+        )
+
+        assert result.isError
+        mock_issues_protocol.issues_bulk_update.assert_not_called()
+
+    async def test_move_checks_the_target_queue(
+        self,
+        client_session_with_read_only_queues: ClientSession,
+        mock_issues_protocol: AsyncMock,
+    ) -> None:
+        result = await client_session_with_read_only_queues.call_tool(
+            "issues_bulk_move", {"issues": ["TEST-1"], "queue": "READONLY"}
+        )
+
+        assert result.isError
+        mock_issues_protocol.issues_bulk_move.assert_not_called()
+
+    @pytest.mark.parametrize(
+        "answer",
+        [
+            pytest.param(ElicitResult(action="decline"), id="decline"),
+            pytest.param(
+                ElicitResult(action="accept", content={"confirm": False}), id="no"
+            ),
+        ],
+    )
+    async def test_a_refused_confirmation_cancels(
+        self,
+        mcp_server: FastMCP[Any],
+        mock_issues_protocol: AsyncMock,
+        answer: ElicitResult,
+    ) -> None:
+        async with elicit_client_session(mcp_server, answer) as session:
+            result = await session.call_tool(
+                "issues_bulk_transition", {"issues": ["TEST-1"], "transition": "close"}
+            )
+
+        assert "cancelled by the user" in error_text(result)
+        mock_issues_protocol.issues_bulk_transition.assert_not_called()
+
+    async def test_a_confirmed_change_is_sent(
+        self,
+        mcp_server: FastMCP[Any],
+        mock_issues_protocol: AsyncMock,
+    ) -> None:
+        mock_issues_protocol.issues_bulk_transition.return_value = BulkChange(id="b2")
+
+        async with elicit_client_session(
+            mcp_server, ElicitResult(action="accept", content={"confirm": True})
+        ) as session:
+            result = await session.call_tool(
+                "issues_bulk_transition", {"issues": ["TEST-1"], "transition": "close"}
+            )
+
+        assert not result.isError
+        mock_issues_protocol.issues_bulk_transition.assert_called_once()
+
+    async def test_status_reads_failures_once_final(
+        self,
+        client_session: ClientSession,
+        mock_issues_protocol: AsyncMock,
+    ) -> None:
+        mock_issues_protocol.bulk_change_get.return_value = BulkChange(
+            id="b1", status="COMPLETE", total_issues=3, total_completed_issues=2
+        )
+        mock_issues_protocol.bulk_change_get_failures.return_value = [
+            BulkChangeFailure(status="FAILED", error={"errors": {"x": "y"}})
+        ]
+
+        result = await client_session.call_tool(
+            "issues_get_bulk_change", {"bulk_change_id": "b1"}
+        )
+
+        content = get_tool_result_content(result)
+        assert content["change"]["status"] == "COMPLETE"
+        assert content["failures"][0]["error"] == {"errors": {"x": "y"}}
+
+    async def test_status_while_running_skips_the_failures(
+        self,
+        client_session: ClientSession,
+        mock_issues_protocol: AsyncMock,
+    ) -> None:
+        mock_issues_protocol.bulk_change_get.return_value = BulkChange(
+            id="b1", status="RUNNING", total_issues=3, total_completed_issues=1
+        )
+
+        result = await client_session.call_tool(
+            "issues_get_bulk_change", {"bulk_change_id": "b1"}
+        )
+
+        assert "failures" not in get_tool_result_content(result)
+        mock_issues_protocol.bulk_change_get_failures.assert_not_called()

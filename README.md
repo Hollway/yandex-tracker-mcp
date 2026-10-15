@@ -645,12 +645,18 @@ These four are organization-wide. A queue may accept only some of the values the
 | `issue_create` | Create an issue, returning it | `queue`, `summary`, `type`, `description`, `markup_type`, `assignee`, `priority`, `parent`, `sprint`, `followers`, `components`, `tags`, `project`, `fields` |
 | `issue_update` | Change any of those fields; the ones you omit stay as they are | `issue_id`, `version`, and the arguments `issue_create` takes |
 | `issue_move` | Move an issue to another queue, which changes its key (`TASKS-1` → `NEWQUEUE-42`) | `issue_id`, `queue`, `notify`, `notify_author`, `move_all_fields`, `initial_status` |
+| `issues_bulk_update` | Set the same fields on up to 10 000 issues; returns the change `id` | `issues`, `values`, `notify` |
+| `issues_bulk_transition` | Run one transition on many issues | `issues`, `transition`, `values` (a resolution for closing), `notify` |
+| `issues_bulk_move` | Move many issues to another queue | `issues`, `queue`, `move_all_fields`, `initial_status`, `values`, `notify` |
+| `issues_get_bulk_change` | The state of a bulk change; once it is final, the issues it failed on and why | `bulk_change_id` |
 
 - **`version` goes stale on its own.** Queue triggers and automation run right after `issue_create` and bump it, so the version it returns is routinely already old. Re-read it with `issue_get` immediately before `issue_update`, or omit it to update the latest version unconditionally; a stale one fails with an editing conflict.
 - **Reference fields take the same values on create and on update:** an object with `id` and/or `key`, or - for `type`, `priority` and `parent` - the bare key or id. `components` take `{"id": ...}` or `{"name": ...}`, and `components` / `followers` replace the current list rather than adding to it. Anything without a dedicated argument goes into the `fields` map, keyed by the field `id` from `queue_get_fields`; an entry there overrides the dedicated argument, and an explicit `null` clears the field.
 - **Transitions are not guessed.** `issue_execute_transition` only takes ids from `issue_get_transitions`, and before `issue_close` read the issue's `type` with `issue_get` and the resolutions valid for that type from `queue_get_metadata` with `expand: ["issueTypesConfig"]` - each type has its own set. Where the client supports elicitation, `issue_move` asks the user to confirm its flags first, and declining aborts the move.
 
 Every tool here respects `TRACKER_LIMIT_QUEUES` and `TRACKER_READ_ONLY_QUEUES`; the ones that write are registered only when `TRACKER_READ_ONLY` is off.
+
+The bulk tools are opt-in: registered only with `TRACKER_BULK_ENABLED=true` on a writable server. A bulk change cannot be undone and runs in the background - poll `issues_get_bulk_change` until its status is `COMPLETE` or `FAILED`. Every issue is checked against the queue restrictions before anything is sent, and where the client supports elicitation the user confirms the change first.
 
 The attachment file tools are opt-in and local-only. `issue_add_attachment` and `attachment_create` are registered only with `TRACKER_FILE_UPLOAD_ENABLED=true`, because they read any file the server process can; `issue_download_attachment` only with `TRACKER_ATTACHMENT_DOWNLOAD_ENABLED=true`, read-only mode included. Both default to `false`, and the server refuses to start with either on a network transport or with `OAUTH_ENABLED`, where a client - or a prompt injected into an issue - could upload the host's secrets to an issue.
 
@@ -1034,6 +1040,7 @@ TRACKER_LIMIT_QUEUES=PROJ1,PROJ2,DEV      # Comma-separated queue keys - allow-l
 TRACKER_READ_ONLY_QUEUES=PROJ2            # Comma-separated queue keys - allowed for reads but reject writes (per-queue read-only)
 TRACKER_ENTITIES_ENABLED=true             # Default: false - Register project/portfolio/goal tools (NOT covered by the queue restrictions above)
 TRACKER_FILE_UPLOAD_ENABLED=true          # Default: false - Register issue_add_attachment and attachment_create, which upload local files (stdio only: refused with a network transport or OAUTH_ENABLED)
+TRACKER_BULK_ENABLED=true                 # Default: false - Register the bulk-change tools (up to 10 000 issues at once, irreversible)
 TRACKER_ATTACHMENT_DOWNLOAD_ENABLED=true  # Default: false - Register issue_download_attachment, which saves attachments to this machine (stdio only, like the flag above)
 TRACKER_ATTACHMENTS_DIR=/path/to/dir      # Default: <system temp>/yandex-tracker-mcp/attachments - Where downloaded attachments are saved
 TRACKER_MAX_ATTACHMENT_BYTES=52428800     # Default: 52428800 (50 MiB) - Larger attachments are not downloaded
