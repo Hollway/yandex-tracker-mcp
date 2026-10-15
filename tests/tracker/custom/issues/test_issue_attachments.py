@@ -1,15 +1,23 @@
+from pathlib import Path
 from typing import Any
 
 import pytest
 from aiohttp import ClientTimeout
 from aioresponses import aioresponses
+from pytest_mock import MockerFixture
 
 from mcp_tracker.tracker.custom.client import TrackerClient
-from mcp_tracker.tracker.custom.errors import IssueNotFound, TrackerAPITimeout
+from mcp_tracker.tracker.custom.errors import (
+    AttachmentNotFound,
+    AttachmentTooLarge,
+    IssueNotFound,
+    TrackerAPITimeout,
+)
 from mcp_tracker.tracker.proto.types.issues import IssueAttachment
 from tests.aioresponses_utils import RequestCapture
 
 UPLOAD_URL = "https://api.tracker.yandex.net/v3/issues/TEST-123/attachments/"
+DOWNLOAD_URL = "https://api.tracker.yandex.net/v3/issues/TEST-123/attachments/7946"
 
 # Not valid UTF-8, with the bytes a text-mode round trip would mangle.
 FILE_CONTENT = b"\x89PNG\r\n\x1a\n\x00\xff binary\nbody"
@@ -177,3 +185,174 @@ class TestIssueAddAttachment:
                 )
 
         assert exc_info.value.issue_id == "NOTFOUND-123"
+
+
+class TestIssueDownloadAttachment:
+    async def test_streams_the_body_into_the_destination(
+        self, tracker_client: TrackerClient, tmp_path: Path
+    ) -> None:
+        destination = tmp_path / "TEST-123" / "7946-image.png"
+
+        with aioresponses() as m:
+            m.get(f"{DOWNLOAD_URL}/image.png", body=FILE_CONTENT)
+
+            written = await tracker_client.issue_download_attachment(
+                "TEST-123", "7946", "image.png", destination
+            )
+
+        assert written == len(FILE_CONTENT)
+        assert destination.read_bytes() == FILE_CONTENT
+        assert list(destination.parent.iterdir()) == [destination]
+
+    @pytest.mark.parametrize(
+        ("file_name", "url_segment"),
+        [
+            pytest.param(
+                "отчёт 1.txt",
+                "%D0%BE%D1%82%D1%87%D1%91%D1%82%201.txt",
+                id="cyrillic-and-space",
+            ),
+            pytest.param("a/b.png", "a%2Fb.png", id="slash"),
+            pytest.param("../../v3/myself", "..%2F..%2Fv3%2Fmyself", id="traversal"),
+        ],
+    )
+    async def test_the_name_is_one_quoted_path_segment(
+        self,
+        tracker_client: TrackerClient,
+        tmp_path: Path,
+        file_name: str,
+        url_segment: str,
+    ) -> None:
+        capture = RequestCapture(status=200, body=FILE_CONTENT)
+
+        with aioresponses() as m:
+            m.get(f"{DOWNLOAD_URL}/{url_segment}", callback=capture.callback)
+
+            await tracker_client.issue_download_attachment(
+                "TEST-123", "7946", file_name, tmp_path / "file"
+            )
+
+        capture.assert_called_once()
+        assert capture.last_request.url.raw_path == (
+            f"/v3/issues/TEST-123/attachments/7946/{url_segment}"
+        )
+
+    async def test_a_declared_length_over_the_limit_is_refused_unread(
+        self, tmp_path: Path
+    ) -> None:
+        client = TrackerClient(
+            token="test-token", org_id="test-org", max_attachment_bytes=10
+        )
+        destination = tmp_path / "big.bin"
+
+        try:
+            with aioresponses() as m:
+                m.get(
+                    f"{DOWNLOAD_URL}/big.bin",
+                    body=b"x" * 11,
+                    headers={"Content-Length": "11"},
+                )
+
+                with pytest.raises(AttachmentTooLarge) as exc_info:
+                    await client.issue_download_attachment(
+                        "TEST-123", "7946", "big.bin", destination
+                    )
+        finally:
+            await client.close()
+
+        assert (exc_info.value.size, exc_info.value.limit) == (11, 10)
+        assert not destination.exists()
+        assert list(tmp_path.iterdir()) == []
+
+    async def test_a_body_over_the_limit_leaves_no_file(
+        self, tmp_path: Path, mocker: MockerFixture
+    ) -> None:
+        client = TrackerClient(
+            token="test-token", org_id="test-org", max_attachment_bytes=10
+        )
+        destination = tmp_path / "big.bin"
+
+        try:
+            with aioresponses() as m:
+                m.get(f"{DOWNLOAD_URL}/big.bin", body=b"x" * 11)
+                # A server that does not declare the length: the bytes are counted.
+                mocker.patch(
+                    "aiohttp.ClientResponse.content_length",
+                    new_callable=mocker.PropertyMock,
+                    return_value=None,
+                )
+
+                with pytest.raises(AttachmentTooLarge) as exc_info:
+                    await client.issue_download_attachment(
+                        "TEST-123", "7946", "big.bin", destination
+                    )
+        finally:
+            await client.close()
+
+        assert exc_info.value.limit == 10
+        assert list(tmp_path.iterdir()) == []
+
+    async def test_an_existing_file_is_replaced_only_when_complete(
+        self, tracker_client: TrackerClient, tmp_path: Path
+    ) -> None:
+        destination = tmp_path / "image.png"
+        destination.write_bytes(b"stale")
+
+        with aioresponses() as m:
+            m.get(f"{DOWNLOAD_URL}/image.png", body=FILE_CONTENT)
+
+            await tracker_client.issue_download_attachment(
+                "TEST-123", "7946", "image.png", destination
+            )
+
+        assert destination.read_bytes() == FILE_CONTENT
+
+    async def test_not_found_names_the_attachment(
+        self, tracker_client: TrackerClient, tmp_path: Path
+    ) -> None:
+        with aioresponses() as m:
+            m.get(f"{DOWNLOAD_URL}/image.png", status=404)
+
+            with pytest.raises(AttachmentNotFound) as exc_info:
+                await tracker_client.issue_download_attachment(
+                    "TEST-123", "7946", "image.png", tmp_path / "image.png"
+                )
+
+        assert (exc_info.value.issue_id, exc_info.value.attachment_id) == (
+            "TEST-123",
+            "7946",
+        )
+        assert "issue_get_attachments" in str(exc_info.value)
+        assert list(tmp_path.iterdir()) == []
+
+    async def test_uses_the_attachment_timeout(self, tmp_path: Path) -> None:
+        client = TrackerClient(
+            token="test-token", org_id="test-org", timeout=10, attachment_timeout=600
+        )
+        capture = RequestCapture(status=200, body=FILE_CONTENT)
+
+        try:
+            with aioresponses() as m:
+                m.get(f"{DOWNLOAD_URL}/a.png", callback=capture.callback)
+
+                await client.issue_download_attachment(
+                    "TEST-123", "7946", "a.png", tmp_path / "a.png"
+                )
+        finally:
+            await client.close()
+
+        assert capture.last_request.timeout == ClientTimeout(total=600)
+
+    async def test_a_timeout_points_at_the_attachment_setting(
+        self, tracker_client: TrackerClient, tmp_path: Path
+    ) -> None:
+        with aioresponses() as m:
+            m.get(f"{DOWNLOAD_URL}/a.png", exception=TimeoutError())
+
+            with pytest.raises(TrackerAPITimeout) as exc_info:
+                await tracker_client.issue_download_attachment(
+                    "TEST-123", "7946", "a.png", tmp_path / "a.png"
+                )
+
+        assert exc_info.value.setting == "TRACKER_ATTACHMENT_TIMEOUT"
+        assert list(tmp_path.iterdir()) == []

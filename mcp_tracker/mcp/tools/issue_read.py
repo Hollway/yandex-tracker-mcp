@@ -18,14 +18,20 @@ from mcp_tracker.mcp.params import (
     YTQuery,
 )
 from mcp_tracker.mcp.tools._access import check_issue_access
-from mcp_tracker.mcp.utils import get_yandex_auth, set_non_needed_fields_null
+from mcp_tracker.mcp.utils import (
+    get_yandex_auth,
+    safe_file_name,
+    set_non_needed_fields_null,
+)
 from mcp_tracker.settings import Settings
+from mcp_tracker.tracker.custom.errors import AttachmentNotFound, AttachmentTooLarge
 from mcp_tracker.tracker.proto.types.issues import (
     AttachmentFieldsEnum,
     ChangelogPage,
     ChecklistItem,
     CommentFieldsEnum,
     CommentsPage,
+    DownloadedIssueAttachment,
     Issue,
     IssueAttachment,
     IssueLink,
@@ -243,7 +249,8 @@ def register_issue_read_tools(settings: Settings, mcp: FastMCP[Any]) -> None:
             list[AttachmentFieldsEnum] | None,
             Field(
                 description="Fields to include in each attachment; omit to get all. "
-                "The 'content' field can be large, so select only what you need.",
+                "`content` is the API download URL, which needs the server's "
+                "credentials to open.",
             ),
         ] = None,
     ) -> list[IssueAttachment]:
@@ -336,4 +343,76 @@ def register_issue_read_tools(settings: Settings, mcp: FastMCP[Any]) -> None:
             field=field,
             type=type,
             auth=get_yandex_auth(ctx),
+        )
+
+
+def register_issue_attachment_download_tools(
+    settings: Settings, mcp: FastMCP[Any]
+) -> None:
+    """Register the tool that saves attachments to the server's disk.
+
+    Registered only with `TRACKER_ATTACHMENT_DOWNLOAD_ENABLED`, which `Settings`
+    refuses on anything but a local stdio server. It changes nothing in
+    Tracker, so it stays available on a read-only server.
+    """
+
+    @mcp.tool(
+        title="Download Issue Attachment",
+        description="Save an attachment ('вложение') of a Yandex Tracker issue to "
+        "the machine the server runs on and return its local path, to open an "
+        "image, log or document from there (requires "
+        "TRACKER_ATTACHMENT_DOWNLOAD_ENABLED).",
+        annotations=ToolAnnotations(
+            readOnlyHint=False, destructiveHint=False, idempotentHint=True
+        ),
+    )
+    async def issue_download_attachment(
+        ctx: Context[Any, AppContext],
+        issue_id: IssueID,
+        attachment_id: Annotated[
+            str,
+            Field(description="Attachment `id` from issue_get_attachments."),
+        ],
+    ) -> DownloadedIssueAttachment:
+        check_issue_access(settings, issue_id)
+
+        issues = ctx.request_context.lifespan_context.issues
+        auth = get_yandex_auth(ctx)
+
+        # The listing gives the name the download URL needs, and the size to
+        # refuse an oversized file before a single byte of it is fetched.
+        attachments = await issues.issue_get_attachments(issue_id, auth=auth)
+        attachment = next((a for a in attachments if a.id == attachment_id), None)
+        if attachment is None:
+            raise AttachmentNotFound(issue_id, attachment_id)
+
+        limit = settings.tracker_max_attachment_bytes
+        if attachment.size is not None and attachment.size > limit:
+            raise AttachmentTooLarge(attachment_id, attachment.size, limit)
+
+        # An attachment never changes, so the same id downloaded again is the
+        # file already on disk.
+        destination = (
+            settings.attachments_dir
+            / safe_file_name(issue_id)
+            / safe_file_name(f"{attachment.id}-{attachment.name}")
+        )
+        if (
+            attachment.size is not None
+            and destination.is_file()
+            and destination.stat().st_size == attachment.size
+        ):
+            size = attachment.size
+        else:
+            size = await issues.issue_download_attachment(
+                issue_id, attachment.id, attachment.name, destination, auth=auth
+            )
+
+        return DownloadedIssueAttachment(
+            issue_id=issue_id,
+            attachment_id=attachment.id,
+            name=attachment.name,
+            path=str(destination),
+            mime_type=attachment.mimetype,
+            size=size,
         )

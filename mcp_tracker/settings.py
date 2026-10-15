@@ -1,4 +1,6 @@
+import tempfile
 from collections.abc import Iterable
+from pathlib import Path
 from typing import Annotated, Any, Literal
 
 from aiocache import Cache
@@ -22,8 +24,8 @@ class Settings(BaseSettings):
     # Total per-request budget for a Tracker API call. Deep pagination and wide
     # queries are the slow cases; raise this rather than let them time out.
     tracker_api_timeout: float = 10.0
-    # Total budget for one file upload (`issue_add_attachment`). The per-request
-    # budget above also covers sending the body, so it would fail any sizable file.
+    # Total budget for one attachment upload or download. The per-request budget
+    # above also covers transferring the body, so it would fail any sizable file.
     tracker_attachment_timeout: float = 300.0
     tracker_token: str | None = None
     tracker_iam_token: str | None = None
@@ -39,8 +41,18 @@ class Settings(BaseSettings):
     # are not subject to the queue restrictions (an entity has no single queue).
     tracker_entities_enabled: bool = False
     # `issue_add_attachment` is opt-in and stdio-only: it reads whatever file the
-    # server process can read (see `refuse_file_upload_on_remote_transports`).
+    # server process can read (see `refuse_local_files_on_remote_transports`).
     tracker_file_upload_enabled: bool = False
+    # `issue_download_attachment` is opt-in and stdio-only as well: it writes to
+    # the server's disk, and the path it returns means nothing to a remote client.
+    tracker_attachment_download_enabled: bool = False
+    # Where downloads go; `None` means `<system temp>/yandex-tracker-mcp/attachments`
+    # (see `attachments_dir`). Files are kept - a later download of the same
+    # attachment reuses them.
+    tracker_attachments_dir: str | None = None
+    # Larger attachments are refused before the download starts. Tracker itself
+    # accepts up to 1024 MB, which an agent has no use for.
+    tracker_max_attachment_bytes: int = 50 * 1024 * 1024
 
     tracker_sa_key_id: str | None = None
     tracker_sa_service_account_id: str | None = None
@@ -99,30 +111,48 @@ class Settings(BaseSettings):
         return self
 
     @model_validator(mode="after")
-    def refuse_file_upload_on_remote_transports(self):
-        """Allow `TRACKER_FILE_UPLOAD_ENABLED` only on a local, single-user server.
+    def refuse_local_files_on_remote_transports(self):
+        """Allow the tools that touch the server's disk only on a local, single-user
+        server.
 
         `issue_add_attachment` uploads any file the server process can read, by a
         path the client chooses. Over stdio that client is the user on their own
         machine; on a networked or OAuth-fronted server it is anyone who can reach
         it - or a prompt injected into issue text - reading `/proc/self/environ`,
-        `.env` or `~/.ssh/*` off the host into an issue. Refused at load, so a
+        `.env` or `~/.ssh/*` off the host into an issue. `issue_download_attachment`
+        is less dangerous but no more useful there: it fills the host's disk and
+        returns a path the remote client cannot open. Refused at load, so a
         misconfigured server does not start rather than starts exposed.
         """
-        if not self.tracker_file_upload_enabled:
+        if self.transport == "stdio" and not self.oauth_enabled:
             return self
 
-        if self.transport != "stdio" or self.oauth_enabled:
+        flags = {
+            "TRACKER_FILE_UPLOAD_ENABLED": self.tracker_file_upload_enabled,
+            "TRACKER_ATTACHMENT_DOWNLOAD_ENABLED": (
+                self.tracker_attachment_download_enabled
+            ),
+        }
+        enabled = [name for name, value in flags.items() if value]
+        if enabled:
             raise ValueError(
-                "TRACKER_FILE_UPLOAD_ENABLED=true is only allowed with TRANSPORT=stdio "
-                "and OAUTH_ENABLED=false (got "
+                f"{' and '.join(f'{name}=true' for name in enabled)} "
+                f"{'is' if len(enabled) == 1 else 'are'} only allowed with "
+                "TRANSPORT=stdio and OAUTH_ENABLED=false (got "
                 f"TRANSPORT={self.transport}, OAUTH_ENABLED={str(self.oauth_enabled).lower()}): "
-                "issue_add_attachment reads any file the server process can read, so "
-                "on a networked server a client could upload the host's secrets "
+                "the attachment tools read and write the server's own disk, so on a "
+                "networked server a client could upload the host's secrets "
                 "(.env, ~/.ssh, /proc/self/environ) to an issue."
             )
 
         return self
+
+    @property
+    def attachments_dir(self) -> Path:
+        """The directory `issue_download_attachment` saves into."""
+        if self.tracker_attachments_dir:
+            return Path(self.tracker_attachments_dir).expanduser().resolve()
+        return Path(tempfile.gettempdir()) / "yandex-tracker-mcp" / "attachments"
 
     @field_validator("tracker_limit_queues", "tracker_read_only_queues", mode="before")
     @classmethod

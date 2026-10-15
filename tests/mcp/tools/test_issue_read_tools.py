@@ -1,7 +1,15 @@
+from collections.abc import AsyncIterator
+from pathlib import Path
+from typing import Any
 from unittest.mock import AsyncMock
 
+import pytest
+import pytest_asyncio
 from mcp.client.session import ClientSession
+from mcp.types import CallToolResult, TextContent
 
+from mcp_tracker.mcp.context import AppContext
+from mcp_tracker.mcp.server import create_mcp_server
 from mcp_tracker.tracker.proto.common import YandexAuth
 from mcp_tracker.tracker.proto.types.issues import (
     ChangelogComments,
@@ -18,7 +26,13 @@ from mcp_tracker.tracker.proto.types.issues import (
     IssueTransition,
     Worklog,
 )
-from tests.mcp.conftest import get_tool_result_content, page
+from tests.mcp.conftest import (
+    create_test_settings,
+    get_tool_result_content,
+    make_test_lifespan,
+    page,
+    safe_client_session,
+)
 
 
 class TestIssueGetUrl:
@@ -522,6 +536,199 @@ class TestIssueGetAttachments:
         content = get_tool_result_content(result)
         assert content[0]["name"] == sample_attachments[0].name
         assert content[0].get("content") is None
+
+
+@pytest_asyncio.fixture(loop_scope="function")
+async def download_session(
+    mock_app_context: AppContext, tmp_path: Path
+) -> AsyncIterator[ClientSession]:
+    """A session whose downloads land in `tmp_path`, with ALLOWED the only queue."""
+    server = create_mcp_server(
+        settings=create_test_settings(
+            limit_queues=["ALLOWED"], attachments_dir=str(tmp_path)
+        ),
+        lifespan=make_test_lifespan(mock_app_context),
+    )
+    async with safe_client_session(server) as session:
+        yield session
+
+
+async def write_attachment(
+    issue_id: str,
+    attachment_id: str,
+    file_name: str,
+    destination: Path,
+    *,
+    auth: Any = None,
+) -> int:
+    """Stands in for the HTTP download: writes the file where it was asked to."""
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_bytes(b"x" * 1024)
+    return 1024
+
+
+def error_text(result: CallToolResult) -> str:
+    content = result.content[0]
+    assert isinstance(content, TextContent)
+    return content.text
+
+
+class TestIssueDownloadAttachment:
+    @pytest.fixture
+    def attachment(self) -> IssueAttachment:
+        return IssueAttachment.model_construct(
+            id="7946", name="image.png", size=1024, mimetype="image/png"
+        )
+
+    async def test_saves_under_the_issue_and_returns_the_absolute_path(
+        self,
+        download_session: ClientSession,
+        mock_issues_protocol: AsyncMock,
+        attachment: IssueAttachment,
+        tmp_path: Path,
+    ) -> None:
+        mock_issues_protocol.issue_get_attachments.return_value = [attachment]
+        mock_issues_protocol.issue_download_attachment.side_effect = write_attachment
+
+        result = await download_session.call_tool(
+            "issue_download_attachment",
+            {"issue_id": "ALLOWED-1", "attachment_id": "7946"},
+        )
+
+        assert not result.isError
+        expected = tmp_path / "ALLOWED-1" / "7946-image.png"
+        call_args = mock_issues_protocol.issue_download_attachment.call_args
+        assert call_args.args == ("ALLOWED-1", "7946", "image.png", expected)
+        content = get_tool_result_content(result)
+        assert content == {
+            "issue_id": "ALLOWED-1",
+            "attachment_id": "7946",
+            "name": "image.png",
+            "path": str(expected),
+            "mime_type": "image/png",
+            "size": 1024,
+        }
+        assert Path(content["path"]).is_absolute()
+        assert expected.is_file()
+
+    async def test_a_file_already_downloaded_is_reused(
+        self,
+        download_session: ClientSession,
+        mock_issues_protocol: AsyncMock,
+        attachment: IssueAttachment,
+        tmp_path: Path,
+    ) -> None:
+        existing = tmp_path / "ALLOWED-1" / "7946-image.png"
+        existing.parent.mkdir()
+        existing.write_bytes(b"x" * 1024)
+        mock_issues_protocol.issue_get_attachments.return_value = [attachment]
+
+        result = await download_session.call_tool(
+            "issue_download_attachment",
+            {"issue_id": "ALLOWED-1", "attachment_id": "7946"},
+        )
+
+        assert not result.isError
+        mock_issues_protocol.issue_download_attachment.assert_not_called()
+        assert get_tool_result_content(result)["path"] == str(existing)
+
+    async def test_a_file_of_another_size_is_downloaded_again(
+        self,
+        download_session: ClientSession,
+        mock_issues_protocol: AsyncMock,
+        attachment: IssueAttachment,
+        tmp_path: Path,
+    ) -> None:
+        existing = tmp_path / "ALLOWED-1" / "7946-image.png"
+        existing.parent.mkdir()
+        existing.write_bytes(b"x" * 10)
+        mock_issues_protocol.issue_get_attachments.return_value = [attachment]
+        mock_issues_protocol.issue_download_attachment.side_effect = write_attachment
+
+        result = await download_session.call_tool(
+            "issue_download_attachment",
+            {"issue_id": "ALLOWED-1", "attachment_id": "7946"},
+        )
+
+        assert not result.isError
+        mock_issues_protocol.issue_download_attachment.assert_called_once()
+
+    async def test_an_unsafe_name_stays_inside_the_directory(
+        self,
+        download_session: ClientSession,
+        mock_issues_protocol: AsyncMock,
+        tmp_path: Path,
+    ) -> None:
+        mock_issues_protocol.issue_get_attachments.return_value = [
+            IssueAttachment.model_construct(
+                id="7946", name="../../evil:name?.png", size=1024, mimetype=None
+            )
+        ]
+        mock_issues_protocol.issue_download_attachment.side_effect = write_attachment
+
+        result = await download_session.call_tool(
+            "issue_download_attachment",
+            {"issue_id": "ALLOWED-1", "attachment_id": "7946"},
+        )
+
+        assert not result.isError
+        call_args = mock_issues_protocol.issue_download_attachment.call_args
+        destination = call_args.args[3]
+        assert destination.parent == tmp_path / "ALLOWED-1"
+        assert destination.name == "7946-.._.._evil_name_.png"
+        # Tracker is still asked for the attachment under its real name.
+        assert call_args.args[2] == "../../evil:name?.png"
+
+    async def test_an_unknown_attachment_is_reported_without_a_download(
+        self,
+        download_session: ClientSession,
+        mock_issues_protocol: AsyncMock,
+        attachment: IssueAttachment,
+    ) -> None:
+        mock_issues_protocol.issue_get_attachments.return_value = [attachment]
+
+        result = await download_session.call_tool(
+            "issue_download_attachment",
+            {"issue_id": "ALLOWED-1", "attachment_id": "1"},
+        )
+
+        assert result.isError
+        assert "issue_get_attachments" in error_text(result)
+        mock_issues_protocol.issue_download_attachment.assert_not_called()
+
+    async def test_an_oversized_attachment_is_refused_before_the_download(
+        self,
+        download_session: ClientSession,
+        mock_issues_protocol: AsyncMock,
+    ) -> None:
+        mock_issues_protocol.issue_get_attachments.return_value = [
+            IssueAttachment.model_construct(
+                id="7946", name="video.mp4", size=51 * 1024 * 1024, mimetype=None
+            )
+        ]
+
+        result = await download_session.call_tool(
+            "issue_download_attachment",
+            {"issue_id": "ALLOWED-1", "attachment_id": "7946"},
+        )
+
+        assert result.isError
+        assert "TRACKER_MAX_ATTACHMENT_BYTES" in error_text(result)
+        mock_issues_protocol.issue_download_attachment.assert_not_called()
+
+    async def test_a_queue_outside_the_allow_list_is_refused(
+        self,
+        download_session: ClientSession,
+        mock_issues_protocol: AsyncMock,
+    ) -> None:
+        result = await download_session.call_tool(
+            "issue_download_attachment",
+            {"issue_id": "OTHER-1", "attachment_id": "7946"},
+        )
+
+        assert result.isError
+        mock_issues_protocol.issue_get_attachments.assert_not_called()
+        mock_issues_protocol.issue_download_attachment.assert_not_called()
 
 
 class TestIssueGetChecklist:

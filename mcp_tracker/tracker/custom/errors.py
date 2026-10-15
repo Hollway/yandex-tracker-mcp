@@ -275,3 +275,33 @@ class EntityLinksOnlyUpdate(YandexTrackerError):
             "Note that links are added, not replaced - sending a link that already "
             "exists fails, and links cannot be removed through this server."
         )
+
+
+class AttachmentNotFound(YandexTrackerError):
+    """Raised when an attachment id is not among the attachments of the issue.
+
+    Not `IssueNotFound`: the issue usually exists, and the id came from an older
+    `issue_get_attachments` call or from another issue.
+    """
+
+    def __init__(self, issue_id: str, attachment_id: str):
+        super().__init__(
+            f"Attachment '{attachment_id}' was not found on issue '{issue_id}' - "
+            f"issue_get_attachments lists the current ones."
+        )
+        self.issue_id = issue_id
+        self.attachment_id = attachment_id
+
+
+class AttachmentTooLarge(YandexTrackerError):
+    """Raised for a download over `TRACKER_MAX_ATTACHMENT_BYTES`."""
+
+    def __init__(self, attachment_id: str, size: int, limit: int):
+        super().__init__(
+            f"Attachment '{attachment_id}' is {size} bytes, over the limit of "
+            f"{limit} bytes for one download. Raise TRACKER_MAX_ATTACHMENT_BYTES to "
+            f"download it."
+        )
+        self.attachment_id = attachment_id
+        self.size = size
+        self.limit = limit

@@ -202,6 +202,17 @@ class IssueAttachment(CreatedMixin, BaseTrackerEntity):
     metadata: dict[str, str] | None = NoneExcludedField
 
 
+class DownloadedIssueAttachment(BaseModel):
+    """An attachment `issue_download_attachment` saved to the server's disk."""
+
+    issue_id: str
+    attachment_id: str
+    name: str = Field(description="The attachment's name in Yandex Tracker.")
+    path: str = Field(description="Absolute path of the saved file - open it there.")
+    mime_type: str | None
+    size: int = Field(description="Size of the saved file in bytes.")
+
+
 AttachmentFieldsEnum = Enum(  # type: ignore[misc]
     "AttachmentFieldsEnum",
     {key: key for key in IssueAttachment.model_fields.keys()},

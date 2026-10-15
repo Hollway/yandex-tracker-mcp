@@ -132,14 +132,14 @@ class RequestCapture:
     """
 
     def __init__(
-        self, *, status: int = 200, payload: Any = None, body: str = ""
+        self, *, status: int = 200, payload: Any = None, body: str | bytes = ""
     ) -> None:
         """Initialize capture with response details.
 
         Args:
             status: HTTP status code to return
             payload: JSON payload to return (will be serialized)
-            body: Raw body string to return
+            body: Raw body to return
         """
         self._requests: list[CapturedRequest] = []
         self._status = status

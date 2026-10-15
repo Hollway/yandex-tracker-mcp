@@ -8,7 +8,8 @@ This package organizes MCP tools by category:
 - board.py: Board and sprint tools (read-only)
 - component.py: Queue component tools (read-only)
 - component_write.py: Queue component write tools (conditional on read-only mode)
-- issue_read.py: Issue read-only tools
+- issue_read.py: Issue read-only tools; the attachment download tool additionally
+  needs tracker_attachment_download_enabled
 - issue_write.py: Issue write tools (conditional on read-only mode); the file upload
   tool additionally needs tracker_file_upload_enabled
 - user.py: User-related tools (read-only)
@@ -30,7 +31,10 @@ from mcp_tracker.mcp.tools.component_write import register_component_write_tools
 from mcp_tracker.mcp.tools.field import register_field_tools
 from mcp_tracker.mcp.tools.goal import register_goal_tools
 from mcp_tracker.mcp.tools.goal_write import register_goal_write_tools
-from mcp_tracker.mcp.tools.issue_read import register_issue_read_tools
+from mcp_tracker.mcp.tools.issue_read import (
+    register_issue_attachment_download_tools,
+    register_issue_read_tools,
+)
 from mcp_tracker.mcp.tools.issue_write import (
     register_issue_file_upload_tools,
     register_issue_write_tools,
@@ -53,7 +57,9 @@ def register_all_tools(settings: Settings, mcp: FastMCP[Any]) -> None:
         settings: Application settings. If tracker_read_only is True,
             write tools will not be registered. Project/portfolio/goal tools
             are registered only if tracker_entities_enabled is True, and the
-            file upload tool only if tracker_file_upload_enabled is True.
+            file upload tool only if tracker_file_upload_enabled is True. The
+            attachment download tool needs tracker_attachment_download_enabled,
+            in read-only mode as well.
         mcp: FastMCP server instance.
     """
     # Always register read-only tools
@@ -64,6 +70,10 @@ def register_all_tools(settings: Settings, mcp: FastMCP[Any]) -> None:
     register_component_tools(settings, mcp)
     register_issue_read_tools(settings, mcp)
     register_user_tools(settings, mcp)
+
+    # Changes nothing in Tracker, so it does not depend on tracker_read_only.
+    if settings.tracker_attachment_download_enabled:
+        register_issue_attachment_download_tools(settings, mcp)
 
     if settings.tracker_entities_enabled:
         register_project_tools(settings, mcp)

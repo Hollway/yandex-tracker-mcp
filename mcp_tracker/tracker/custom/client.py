@@ -8,7 +8,9 @@ from asyncio import CancelledError
 from collections.abc import AsyncIterator, Collection, Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any, Literal
+from urllib.parse import quote
 
 import jwt
 import yandexcloud
@@ -19,6 +21,8 @@ from yandex.cloud.iam.v1.iam_token_service_pb2_grpc import IamTokenServiceStub
 from yarl import URL
 
 from mcp_tracker.tracker.custom.errors import (
+    AttachmentNotFound,
+    AttachmentTooLarge,
     BoardNotFound,
     ChecklistBatchPartiallyAdded,
     ChecklistItemEmptyUpdate,
@@ -319,6 +323,7 @@ class TrackerClient(
         base_url: str = "https://api.tracker.yandex.net",
         timeout: float = 10,
         attachment_timeout: float = 300,
+        max_attachment_bytes: int = 50 * 1024 * 1024,
     ):
         self._token = token
         self._token_type = token_type
@@ -331,6 +336,7 @@ class TrackerClient(
 
         self._timeout = timeout
         self._attachment_timeout = attachment_timeout
+        self._max_attachment_bytes = max_attachment_bytes
         self._session = ClientSession(
             base_url=base_url,
             timeout=ClientTimeout(total=timeout),
@@ -1092,6 +1098,54 @@ class TrackerClient(
             timeout_setting="TRACKER_ATTACHMENT_TIMEOUT",
         ) as response:
             return IssueAttachment.model_validate_json(await response.read())
+
+    async def issue_download_attachment(
+        self,
+        issue_id: str,
+        attachment_id: str,
+        file_name: str,
+        destination: Path,
+        *,
+        auth: YandexAuth | None = None,
+    ) -> int:
+        """Stream an attachment into `destination`; returns the bytes written.
+
+        The URL needs the attachment's name as its last segment, quoted whole: a
+        name is free text, and a `/` or `..` left in it would point the request
+        at another endpoint under the server's credentials. The body goes to
+        `<destination>.part` and is renamed only once complete, so a download
+        that fails halfway never leaves a truncated file under the final name for
+        a later call to take as finished. Both the declared length and the bytes
+        actually received are held to `max_attachment_bytes`.
+        """
+        limit = self._max_attachment_bytes
+        async with self._request(
+            "GET",
+            f"v3/issues/{issue_id}/attachments/{attachment_id}/"
+            f"{quote(file_name, safe='')}",
+            auth=auth,
+            not_found=AttachmentNotFound(issue_id, attachment_id),
+            timeout=self._attachment_timeout,
+            timeout_setting="TRACKER_ATTACHMENT_TIMEOUT",
+        ) as response:
+            if response.content_length is not None and response.content_length > limit:
+                raise AttachmentTooLarge(attachment_id, response.content_length, limit)
+
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            partial = destination.with_name(f"{destination.name}.part")
+            written = 0
+            try:
+                with partial.open("wb") as file:
+                    async for chunk in response.content.iter_chunked(64 * 1024):
+                        written += len(chunk)
+                        if written > limit:
+                            raise AttachmentTooLarge(attachment_id, written, limit)
+                        await asyncio.to_thread(file.write, chunk)
+            except BaseException:
+                partial.unlink(missing_ok=True)
+                raise
+            partial.replace(destination)
+            return written
 
     async def users_list(
         self, per_page: int = 50, page: int = 1, *, auth: YandexAuth | None = None

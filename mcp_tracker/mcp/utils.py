@@ -1,4 +1,6 @@
+import re
 from collections.abc import Iterable
+from pathlib import Path
 from typing import Any, TypeVar, get_args
 
 from mcp.server.auth.middleware.auth_context import get_access_token
@@ -71,3 +73,30 @@ def set_non_needed_fields_null(data: Iterable[T], needed_fields: set[str]) -> No
             ):
                 continue
             setattr(item, field, None)
+
+
+# Characters no file name may contain on Windows, which also covers the POSIX
+# separator, plus the control characters.
+_UNSAFE_FILE_NAME_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
+_MAX_FILE_NAME_LENGTH = 150
+_MAX_KEPT_SUFFIX_LENGTH = 16
+
+
+def safe_file_name(name: str) -> str:
+    """`name` as one file name that is valid on Windows and POSIX alike.
+
+    Attachment names are free text typed by whoever attached the file, so they
+    can hold separators, `..`, characters Windows refuses and any length. Each
+    unsafe character becomes `_`; a long name keeps its extension, so the file
+    still opens with the right program.
+    """
+    cleaned = _UNSAFE_FILE_NAME_CHARS.sub("_", name).strip().rstrip(". ")
+    if not cleaned:
+        return "_"
+    if len(cleaned) > _MAX_FILE_NAME_LENGTH:
+        suffix = Path(cleaned).suffix
+        if len(suffix) > _MAX_KEPT_SUFFIX_LENGTH:
+            suffix = ""
+        stem = cleaned[: _MAX_FILE_NAME_LENGTH - len(suffix)].rstrip(". ")
+        cleaned = f"{stem}{suffix}"
+    return cleaned

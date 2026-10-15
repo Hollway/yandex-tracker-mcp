@@ -83,11 +83,14 @@ def create_test_settings(
     read_only_queues: list[str] | None = None,
     entities_enabled: bool = True,
     file_upload_enabled: bool = True,
+    attachment_download_enabled: bool = True,
+    attachments_dir: str | None = None,
 ) -> Settings:
     """Create Settings for testing with minimal required configuration.
 
-    The opt-in groups (entity tools, file upload) default to on, so the default
-    server exposes the whole tool surface the docs have to cover.
+    The opt-in groups (entity tools, file upload, attachment download) default
+    to on, so the default server exposes the whole tool surface the docs have
+    to cover.
 
     `model_construct` skips validation, so the queue lists go through
     `decode_queue_keys` explicitly - tests must see the same normalised sets a
@@ -102,6 +105,9 @@ def create_test_settings(
         tracker_read_only_queues=Settings.decode_queue_keys(read_only_queues),
         tracker_entities_enabled=entities_enabled,
         tracker_file_upload_enabled=file_upload_enabled,
+        tracker_attachment_download_enabled=attachment_download_enabled,
+        tracker_attachments_dir=attachments_dir,
+        tracker_max_attachment_bytes=50 * 1024 * 1024,
         tools_cache_enabled=False,
         oauth_enabled=False,
         host="0.0.0.0",

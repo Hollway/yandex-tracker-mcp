@@ -128,13 +128,21 @@ FILE_UPLOAD_TOOL_NAMES = [
     "issue_add_attachment",
 ]
 
+# Tools that write to the server's disk without changing Tracker - require
+# TRACKER_ATTACHMENT_DOWNLOAD_ENABLED, and stay registered in read-only mode
+ATTACHMENT_DOWNLOAD_TOOL_NAMES = [
+    "issue_download_attachment",
+]
+
 ALL_READ_ONLY_TOOL_NAMES = READ_ONLY_TOOL_NAMES + ENTITY_READ_ONLY_TOOL_NAMES
 ALL_WRITE_TOOL_NAMES = (
     WRITE_TOOL_NAMES + ENTITY_WRITE_TOOL_NAMES + FILE_UPLOAD_TOOL_NAMES
 )
 
 # All tool names that should be registered in normal mode (entity tools enabled)
-EXPECTED_TOOL_NAMES = ALL_READ_ONLY_TOOL_NAMES + ALL_WRITE_TOOL_NAMES
+EXPECTED_TOOL_NAMES = (
+    ALL_READ_ONLY_TOOL_NAMES + ALL_WRITE_TOOL_NAMES + ATTACHMENT_DOWNLOAD_TOOL_NAMES
+)
 
 
 class TestToolRegistration:
@@ -153,7 +161,9 @@ class TestToolRegistration:
 class TestReadOnlyModeToolRegistration:
     """Test tool registration in read-only mode."""
 
-    @pytest.mark.parametrize("tool_name", ALL_READ_ONLY_TOOL_NAMES)
+    @pytest.mark.parametrize(
+        "tool_name", ALL_READ_ONLY_TOOL_NAMES + ATTACHMENT_DOWNLOAD_TOOL_NAMES
+    )
     async def test_read_only_tools_are_registered(
         self,
         client_session_read_only: ClientSession,
@@ -185,12 +195,13 @@ class TestReadOnlyModeToolRegistration:
         self,
         client_session_read_only: ClientSession,
     ) -> None:
-        """Read-only mode should have only read-only tools."""
+        """Read-only mode keeps the read-only tools and the attachment download,
+        which changes nothing in Tracker."""
         result = await client_session_read_only.list_tools()
 
-        assert len(result.tools) == len(ALL_READ_ONLY_TOOL_NAMES), (
-            f"Expected {len(ALL_READ_ONLY_TOOL_NAMES)} tools in read-only mode, "
-            f"got {len(result.tools)}"
+        expected = len(ALL_READ_ONLY_TOOL_NAMES) + len(ATTACHMENT_DOWNLOAD_TOOL_NAMES)
+        assert len(result.tools) == expected, (
+            f"Expected {expected} tools in read-only mode, got {len(result.tools)}"
         )
 
     async def test_correct_tool_count_in_normal_mode(
@@ -226,7 +237,11 @@ class TestEntityToolRegistration:
         )
 
     @pytest.mark.parametrize(
-        "tool_name", READ_ONLY_TOOL_NAMES + WRITE_TOOL_NAMES + FILE_UPLOAD_TOOL_NAMES
+        "tool_name",
+        READ_ONLY_TOOL_NAMES
+        + WRITE_TOOL_NAMES
+        + FILE_UPLOAD_TOOL_NAMES
+        + ATTACHMENT_DOWNLOAD_TOOL_NAMES,
     )
     async def test_non_entity_tools_stay_registered(
         self,
@@ -248,6 +263,7 @@ class TestEntityToolRegistration:
             len(READ_ONLY_TOOL_NAMES)
             + len(WRITE_TOOL_NAMES)
             + len(FILE_UPLOAD_TOOL_NAMES)
+            + len(ATTACHMENT_DOWNLOAD_TOOL_NAMES)
         )
         assert len(result.tools) == expected, (
             f"Expected {expected} tools with entity tools disabled, "
@@ -296,6 +312,50 @@ class TestFileUploadToolRegistration:
         disabled_names = {tool.name for tool in await disabled.list_tools()}
 
         assert enabled_names - disabled_names == set(FILE_UPLOAD_TOOL_NAMES)
+
+
+class TestAttachmentDownloadToolRegistration:
+    """`issue_download_attachment` writes to the server's disk, so it needs its own
+    opt-in (TRACKER_ATTACHMENT_DOWNLOAD_ENABLED, default off). It changes nothing
+    in Tracker, so read-only mode does not remove it."""
+
+    @pytest.mark.parametrize(
+        ("read_only", "download_enabled", "registered"),
+        [
+            pytest.param(False, False, False, id="default-flag-off"),
+            pytest.param(True, False, False, id="read-only-flag-off"),
+            pytest.param(True, True, True, id="read-only-with-flag"),
+            pytest.param(False, True, True, id="enabled"),
+        ],
+    )
+    @pytest.mark.parametrize("tool_name", ATTACHMENT_DOWNLOAD_TOOL_NAMES)
+    async def test_registered_only_when_enabled(
+        self,
+        tool_name: str,
+        read_only: bool,
+        download_enabled: bool,
+        registered: bool,
+    ) -> None:
+        server = create_mcp_server(
+            settings=create_test_settings(
+                read_only=read_only, attachment_download_enabled=download_enabled
+            )
+        )
+
+        tool_names = {tool.name for tool in await server.list_tools()}
+
+        assert (tool_name in tool_names) is registered
+
+    async def test_the_flag_gates_nothing_else(self) -> None:
+        enabled = create_mcp_server(settings=create_test_settings())
+        disabled = create_mcp_server(
+            settings=create_test_settings(attachment_download_enabled=False)
+        )
+
+        enabled_names = {tool.name for tool in await enabled.list_tools()}
+        disabled_names = {tool.name for tool in await disabled.list_tools()}
+
+        assert enabled_names - disabled_names == set(ATTACHMENT_DOWNLOAD_TOOL_NAMES)
 
 
 class TestResourceRegistration:

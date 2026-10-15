@@ -612,6 +612,7 @@ claude mcp add yandex-tracker docker "run --rm -i -e TRACKER_TOKEN=ваш_ток
 | `issue_update_worklog` | Изменить запись о времени | `issue_id`, `worklog_id`, `duration`, `comment`, `start` |
 | `issue_delete_worklog` | Удалить запись о времени | `issue_id`, `worklog_id` |
 | `issue_get_attachments` | Метаданные вложений | `issue_id`, `fields` |
+| `issue_download_attachment` | Сохранить вложение на машину, где работает сервер, и вернуть абсолютный путь, MIME-тип и размер | `issue_id`, `attachment_id` из `issue_get_attachments` |
 | `issue_add_attachment` | Загрузить файл с машины, на которой работает сервер, и вернуть вложение; изображение показывается в описании, только если вставить его как `![name](/ajax/v2/attachments/<id>?inline=true)` | `issue_id`, `file_path`, `filename` |
 | `issue_get_checklist` | Чек-лист вместе с id пунктов, которые нужны инструментам записи | `issue_id` |
 | `issue_add_checklist_items` | Добавить пункты по порядку, создав чек-лист, если его не было | `issue_id`, `items` (`text`, `checked`, `assignee`, `deadline`) |
@@ -631,7 +632,9 @@ claude mcp add yandex-tracker docker "run --rm -i -e TRACKER_TOKEN=ваш_ток
 
 Все инструменты этого раздела учитывают `TRACKER_LIMIT_QUEUES` и `TRACKER_READ_ONLY_QUEUES`; те, что пишут, регистрируются, только если не задан `TRACKER_READ_ONLY`.
 
-`issue_add_attachment` включается явно: он регистрируется только при `TRACKER_FILE_UPLOAD_ENABLED=true` (по умолчанию `false`), потому что читает любой файл, доступный процессу сервера. С этим флагом сервер не запустится на сетевом транспорте или с `OAUTH_ENABLED`, где клиент — или prompt injection в тексте задачи — мог бы выгрузить секреты хоста в задачу. У загрузки свой бюджет времени — `TRACKER_ATTACHMENT_TIMEOUT`.
+Инструменты для файлов вложений включаются явно и работают только локально. `issue_add_attachment` регистрируется только при `TRACKER_FILE_UPLOAD_ENABLED=true`, потому что читает любой файл, доступный процессу сервера; `issue_download_attachment` — только при `TRACKER_ATTACHMENT_DOWNLOAD_ENABLED=true`, в том числе в режиме только для чтения. Оба флага по умолчанию `false`, и ни с одним из них сервер не запустится на сетевом транспорте или с `OAUTH_ENABLED`, где клиент — или prompt injection в тексте задачи — мог бы выгрузить секреты хоста в задачу.
+
+Скачанные файлы сохраняются в `TRACKER_ATTACHMENTS_DIR` (по умолчанию `<системный temp>/yandex-tracker-mcp/attachments`), в папку задачи, под именем `<id вложения>-<имя>`. Они не удаляются, поэтому повторное скачивание того же вложения возвращает уже лежащий файл; вложения больше `TRACKER_MAX_ATTACHMENT_BYTES` (по умолчанию 50 МиБ) отклоняются до начала скачивания. У загрузки и скачивания свой бюджет времени — `TRACKER_ATTACHMENT_TIMEOUT`.
 
 </details>
 
@@ -1004,13 +1007,16 @@ TRACKER_ORG_ID=ваш_org_id                # Для организаций Ян
 # Конфигурация API (опционально)
 TRACKER_API_BASE_URL=https://api.tracker.yandex.net  # По умолчанию: https://api.tracker.yandex.net
 TRACKER_API_TIMEOUT=10                    # По умолчанию: 10 - Таймаут одного запроса к API Трекера, в секундах
-TRACKER_ATTACHMENT_TIMEOUT=300                # По умолчанию: 300 - Таймаут загрузки одного файла (issue_add_attachment), в секундах
+TRACKER_ATTACHMENT_TIMEOUT=300            # По умолчанию: 300 - Таймаут загрузки или скачивания одного вложения, в секундах
 
 # Безопасность - Ограничить доступ к конкретным очередям (опционально)
 TRACKER_LIMIT_QUEUES=PROJ1,PROJ2,DEV      # Ключи очередей через запятую - список разрешённых очередей
 TRACKER_READ_ONLY_QUEUES=PROJ2            # Ключи очередей через запятую - доступны для чтения, но запись отклоняется (режим только для чтения по очередям)
 TRACKER_ENTITIES_ENABLED=true             # По умолчанию: false - регистрировать инструменты проектов/портфелей/целей (НЕ подчиняются ограничениям по очередям выше)
 TRACKER_FILE_UPLOAD_ENABLED=true          # По умолчанию: false - регистрировать issue_add_attachment, загружающий локальные файлы (только stdio: с сетевым транспортом или OAUTH_ENABLED сервер не запустится)
+TRACKER_ATTACHMENT_DOWNLOAD_ENABLED=true  # По умолчанию: false - регистрировать issue_download_attachment, сохраняющий вложения на эту машину (только stdio, как флаг выше)
+TRACKER_ATTACHMENTS_DIR=/path/to/dir      # По умолчанию: <системный temp>/yandex-tracker-mcp/attachments - куда сохраняются скачанные вложения
+TRACKER_MAX_ATTACHMENT_BYTES=52428800     # По умолчанию: 52428800 (50 МиБ) - вложения больше не скачиваются
 
 # Конфигурация сервера
 HOST=0.0.0.0                              # По умолчанию: 0.0.0.0

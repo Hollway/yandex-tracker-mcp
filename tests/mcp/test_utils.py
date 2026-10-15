@@ -4,7 +4,11 @@ import pytest
 from pydantic import BaseModel
 from pytest_mock import MockerFixture
 
-from mcp_tracker.mcp.utils import get_yandex_auth, set_non_needed_fields_null
+from mcp_tracker.mcp.utils import (
+    get_yandex_auth,
+    safe_file_name,
+    set_non_needed_fields_null,
+)
 from mcp_tracker.tracker.proto.common import YandexAuth
 
 
@@ -349,3 +353,33 @@ class TestSetNonNeededFieldsNull:
         assert item.name == "test"
         assert item.value is None
         assert item.description is None
+
+
+class TestSafeFileName:
+    @pytest.mark.parametrize(
+        ("name", "expected"),
+        [
+            pytest.param("image.png", "image.png", id="plain"),
+            pytest.param("отчёт за май.docx", "отчёт за май.docx", id="cyrillic"),
+            pytest.param("../../etc/passwd", ".._.._etc_passwd", id="traversal"),
+            pytest.param('a\\b:c*?<>|".txt', "a_b_c______.txt", id="windows"),
+            pytest.param("tab\there", "tab_here", id="control"),
+            pytest.param("..", "_", id="dots-only"),
+            pytest.param("  name. ", "name", id="trailing-dot-and-space"),
+            pytest.param("", "_", id="empty"),
+        ],
+    )
+    def test_makes_one_valid_file_name(self, name: str, expected: str) -> None:
+        assert safe_file_name(name) == expected
+
+    def test_a_long_name_keeps_its_extension(self) -> None:
+        result = safe_file_name("x" * 300 + ".pdf")
+
+        assert len(result) == 150
+        assert result.endswith("x.pdf")
+
+    def test_an_overlong_extension_is_not_kept(self) -> None:
+        result = safe_file_name("x" * 300 + "." + "y" * 40)
+
+        assert len(result) == 150
+        assert set(result) == {"x"}

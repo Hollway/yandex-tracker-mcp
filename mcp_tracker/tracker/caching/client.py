@@ -1,6 +1,7 @@
 import datetime
 from collections.abc import Sequence
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from aiocache import cached
@@ -343,6 +344,19 @@ def make_cached_protocols(
         ) -> IssueAttachment:
             return await self._original.issue_add_attachment(
                 issue_id, content=content, filename=filename, auth=auth
+            )
+
+        async def issue_download_attachment(
+            self,
+            issue_id: str,
+            attachment_id: str,
+            file_name: str,
+            destination: Path,
+            *,
+            auth: YandexAuth | None = None,
+        ) -> int:
+            return await self._original.issue_download_attachment(
+                issue_id, attachment_id, file_name, destination, auth=auth
             )
 
         @cached(**cache_config)

@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock
 
@@ -183,6 +184,30 @@ class TestCachingIssuesProtocol:
             "TEST-1", content=b"data", filename="a.png", auth=yandex_auth
         )
         assert (first.id, second.id) == ("att-1", "att-2")
+
+    async def test_issue_download_attachment_is_a_passthrough(
+        self,
+        caching_issues_protocol: Any,
+        mock_original: AsyncMock,
+        yandex_auth: YandexAuth,
+        tmp_path: Path,
+    ) -> None:
+        mock_original.issue_download_attachment.return_value = 1024
+        destination = tmp_path / "a.png"
+
+        first = await caching_issues_protocol.issue_download_attachment(
+            "TEST-1", "7946", "a.png", destination, auth=yandex_auth
+        )
+        second = await caching_issues_protocol.issue_download_attachment(
+            "TEST-1", "7946", "a.png", destination, auth=yandex_auth
+        )
+
+        # It writes a file: answering the second call from the cache would skip it.
+        assert mock_original.issue_download_attachment.call_count == 2
+        mock_original.issue_download_attachment.assert_called_with(
+            "TEST-1", "7946", "a.png", destination, auth=yandex_auth
+        )
+        assert first == second == 1024
 
     async def test_issues_count_calls_original(
         self,
