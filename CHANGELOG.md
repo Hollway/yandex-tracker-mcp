@@ -17,6 +17,7 @@ All notable changes to this project will be documented in this file.
 - **`users_get_absences`** - vacations, sick leave and other absences of up to 100 users over a period; needs organization administrator rights
 - **`issue_get_comment`** - one comment by its id, with its attached files
 - **`issue_delete_attachment`** - delete a file attached to an issue
+- **`queue_get_triggers`** - the automation triggers of a queue with their conditions and actions; webhook credentials are left out
 
 ### Bug Fixes
 

@@ -1,8 +1,9 @@
+import re
 from datetime import date
 from enum import Enum
-from typing import Literal
+from typing import Any, Literal
 
-from pydantic import ConfigDict, Field
+from pydantic import ConfigDict, Field, field_validator
 
 from mcp_tracker.tracker.proto.types.base import BaseTrackerEntity, NoneExcludedField
 from mcp_tracker.tracker.proto.types.refs import IssueTypeReference, PriorityReference
@@ -67,3 +68,38 @@ class QueueVersion(BaseTrackerEntity):
     dueDate: date | None = None
     released: bool
     archived: bool
+
+
+# Keys whose values a trigger's actions must not hand out: webhook credentials
+# and headers. Tracker masks them, but a masked value is no use to the caller
+# either, and an unmasked one in a response would be a leak.
+_SECRET_KEY = re.compile(r"auth|token|password|secret|header", re.IGNORECASE)
+
+
+def _drop_secrets(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {
+            key: _drop_secrets(item)
+            for key, item in value.items()
+            if not _SECRET_KEY.search(str(key))
+        }
+    if isinstance(value, list):
+        return [_drop_secrets(item) for item in value]
+    return value
+
+
+class QueueTrigger(BaseTrackerEntity):
+    """A queue automation trigger: when `conditions` hold, `actions` run."""
+
+    id: int
+    name: str | None = NoneExcludedField
+    active: bool | None = NoneExcludedField
+    order: str | None = NoneExcludedField
+    version: int | None = NoneExcludedField
+    conditions: list[dict[str, Any]] | None = NoneExcludedField
+    actions: list[dict[str, Any]] | None = NoneExcludedField
+
+    @field_validator("actions", mode="before")
+    @classmethod
+    def drop_secrets(cls, value: Any) -> Any:
+        return _drop_secrets(value)

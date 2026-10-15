@@ -459,6 +459,7 @@ claude mcp add yandex-tracker docker "run --rm -i -e TRACKER_TOKEN=ваш_ток
 | --- | --- | --- |
 | `queues_get_all` | Все очереди, доступные токену; возвращает `{values, hits, pages}` | `fields`, `page` (не указывать — обойти все страницы), `per_page` |
 | `queue_get_tags` | Теги, заведённые в очереди | `queue_id` (ключ вида `"SOMEPROJECT"`) |
+| `queue_get_triggers` | Триггеры автоматизации: условия и действия, без учётных данных вебхуков | `queue_id`, `active_only` |
 | `queue_get_versions` | Версии очереди с датами и статусом | `queue_id` |
 | `queue_get_components` | Компоненты очереди целиком: с ответственным, флагом автоназначения и `version`; `queue_get_metadata` с `expand: ["components"]` даёт только id и названия | `queue_id` |
 | `queue_create_version` | Создать версию в очереди | `queue_id`, `name`, `description`, `start_date`, `due_date` (`YYYY-MM-DD`) |

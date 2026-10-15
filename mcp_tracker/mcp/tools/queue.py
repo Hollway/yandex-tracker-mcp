@@ -22,6 +22,7 @@ from mcp_tracker.tracker.proto.types.queues import (
     Queue,
     QueueExpandOption,
     QueueFieldsEnum,
+    QueueTrigger,
     QueueVersion,
 )
 
@@ -94,6 +95,33 @@ def register_queue_tools(settings: Settings, mcp: FastMCP[Any]) -> None:
             queue_id,
             auth=get_yandex_auth(ctx),
         )
+
+    @mcp.tool(
+        title="Get Queue Triggers",
+        description="Get the automation triggers of a Yandex Tracker queue "
+        "('триггеры'): conditions and actions, e.g. to explain why an issue changed "
+        "status or assignee by itself - issue_get_changelog names the trigger that "
+        "fired. Webhook credentials and headers are left out.",
+        annotations=ToolAnnotations(readOnlyHint=True),
+    )
+    async def queue_get_triggers(
+        ctx: Context[Any, AppContext],
+        queue_id: QueueID,
+        active_only: Annotated[
+            bool,
+            Field(description="Leave out the triggers that are switched off."),
+        ] = False,
+    ) -> list[QueueTrigger]:
+        check_queue_access(settings, queue_id)
+        triggers = (
+            await ctx.request_context.lifespan_context.queues.queues_get_triggers(
+                queue_id,
+                auth=get_yandex_auth(ctx),
+            )
+        )
+        if active_only:
+            triggers = [t for t in triggers if t.active is not False]
+        return triggers
 
     @mcp.tool(
         title="Get Queue Versions",

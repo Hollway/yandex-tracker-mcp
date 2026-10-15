@@ -60,6 +60,7 @@ from mcp_tracker.tracker.proto.types.priorities import Priority
 from mcp_tracker.tracker.proto.types.queues import (
     Queue,
     QueueExpandOption,
+    QueueTrigger,
     QueueVersion,
 )
 from mcp_tracker.tracker.proto.types.resolutions import Resolution
@@ -104,6 +105,12 @@ def make_cached_protocols(
             self, queue_id: str, *, auth: YandexAuth | None = None
         ) -> list[str]:
             return await self._original.queues_get_tags(queue_id, auth=auth)
+
+        @cached(**cache_config)
+        async def queues_get_triggers(
+            self, queue_id: str, *, auth: YandexAuth | None = None
+        ) -> list[QueueTrigger]:
+            return await self._original.queues_get_triggers(queue_id, auth=auth)
 
         @cached(**cache_config)
         async def queues_get_versions(

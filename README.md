@@ -462,6 +462,7 @@ The server exposes the following tools through the MCP protocol:
 | --- | --- | --- |
 | `queues_get_all` | Every queue the token may see; returns `{values, hits, pages}` | `fields`, `page` (omit to walk every page), `per_page` |
 | `queue_get_tags` | The tags defined in the queue | `queue_id` (a key like `"SOMEPROJECT"`) |
+| `queue_get_triggers` | Automation triggers: conditions and actions, webhook credentials left out | `queue_id`, `active_only` |
 | `queue_get_versions` | The queue's versions, with dates and status | `queue_id` |
 | `queue_get_components` | The queue's components as full objects, with lead, auto-assign flag and `version`; `queue_get_metadata` with `expand: ["components"]` gives ids and names only | `queue_id` |
 | `queue_create_version` | Create a version in the queue | `queue_id`, `name`, `description`, `start_date`, `due_date` (`YYYY-MM-DD`) |

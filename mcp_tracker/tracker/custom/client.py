@@ -100,6 +100,7 @@ from mcp_tracker.tracker.proto.types.priorities import Priority
 from mcp_tracker.tracker.proto.types.queues import (
     Queue,
     QueueExpandOption,
+    QueueTrigger,
     QueueVersion,
 )
 from mcp_tracker.tracker.proto.types.resolutions import Resolution
@@ -114,6 +115,7 @@ from mcp_tracker.tracker.proto.users import UsersProtocol
 QueueList = RootModel[list[Queue]]
 LocalFieldList = RootModel[list[LocalField]]
 QueueTagList = RootModel[list[str]]
+QueueTriggerList = RootModel[list[QueueTrigger]]
 VersionList = RootModel[list[QueueVersion]]
 ComponentList = RootModel[list[Component]]
 IssueLinkList = RootModel[list[IssueLink]]
@@ -329,6 +331,8 @@ def _attachment_form(content: bytes, filename: str) -> FormData:
     )
     return form
 
+
+_TRIGGERS_PER_PAGE = 100
 
 # A guard against a `next` link that never ends, not a page size.
 _MAX_WORKLOG_SEARCH_PAGES = 50
@@ -576,6 +580,28 @@ class TrackerClient(
                 not_found=QueueNotFound(queue_id),
             )
         ).root
+
+    async def queues_get_triggers(
+        self, queue_id: str, *, auth: YandexAuth | None = None
+    ) -> list[QueueTrigger]:
+        """Every trigger of a queue. The listing pages relatively: ascending by
+        id, the next page starting after the `id` passed."""
+        triggers: list[QueueTrigger] = []
+        params: dict[str, Any] = {"perPage": _TRIGGERS_PER_PAGE}
+        while True:
+            page = QueueTriggerList.model_validate_json(
+                await self._read(
+                    "GET",
+                    f"v3/queues/{queue_id}/triggers",
+                    auth=auth,
+                    params=params,
+                    not_found=QueueNotFound(queue_id),
+                )
+            ).root
+            triggers.extend(page)
+            if len(page) < _TRIGGERS_PER_PAGE:
+                return triggers
+            params = {"perPage": _TRIGGERS_PER_PAGE, "id": page[-1].id}
 
     async def queues_get_versions(
         self, queue_id: str, *, auth: YandexAuth | None = None

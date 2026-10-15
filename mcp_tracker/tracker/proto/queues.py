@@ -5,7 +5,7 @@ from .common import YandexAuth
 from .types.components import Component
 from .types.fields import GlobalField, LocalField
 from .types.pagination import PaginatedResult
-from .types.queues import Queue, QueueExpandOption, QueueVersion
+from .types.queues import Queue, QueueExpandOption, QueueTrigger, QueueVersion
 
 
 @runtime_checkable
@@ -29,6 +29,10 @@ class QueuesProtocol(Protocol):
     async def queues_get_tags(
         self, queue_id: str, *, auth: YandexAuth | None = None
     ) -> list[str]: ...
+
+    async def queues_get_triggers(
+        self, queue_id: str, *, auth: YandexAuth | None = None
+    ) -> list[QueueTrigger]: ...
 
     async def queues_get_versions(
         self, queue_id: str, *, auth: YandexAuth | None = None

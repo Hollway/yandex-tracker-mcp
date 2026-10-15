@@ -10,6 +10,7 @@ READ_ONLY_TOOL_NAMES = [
     "queues_get_all",
     "queue_get_tags",
     "queue_get_versions",
+    "queue_get_triggers",
     "queue_get_components",
     "queue_get_fields",
     "queue_get_metadata",

@@ -4,7 +4,7 @@ from mcp.client.session import ClientSession
 
 from mcp_tracker.tracker.proto.types.components import Component
 from mcp_tracker.tracker.proto.types.fields import GlobalField, LocalField
-from mcp_tracker.tracker.proto.types.queues import Queue, QueueVersion
+from mcp_tracker.tracker.proto.types.queues import Queue, QueueTrigger, QueueVersion
 from tests.mcp.conftest import get_tool_result_content, page
 
 
@@ -331,3 +331,50 @@ class TestQueueGetMetadataExpand:
         content = get_tool_result_content(result)
         assert content["components"] == []
         assert content["versions"] == []
+
+
+class TestQueueGetTriggers:
+    async def test_returns_the_triggers(
+        self,
+        client_session: ClientSession,
+        mock_queues_protocol: AsyncMock,
+    ) -> None:
+        mock_queues_protocol.queues_get_triggers.return_value = [
+            QueueTrigger(id=1, name="on", active=True),
+            QueueTrigger(id=2, name="off", active=False),
+        ]
+
+        result = await client_session.call_tool(
+            "queue_get_triggers", {"queue_id": "TEST"}
+        )
+
+        assert not result.isError
+        assert [t["id"] for t in get_tool_result_content(result)] == [1, 2]
+
+    async def test_active_only_leaves_out_the_switched_off(
+        self,
+        client_session: ClientSession,
+        mock_queues_protocol: AsyncMock,
+    ) -> None:
+        mock_queues_protocol.queues_get_triggers.return_value = [
+            QueueTrigger(id=1, name="on", active=True),
+            QueueTrigger(id=2, name="off", active=False),
+        ]
+
+        result = await client_session.call_tool(
+            "queue_get_triggers", {"queue_id": "TEST", "active_only": True}
+        )
+
+        assert [t["id"] for t in get_tool_result_content(result)] == [1]
+
+    async def test_restricted_queue_is_refused(
+        self,
+        client_session_with_limits: ClientSession,
+        mock_queues_protocol: AsyncMock,
+    ) -> None:
+        result = await client_session_with_limits.call_tool(
+            "queue_get_triggers", {"queue_id": "RESTRICTED"}
+        )
+
+        assert result.isError
+        mock_queues_protocol.queues_get_triggers.assert_not_called()
