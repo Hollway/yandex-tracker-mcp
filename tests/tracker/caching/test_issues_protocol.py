@@ -185,6 +185,41 @@ class TestCachingIssuesProtocol:
         )
         assert (first.id, second.id) == ("att-1", "att-2")
 
+    async def test_attachment_create_is_a_passthrough(
+        self,
+        caching_issues_protocol: Any,
+        mock_original: AsyncMock,
+        yandex_auth: YandexAuth,
+    ) -> None:
+        mock_original.attachment_create.side_effect = [
+            IssueAttachment(id="att-1", name="a.png"),
+            IssueAttachment(id="att-2", name="a.png"),
+        ]
+
+        first = await caching_issues_protocol.attachment_create(
+            content=b"data", filename="a.png", auth=yandex_auth
+        )
+        second = await caching_issues_protocol.attachment_create(
+            content=b"data", filename="a.png", auth=yandex_auth
+        )
+
+        assert mock_original.attachment_create.call_count == 2
+        assert (first.id, second.id) == ("att-1", "att-2")
+
+    async def test_issue_add_comment_passes_attachment_ids(
+        self,
+        caching_issues_protocol: Any,
+        mock_original: AsyncMock,
+        yandex_auth: YandexAuth,
+    ) -> None:
+        await caching_issues_protocol.issue_add_comment(
+            "TEST-1", text="x", attachment_ids=["4159"], auth=yandex_auth
+        )
+
+        assert mock_original.issue_add_comment.call_args.kwargs["attachment_ids"] == [
+            "4159"
+        ]
+
     async def test_issue_download_attachment_is_a_passthrough(
         self,
         caching_issues_protocol: Any,

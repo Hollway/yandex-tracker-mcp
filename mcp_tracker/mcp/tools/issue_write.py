@@ -1,8 +1,6 @@
 """Issue write MCP tools (conditionally registered based on read-only mode)."""
 
-import asyncio
 import datetime
-from pathlib import Path
 from typing import Annotated, Any
 
 from mcp.server import FastMCP
@@ -33,6 +31,11 @@ from mcp_tracker.mcp.params import (
     MarkupTypeParam,
 )
 from mcp_tracker.mcp.tools._access import check_issue_access, check_queue_access
+from mcp_tracker.mcp.tools._files import (
+    UploadFilenameParam,
+    UploadFilePathParam,
+    read_upload_file,
+)
 from mcp_tracker.mcp.utils import get_yandex_auth
 from mcp_tracker.settings import Settings
 from mcp_tracker.tracker.proto.types.inputs import (
@@ -49,9 +52,6 @@ from mcp_tracker.tracker.proto.types.issues import (
     IssueTransition,
     Worklog,
 )
-
-# Tracker's documented limit for one attachment.
-MAX_ATTACHMENT_SIZE = 1024 * 1024 * 1024
 
 
 def _build_move_options_schema(
@@ -500,6 +500,14 @@ def register_issue_write_tools(settings: Settings, mcp: FastMCP[Any]) -> None:
                 description="Whether to add the comment author to issue followers. Default: true."
             ),
         ] = True,
+        attachment_ids: Annotated[
+            list[str] | None,
+            Field(
+                description="Files to attach to the comment: ids of temporary "
+                "attachments from `attachment_create`. An id from "
+                "issue_get_attachments is an attachment of the issue, not one of these."
+            ),
+        ] = None,
     ) -> IssueComment:
         check_issue_access(settings, issue_id, write=True)
 
@@ -510,6 +518,7 @@ def register_issue_write_tools(settings: Settings, mcp: FastMCP[Any]) -> None:
             maillist_summonees=maillist_summonees,
             markup_type=markup_type,
             is_add_to_followers=is_add_to_followers,
+            attachment_ids=attachment_ids,
             auth=get_yandex_auth(ctx),
         )
 
@@ -820,41 +829,12 @@ def register_issue_file_upload_tools(settings: Settings, mcp: FastMCP[Any]) -> N
     async def issue_add_attachment(
         ctx: Context[Any, AppContext],
         issue_id: IssueID,
-        file_path: Annotated[
-            str,
-            Field(
-                description="Absolute path to the file on the machine the server runs "
-                "on; a relative one resolves against the server's working directory."
-            ),
-        ],
-        filename: Annotated[
-            str | None,
-            Field(
-                description="Name to store the attachment under. Defaults to the "
-                "file's own name."
-            ),
-        ] = None,
+        file_path: UploadFilePathParam,
+        filename: UploadFilenameParam = None,
     ) -> IssueAttachment:
         check_issue_access(settings, issue_id, write=True)
 
-        path = Path(file_path).expanduser().resolve()
-        if not path.exists():
-            raise TrackerError(f"File `{path}` does not exist.")
-        if not path.is_file():
-            raise TrackerError(f"`{path}` is not a file; pass the path to a file.")
-
-        size = path.stat().st_size
-        if size > MAX_ATTACHMENT_SIZE:
-            raise TrackerError(
-                f"File `{path}` is {size / 1024 / 1024:.0f} MB, over Yandex Tracker's "
-                f"{MAX_ATTACHMENT_SIZE // 1024 // 1024} MB limit for one attachment. "
-                "Compress or split it, or upload it somewhere else and link to it."
-            )
-
-        try:
-            content = await asyncio.to_thread(path.read_bytes)
-        except OSError as exc:
-            raise TrackerError(f"Could not read file `{path}`: {exc}") from exc
+        content, path = await read_upload_file(file_path)
 
         return await ctx.request_context.lifespan_context.issues.issue_add_attachment(
             issue_id,

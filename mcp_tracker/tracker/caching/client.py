@@ -211,6 +211,7 @@ def make_cached_protocols(
             maillist_summonees: list[str] | None = None,
             markup_type: str | None = None,
             is_add_to_followers: bool = True,
+            attachment_ids: list[str] | None = None,
             auth: YandexAuth | None = None,
         ) -> IssueComment:
             return await self._original.issue_add_comment(
@@ -220,6 +221,7 @@ def make_cached_protocols(
                 maillist_summonees=maillist_summonees,
                 markup_type=markup_type,
                 is_add_to_followers=is_add_to_followers,
+                attachment_ids=attachment_ids,
                 auth=auth,
             )
 
@@ -344,6 +346,17 @@ def make_cached_protocols(
         ) -> IssueAttachment:
             return await self._original.issue_add_attachment(
                 issue_id, content=content, filename=filename, auth=auth
+            )
+
+        async def attachment_create(
+            self,
+            *,
+            content: bytes,
+            filename: str,
+            auth: YandexAuth | None = None,
+        ) -> IssueAttachment:
+            return await self._original.attachment_create(
+                content=content, filename=filename, auth=auth
             )
 
         async def issue_download_attachment(

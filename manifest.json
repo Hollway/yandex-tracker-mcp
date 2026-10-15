@@ -362,6 +362,10 @@
       "description": "Get attachments for an issue"
     },
     {
+      "name": "attachment_create",
+      "description": "Upload a file from this computer as a temporary attachment for a comment (requires TRACKER_FILE_UPLOAD_ENABLED)"
+    },
+    {
       "name": "issue_download_attachment",
       "description": "Save an issue attachment to this computer and return its path (requires TRACKER_ATTACHMENT_DOWNLOAD_ENABLED)"
     },
@@ -466,7 +470,7 @@
     "tracker_file_upload_enabled": {
       "type": "boolean",
       "title": "Enable File Upload to Issues",
-      "description": "Register issue_add_attachment, which uploads a file from this computer to an issue. It can read any file you can, so it is off by default.",
+      "description": "Register issue_add_attachment and attachment_create, which upload a file from this computer to an issue or a comment. They can read any file you can, so they are off by default.",
       "required": false,
       "sensitive": false,
       "default": false

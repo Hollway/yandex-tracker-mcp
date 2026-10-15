@@ -187,6 +187,56 @@ class TestIssueAddAttachment:
         assert exc_info.value.issue_id == "NOTFOUND-123"
 
 
+class TestAttachmentCreate:
+    async def test_uploads_to_the_temporary_attachments_endpoint(
+        self,
+        tracker_client: TrackerClient,
+        uploaded_attachment_data: dict[str, Any],
+    ) -> None:
+        capture = RequestCapture(status=201, payload=uploaded_attachment_data)
+
+        with aioresponses() as m:
+            m.post(
+                "https://api.tracker.yandex.net/v3/attachments/?filename=скриншот.png",
+                callback=capture.callback,
+            )
+
+            result = await tracker_client.attachment_create(
+                content=FILE_CONTENT, filename="скриншот.png"
+            )
+
+        capture.assert_called_once()
+        request = capture.last_request
+        assert request.url.path == "/v3/attachments/"
+        request.assert_param("filename", "скриншот.png")
+        parts = await request.get_multipart_parts()
+        assert [(p.name, p.filename, p.content) for p in parts] == [
+            ("file", "скриншот.png", FILE_CONTENT)
+        ]
+        assert result.id == "4159"
+
+    async def test_uses_the_attachment_timeout(
+        self, uploaded_attachment_data: dict[str, Any]
+    ) -> None:
+        client = TrackerClient(
+            token="test-token", org_id="test-org", timeout=10, attachment_timeout=600
+        )
+        capture = RequestCapture(status=201, payload=uploaded_attachment_data)
+
+        try:
+            with aioresponses() as m:
+                m.post(
+                    "https://api.tracker.yandex.net/v3/attachments/?filename=a.png",
+                    callback=capture.callback,
+                )
+
+                await client.attachment_create(content=FILE_CONTENT, filename="a.png")
+        finally:
+            await client.close()
+
+        assert capture.last_request.timeout == ClientTimeout(total=600)
+
+
 class TestIssueDownloadAttachment:
     async def test_streams_the_body_into_the_destination(
         self, tracker_client: TrackerClient, tmp_path: Path

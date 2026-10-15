@@ -10,7 +10,7 @@ from mcp.server import FastMCP
 from mcp.shared.context import RequestContext
 from mcp.types import CallToolResult, ElicitRequestParams, ElicitResult, TextContent
 
-from mcp_tracker.mcp.tools import issue_write
+from mcp_tracker.mcp.tools import _files
 from mcp_tracker.tracker.proto.types.inputs import (
     IssueComponentRef,
     IssueFollowerRef,
@@ -584,6 +584,38 @@ class TestIssueAddComment:
         content = get_tool_result_content(result)
         assert isinstance(content, dict)
         assert content["id"] == sample_comment.id
+
+    async def test_attachment_ids_are_passed(
+        self,
+        client_session: ClientSession,
+        mock_issues_protocol: AsyncMock,
+        sample_comment: IssueComment,
+    ) -> None:
+        mock_issues_protocol.issue_add_comment.return_value = sample_comment
+
+        result = await client_session.call_tool(
+            "issue_add_comment",
+            {"issue_id": "TEST-123", "text": "See", "attachment_ids": ["4159"]},
+        )
+
+        assert not result.isError
+        call_kwargs = mock_issues_protocol.issue_add_comment.call_args.kwargs
+        assert call_kwargs["attachment_ids"] == ["4159"]
+
+    async def test_attachment_ids_default_to_none(
+        self,
+        client_session: ClientSession,
+        mock_issues_protocol: AsyncMock,
+        sample_comment: IssueComment,
+    ) -> None:
+        mock_issues_protocol.issue_add_comment.return_value = sample_comment
+
+        await client_session.call_tool(
+            "issue_add_comment", {"issue_id": "TEST-123", "text": "x"}
+        )
+
+        call_kwargs = mock_issues_protocol.issue_add_comment.call_args.kwargs
+        assert call_kwargs["attachment_ids"] is None
 
     async def test_restricted_queue_raises_error(
         self,
@@ -1470,7 +1502,7 @@ class TestIssueAddAttachment:
         upload_file: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        monkeypatch.setattr(issue_write, "MAX_ATTACHMENT_SIZE", 4)
+        monkeypatch.setattr(_files, "MAX_ATTACHMENT_SIZE", 4)
         monkeypatch.setattr(Path, "read_bytes", _refuse_to_read)
 
         result = await client_session.call_tool(
@@ -1482,7 +1514,7 @@ class TestIssueAddAttachment:
         mock_issues_protocol.issue_add_attachment.assert_not_called()
 
     async def test_the_limit_is_trackers_1024_mb(self) -> None:
-        assert issue_write.MAX_ATTACHMENT_SIZE == 1024 * 1024 * 1024
+        assert _files.MAX_ATTACHMENT_SIZE == 1024 * 1024 * 1024
 
     async def test_an_unreadable_file_is_reported(
         self,
@@ -1550,3 +1582,57 @@ class TestIssueAddAttachment:
 
         assert "read-only" in error_text(result)
         mock_issues_protocol.issue_add_attachment.assert_not_called()
+
+
+class TestAttachmentCreate:
+    async def test_uploads_the_file_and_returns_its_id(
+        self,
+        client_session: ClientSession,
+        mock_issues_protocol: AsyncMock,
+        sample_attachment: IssueAttachment,
+        tmp_path: Path,
+    ) -> None:
+        path = tmp_path / "log.txt"
+        path.write_bytes(b"line 1\nline 2\n")
+        mock_issues_protocol.attachment_create.return_value = sample_attachment
+
+        result = await client_session.call_tool(
+            "attachment_create", {"file_path": str(path)}
+        )
+
+        assert not result.isError
+        call_kwargs = mock_issues_protocol.attachment_create.call_args.kwargs
+        assert call_kwargs["content"] == b"line 1\nline 2\n"
+        assert call_kwargs["filename"] == "log.txt"
+        assert get_tool_result_content(result)["id"] == sample_attachment.id
+
+    async def test_filename_overrides_the_stored_name(
+        self,
+        client_session: ClientSession,
+        mock_issues_protocol: AsyncMock,
+        sample_attachment: IssueAttachment,
+        tmp_path: Path,
+    ) -> None:
+        path = tmp_path / "log.txt"
+        path.write_bytes(b"x")
+        mock_issues_protocol.attachment_create.return_value = sample_attachment
+
+        await client_session.call_tool(
+            "attachment_create", {"file_path": str(path), "filename": "журнал.txt"}
+        )
+
+        call_kwargs = mock_issues_protocol.attachment_create.call_args.kwargs
+        assert call_kwargs["filename"] == "журнал.txt"
+
+    async def test_a_missing_file_is_refused_without_a_request(
+        self,
+        client_session: ClientSession,
+        mock_issues_protocol: AsyncMock,
+        tmp_path: Path,
+    ) -> None:
+        result = await client_session.call_tool(
+            "attachment_create", {"file_path": str(tmp_path / "missing.txt")}
+        )
+
+        assert result.isError
+        mock_issues_protocol.attachment_create.assert_not_called()

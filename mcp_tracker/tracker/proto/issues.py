@@ -52,6 +52,7 @@ class IssueProtocol(Protocol):
         maillist_summonees: list[str] | None = None,
         markup_type: str | None = None,
         is_add_to_followers: bool = True,
+        attachment_ids: list[str] | None = None,
         auth: YandexAuth | None = None,
     ) -> IssueComment: ...
     async def issue_update_comment(
@@ -134,6 +135,13 @@ class IssueProtocol(Protocol):
     async def issue_add_attachment(
         self,
         issue_id: str,
+        *,
+        content: bytes,
+        filename: str,
+        auth: YandexAuth | None = None,
+    ) -> IssueAttachment: ...
+    async def attachment_create(
+        self,
         *,
         content: bytes,
         filename: str,

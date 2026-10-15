@@ -13,7 +13,8 @@
 
 ## Entities
 
-`board`, `boards`, `comment`, `component`, `goal`, `issue`, `issues`, `portfolio`,
+`attachment` (a temporary attachment, not yet bound to an issue), `board`,
+`boards`, `comment`, `component`, `goal`, `issue`, `issues`, `portfolio`,
 `project`, `queue`, `queues`, `user`, `users`.
 
 A tool for a new entity means adding its prefix to `TOOL_NAME_ENTITIES` in that test,

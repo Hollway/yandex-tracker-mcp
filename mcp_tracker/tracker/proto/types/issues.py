@@ -11,6 +11,7 @@ from mcp_tracker.tracker.proto.types.base import (
 )
 from mcp_tracker.tracker.proto.types.mixins import CreatedMixin, CreatedUpdatedMixin
 from mcp_tracker.tracker.proto.types.refs import (
+    AttachmentReference,
     BaseReference,
     ComponentReference,
     IssueBoardReference,
@@ -137,6 +138,7 @@ class IssueComment(CreatedUpdatedMixin, BaseTrackerEntity):
         serialization_alias="maillistSummonees",
         exclude_if=none_excluder,
     )
+    attachments: list[AttachmentReference] | None = NoneExcludedField
 
 
 CommentFieldsEnum = Enum(  # type: ignore[misc]

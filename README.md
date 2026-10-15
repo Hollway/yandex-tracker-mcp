@@ -604,7 +604,7 @@ These four are organization-wide. A queue may accept only some of the values the
 | `issue_get` | One issue by key: the full record, the current `version` included | `issue_id`, `include_description` |
 | `issue_get_url` | The web URL of an issue | `issue_id` |
 | `issue_get_comments` | A page of comments, oldest first; returns `{comments, next_cursor}` | `issue_id`, `cursor`, `per_page`, `fields` |
-| `issue_add_comment` | Add a comment; `summonees` is what notifies a user, an `@login` in the text notifies nobody | `issue_id`, `text`, `summonees`, `maillist_summonees`, `markup_type`, `is_add_to_followers` |
+| `issue_add_comment` | Add a comment; `summonees` is what notifies a user, an `@login` in the text notifies nobody | `issue_id`, `text`, `summonees`, `maillist_summonees`, `markup_type`, `is_add_to_followers`, `attachment_ids` (from `attachment_create`) |
 | `issue_update_comment` | Edit a comment | `issue_id`, `comment_id`, `text`, `summonees`, `maillist_summonees` |
 | `issue_delete_comment` | Delete a comment | `issue_id`, `comment_id` |
 | `issue_get_links` | Links to related, blocking and duplicate issues | `issue_id` |
@@ -617,6 +617,7 @@ These four are organization-wide. A queue may accept only some of the values the
 | `issue_get_attachments` | Attachment metadata | `issue_id`, `fields` |
 | `issue_download_attachment` | Save an attachment to the machine the server runs on, returning its absolute path, MIME type and size | `issue_id`, `attachment_id` from `issue_get_attachments` |
 | `issue_add_attachment` | Upload a file from the machine the server runs on, returning the attachment; an image shows inline in a description only when embedded as `![name](/ajax/v2/attachments/<id>?inline=true)` | `issue_id`, `file_path`, `filename` |
+| `attachment_create` | Upload a file from the machine the server runs on as a temporary attachment, returning the `id` that `attachment_ids` of `issue_add_comment` takes | `file_path`, `filename` |
 | `issue_get_checklist` | The checklist, with the item ids the write tools need | `issue_id` |
 | `issue_add_checklist_items` | Append items in order, creating the checklist if there is none | `issue_id`, `items` (`text`, `checked`, `assignee`, `deadline`) |
 | `issue_update_checklist_item` | Change one item; the fields you omit keep their value | `issue_id`, `checklist_item_id`, `text`, `checked`, `assignee`, `deadline`, `clear_assignee`, `clear_deadline` |
@@ -635,7 +636,7 @@ These four are organization-wide. A queue may accept only some of the values the
 
 Every tool here respects `TRACKER_LIMIT_QUEUES` and `TRACKER_READ_ONLY_QUEUES`; the ones that write are registered only when `TRACKER_READ_ONLY` is off.
 
-The attachment file tools are opt-in and local-only. `issue_add_attachment` is registered only with `TRACKER_FILE_UPLOAD_ENABLED=true`, because it reads any file the server process can; `issue_download_attachment` only with `TRACKER_ATTACHMENT_DOWNLOAD_ENABLED=true`, read-only mode included. Both default to `false`, and the server refuses to start with either on a network transport or with `OAUTH_ENABLED`, where a client - or a prompt injected into an issue - could upload the host's secrets to an issue.
+The attachment file tools are opt-in and local-only. `issue_add_attachment` and `attachment_create` are registered only with `TRACKER_FILE_UPLOAD_ENABLED=true`, because they read any file the server process can; `issue_download_attachment` only with `TRACKER_ATTACHMENT_DOWNLOAD_ENABLED=true`, read-only mode included. Both default to `false`, and the server refuses to start with either on a network transport or with `OAUTH_ENABLED`, where a client - or a prompt injected into an issue - could upload the host's secrets to an issue.
 
 Downloads are saved under `TRACKER_ATTACHMENTS_DIR` (default `<system temp>/yandex-tracker-mcp/attachments`), one folder per issue, as `<attachment id>-<name>`. They are kept, so downloading the same attachment again returns the file already there; attachments over `TRACKER_MAX_ATTACHMENT_BYTES` (default 50 MiB) are refused before the download starts. Uploads and downloads have their own time budget, `TRACKER_ATTACHMENT_TIMEOUT`.
 
@@ -1016,7 +1017,7 @@ TRACKER_ATTACHMENT_TIMEOUT=300            # Default: 300 - Timeout in seconds fo
 TRACKER_LIMIT_QUEUES=PROJ1,PROJ2,DEV      # Comma-separated queue keys - allow-list of accessible queues
 TRACKER_READ_ONLY_QUEUES=PROJ2            # Comma-separated queue keys - allowed for reads but reject writes (per-queue read-only)
 TRACKER_ENTITIES_ENABLED=true             # Default: false - Register project/portfolio/goal tools (NOT covered by the queue restrictions above)
-TRACKER_FILE_UPLOAD_ENABLED=true          # Default: false - Register issue_add_attachment, which uploads local files (stdio only: refused with a network transport or OAUTH_ENABLED)
+TRACKER_FILE_UPLOAD_ENABLED=true          # Default: false - Register issue_add_attachment and attachment_create, which upload local files (stdio only: refused with a network transport or OAUTH_ENABLED)
 TRACKER_ATTACHMENT_DOWNLOAD_ENABLED=true  # Default: false - Register issue_download_attachment, which saves attachments to this machine (stdio only, like the flag above)
 TRACKER_ATTACHMENTS_DIR=/path/to/dir      # Default: <system temp>/yandex-tracker-mcp/attachments - Where downloaded attachments are saved
 TRACKER_MAX_ATTACHMENT_BYTES=52428800     # Default: 52428800 (50 MiB) - Larger attachments are not downloaded

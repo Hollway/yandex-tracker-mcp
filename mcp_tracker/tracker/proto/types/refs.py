@@ -74,3 +74,7 @@ class IssueReference(BaseReference):
 
 class ComponentReference(BaseReference):
     display: str | None = None
+
+
+class AttachmentReference(BaseReference):
+    display: str | None = None

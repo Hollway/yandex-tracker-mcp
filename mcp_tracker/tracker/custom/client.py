@@ -301,6 +301,22 @@ class ServiceAccountStore:
 BOARDS_PAGE_MAX = 500
 
 
+def _attachment_form(content: bytes, filename: str) -> FormData:
+    """The multipart body of an attachment upload.
+
+    The part is named `file`, as the API requires, and carries the name too -
+    the callers also send it as the documented `filename` query parameter.
+    """
+    form = FormData()
+    form.add_field(
+        "file",
+        content,
+        filename=filename,
+        content_type=mimetypes.guess_type(filename)[0] or "application/octet-stream",
+    )
+    return form
+
+
 class TrackerClient(
     QueuesProtocol,
     IssueProtocol,
@@ -837,6 +853,7 @@ class TrackerClient(
         maillist_summonees: list[str] | None = None,
         markup_type: str | None = None,
         is_add_to_followers: bool = True,
+        attachment_ids: list[str] | None = None,
         auth: YandexAuth | None = None,
     ) -> IssueComment:
         """Добавить комментарий к задаче."""
@@ -847,6 +864,8 @@ class TrackerClient(
             body["maillistSummonees"] = maillist_summonees
         if markup_type is not None:
             body["markupType"] = markup_type
+        if attachment_ids is not None:
+            body["attachmentIds"] = attachment_ids
 
         # Параметр опциональный, по умолчанию true на стороне API.
         # Чтобы не менять URL (и поведение по умолчанию), передаём его только при false.
@@ -1077,23 +1096,36 @@ class TrackerClient(
         filename: str,
         auth: YandexAuth | None = None,
     ) -> IssueAttachment:
-        # The name goes both ways the API documents: as the `filename` query
-        # parameter and as the multipart part's own filename.
-        form = FormData()
-        form.add_field(
-            "file",
-            content,
-            filename=filename,
-            content_type=mimetypes.guess_type(filename)[0]
-            or "application/octet-stream",
-        )
         async with self._request(
             "POST",
             f"v3/issues/{issue_id}/attachments/",
             auth=auth,
             params={"filename": filename},
-            data=form,
+            data=_attachment_form(content, filename),
             not_found=IssueNotFound(issue_id),
+            timeout=self._attachment_timeout,
+            timeout_setting="TRACKER_ATTACHMENT_TIMEOUT",
+        ) as response:
+            return IssueAttachment.model_validate_json(await response.read())
+
+    async def attachment_create(
+        self,
+        *,
+        content: bytes,
+        filename: str,
+        auth: YandexAuth | None = None,
+    ) -> IssueAttachment:
+        """Upload a temporary attachment - one bound to nothing yet.
+
+        Its id is what `attachmentIds` of a new comment takes; the request is
+        the issue upload's, sent to `v3/attachments/` instead.
+        """
+        async with self._request(
+            "POST",
+            "v3/attachments/",
+            auth=auth,
+            params={"filename": filename},
+            data=_attachment_form(content, filename),
             timeout=self._attachment_timeout,
             timeout_setting="TRACKER_ATTACHMENT_TIMEOUT",
         ) as response:

@@ -76,6 +76,42 @@ class TestIssueAddComment:
             {"text": "Ping", "summonees": ["user123"]}
         )
 
+    async def test_attachment_ids_are_sent_and_the_files_come_back(
+        self, tracker_client: TrackerClient
+    ) -> None:
+        comment_data = {
+            "self": "https://api.tracker.yandex.net/v3/issues/TEST-123/comments/3",
+            "id": 3,
+            "text": "See the screenshot",
+            "attachments": [
+                {
+                    "self": "https://api.tracker.yandex.net/v3/issues/TEST-123/attachments/4159",
+                    "id": "4159",
+                    "display": "screenshot.png",
+                }
+            ],
+            "createdAt": "2023-01-01T12:00:00.000+0000",
+        }
+        capture = RequestCapture(payload=comment_data)
+
+        with aioresponses() as m:
+            m.post(
+                "https://api.tracker.yandex.net/v3/issues/TEST-123/comments",
+                callback=capture.callback,
+            )
+
+            result = await tracker_client.issue_add_comment(
+                "TEST-123", text="See the screenshot", attachment_ids=["4159"]
+            )
+
+        capture.last_request.assert_json_body(
+            {"text": "See the screenshot", "attachmentIds": ["4159"]}
+        )
+        assert result.attachments is not None
+        assert [(a.id, a.display) for a in result.attachments] == [
+            ("4159", "screenshot.png")
+        ]
+
     async def test_not_found(self, tracker_client: TrackerClient) -> None:
         with aioresponses() as m:
             m.post(

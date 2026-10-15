@@ -126,6 +126,7 @@ ENTITY_WRITE_TOOL_NAMES = [
 # Tools that read local files - require both write mode and TRACKER_FILE_UPLOAD_ENABLED
 FILE_UPLOAD_TOOL_NAMES = [
     "issue_add_attachment",
+    "attachment_create",
 ]
 
 # Tools that write to the server's disk without changing Tracker - require
