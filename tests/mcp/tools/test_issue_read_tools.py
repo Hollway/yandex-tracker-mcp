@@ -10,6 +10,7 @@ from mcp.types import CallToolResult, TextContent
 
 from mcp_tracker.mcp.context import AppContext
 from mcp_tracker.mcp.server import create_mcp_server
+from mcp_tracker.tracker.custom.errors import AttachmentNotFound
 from mcp_tracker.tracker.proto.common import YandexAuth
 from mcp_tracker.tracker.proto.types.issues import (
     ChangelogComments,
@@ -587,7 +588,7 @@ class TestIssueDownloadAttachment:
         attachment: IssueAttachment,
         tmp_path: Path,
     ) -> None:
-        mock_issues_protocol.issue_get_attachments.return_value = [attachment]
+        mock_issues_protocol.issue_get_attachment.return_value = attachment
         mock_issues_protocol.issue_download_attachment.side_effect = write_attachment
 
         result = await download_session.call_tool(
@@ -596,6 +597,12 @@ class TestIssueDownloadAttachment:
         )
 
         assert not result.isError
+        mock_issues_protocol.issue_get_attachment.assert_called_once()
+        assert mock_issues_protocol.issue_get_attachment.call_args.args == (
+            "ALLOWED-1",
+            "7946",
+        )
+        mock_issues_protocol.issue_get_attachments.assert_not_called()
         expected = tmp_path / "ALLOWED-1" / "7946-image.png"
         call_args = mock_issues_protocol.issue_download_attachment.call_args
         assert call_args.args == ("ALLOWED-1", "7946", "image.png", expected)
@@ -621,7 +628,7 @@ class TestIssueDownloadAttachment:
         existing = tmp_path / "ALLOWED-1" / "7946-image.png"
         existing.parent.mkdir()
         existing.write_bytes(b"x" * 1024)
-        mock_issues_protocol.issue_get_attachments.return_value = [attachment]
+        mock_issues_protocol.issue_get_attachment.return_value = attachment
 
         result = await download_session.call_tool(
             "issue_download_attachment",
@@ -642,7 +649,7 @@ class TestIssueDownloadAttachment:
         existing = tmp_path / "ALLOWED-1" / "7946-image.png"
         existing.parent.mkdir()
         existing.write_bytes(b"x" * 10)
-        mock_issues_protocol.issue_get_attachments.return_value = [attachment]
+        mock_issues_protocol.issue_get_attachment.return_value = attachment
         mock_issues_protocol.issue_download_attachment.side_effect = write_attachment
 
         result = await download_session.call_tool(
@@ -659,11 +666,11 @@ class TestIssueDownloadAttachment:
         mock_issues_protocol: AsyncMock,
         tmp_path: Path,
     ) -> None:
-        mock_issues_protocol.issue_get_attachments.return_value = [
+        mock_issues_protocol.issue_get_attachment.return_value = (
             IssueAttachment.model_construct(
                 id="7946", name="../../evil:name?.png", size=1024, mimetype=None
             )
-        ]
+        )
         mock_issues_protocol.issue_download_attachment.side_effect = write_attachment
 
         result = await download_session.call_tool(
@@ -683,9 +690,10 @@ class TestIssueDownloadAttachment:
         self,
         download_session: ClientSession,
         mock_issues_protocol: AsyncMock,
-        attachment: IssueAttachment,
     ) -> None:
-        mock_issues_protocol.issue_get_attachments.return_value = [attachment]
+        mock_issues_protocol.issue_get_attachment.side_effect = AttachmentNotFound(
+            "ALLOWED-1", "1"
+        )
 
         result = await download_session.call_tool(
             "issue_download_attachment",
@@ -701,11 +709,11 @@ class TestIssueDownloadAttachment:
         download_session: ClientSession,
         mock_issues_protocol: AsyncMock,
     ) -> None:
-        mock_issues_protocol.issue_get_attachments.return_value = [
+        mock_issues_protocol.issue_get_attachment.return_value = (
             IssueAttachment.model_construct(
                 id="7946", name="video.mp4", size=51 * 1024 * 1024, mimetype=None
             )
-        ]
+        )
 
         result = await download_session.call_tool(
             "issue_download_attachment",
@@ -727,7 +735,7 @@ class TestIssueDownloadAttachment:
         )
 
         assert result.isError
-        mock_issues_protocol.issue_get_attachments.assert_not_called()
+        mock_issues_protocol.issue_get_attachment.assert_not_called()
         mock_issues_protocol.issue_download_attachment.assert_not_called()
 
 

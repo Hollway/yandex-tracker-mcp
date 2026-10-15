@@ -24,7 +24,7 @@ from mcp_tracker.mcp.utils import (
     set_non_needed_fields_null,
 )
 from mcp_tracker.settings import Settings
-from mcp_tracker.tracker.custom.errors import AttachmentNotFound, AttachmentTooLarge
+from mcp_tracker.tracker.custom.errors import AttachmentTooLarge
 from mcp_tracker.tracker.proto.types.issues import (
     AttachmentFieldsEnum,
     ChangelogPage,
@@ -379,12 +379,11 @@ def register_issue_attachment_download_tools(
         issues = ctx.request_context.lifespan_context.issues
         auth = get_yandex_auth(ctx)
 
-        # The listing gives the name the download URL needs, and the size to
+        # The metadata gives the name the download URL needs, and the size to
         # refuse an oversized file before a single byte of it is fetched.
-        attachments = await issues.issue_get_attachments(issue_id, auth=auth)
-        attachment = next((a for a in attachments if a.id == attachment_id), None)
-        if attachment is None:
-            raise AttachmentNotFound(issue_id, attachment_id)
+        attachment = await issues.issue_get_attachment(
+            issue_id, attachment_id, auth=auth
+        )
 
         limit = settings.tracker_max_attachment_bytes
         if attachment.size is not None and attachment.size > limit:

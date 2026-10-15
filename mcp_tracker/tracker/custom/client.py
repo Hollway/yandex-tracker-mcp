@@ -1088,6 +1088,20 @@ class TrackerClient(
             )
         ).root
 
+    async def issue_get_attachment(
+        self, issue_id: str, attachment_id: str, *, auth: YandexAuth | None = None
+    ) -> IssueAttachment:
+        # Quoted whole: the id is the caller's text, and a `/` or `..` in it
+        # would reach another endpoint.
+        return IssueAttachment.model_validate_json(
+            await self._read(
+                "GET",
+                f"v3/issues/{issue_id}/attachments/{quote(attachment_id, safe='')}",
+                auth=auth,
+                not_found=AttachmentNotFound(issue_id, attachment_id),
+            )
+        )
+
     async def issue_add_attachment(
         self,
         issue_id: str,

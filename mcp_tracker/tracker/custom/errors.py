@@ -278,16 +278,19 @@ class EntityLinksOnlyUpdate(YandexTrackerError):
 
 
 class AttachmentNotFound(YandexTrackerError):
-    """Raised when an attachment id is not among the attachments of the issue.
+    """Raised for a 404 from an attachment-scoped path.
 
-    Not `IssueNotFound`: the issue usually exists, and the id came from an older
-    `issue_get_attachments` call or from another issue.
+    Not `IssueNotFound`: Tracker answers an unknown issue and an unknown
+    attachment alike there, and the usual cause is the attachment - an id from
+    an older `issue_get_attachments` call or from another issue - so the message
+    names both.
     """
 
     def __init__(self, issue_id: str, attachment_id: str):
         super().__init__(
-            f"Attachment '{attachment_id}' was not found on issue '{issue_id}' - "
-            f"issue_get_attachments lists the current ones."
+            f"Attachment '{attachment_id}' was not found on issue '{issue_id}', or "
+            f"the issue itself does not exist - issue_get_attachments lists the "
+            f"current attachments of an issue."
         )
         self.issue_id = issue_id
         self.attachment_id = attachment_id

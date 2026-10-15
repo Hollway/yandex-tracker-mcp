@@ -185,6 +185,21 @@ class TestCachingIssuesProtocol:
         )
         assert (first.id, second.id) == ("att-1", "att-2")
 
+    async def test_issue_get_attachment_calls_original(
+        self,
+        caching_issues_protocol: Any,
+        mock_original: AsyncMock,
+        yandex_auth: YandexAuth,
+    ) -> None:
+        result = await caching_issues_protocol.issue_get_attachment(
+            "TEST-1", "4159", auth=yandex_auth
+        )
+
+        mock_original.issue_get_attachment.assert_called_once_with(
+            "TEST-1", "4159", auth=yandex_auth
+        )
+        assert result == mock_original.issue_get_attachment.return_value
+
     async def test_attachment_create_is_a_passthrough(
         self,
         caching_issues_protocol: Any,

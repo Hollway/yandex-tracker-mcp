@@ -187,6 +187,58 @@ class TestIssueAddAttachment:
         assert exc_info.value.issue_id == "NOTFOUND-123"
 
 
+class TestIssueGetAttachment:
+    async def test_reads_one_attachment(
+        self,
+        tracker_client: TrackerClient,
+        uploaded_attachment_data: dict[str, Any],
+    ) -> None:
+        with aioresponses() as m:
+            m.get(
+                "https://api.tracker.yandex.net/v3/issues/TEST-123/attachments/4159",
+                payload=uploaded_attachment_data,
+            )
+
+            result = await tracker_client.issue_get_attachment("TEST-123", "4159")
+
+        assert (result.id, result.name) == ("4159", "скриншот.png")
+
+    async def test_the_id_is_one_quoted_path_segment(
+        self,
+        tracker_client: TrackerClient,
+        uploaded_attachment_data: dict[str, Any],
+    ) -> None:
+        capture = RequestCapture(payload=uploaded_attachment_data)
+
+        with aioresponses() as m:
+            m.get(
+                "https://api.tracker.yandex.net/v3/issues/TEST-123/attachments/..%2F..%2Fmyself",
+                callback=capture.callback,
+            )
+
+            await tracker_client.issue_get_attachment("TEST-123", "../../myself")
+
+        assert capture.last_request.url.raw_path == (
+            "/v3/issues/TEST-123/attachments/..%2F..%2Fmyself"
+        )
+
+    async def test_not_found_names_both_causes(
+        self, tracker_client: TrackerClient
+    ) -> None:
+        with aioresponses() as m:
+            m.get(
+                "https://api.tracker.yandex.net/v3/issues/TEST-123/attachments/1",
+                status=404,
+            )
+
+            with pytest.raises(AttachmentNotFound) as exc_info:
+                await tracker_client.issue_get_attachment("TEST-123", "1")
+
+        message = str(exc_info.value)
+        assert "the issue itself does not exist" in message
+        assert "issue_get_attachments" in message
+
+
 class TestAttachmentCreate:
     async def test_uploads_to_the_temporary_attachments_endpoint(
         self,
