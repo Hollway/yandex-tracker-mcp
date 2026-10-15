@@ -1,0 +1,466 @@
+{
+  "manifest_version": "0.4",
+  "name": "yandex-tracker-mcp",
+  "display_name": "Yandex Tracker MCP",
+  "version": "0.10.0",
+  "description": "Yandex Tracker MCP Server",
+  "author": {
+    "name": "Hollway",
+    "url": "https://github.com/Hollway"
+  },
+  "icon": "images/tracker-logo.png",
+  "server": {
+    "type": "uv",
+    "entry_point": "yandex-tracker-mcp",
+    "mcp_config": {
+      "command": "uv",
+      "args": [
+        "run",
+        "yandex-tracker-mcp"
+      ],
+      "env": {
+        "PYTHONPATH": "${__dirname}",
+        "TRACKER_TOKEN": "${user_config.tracker_token}",
+        "TRACKER_IAM_TOKEN": "${user_config.tracker_iam_token}",
+        "TRACKER_CLOUD_ORG_ID": "${user_config.tracker_cloud_org_id}",
+        "TRACKER_ORG_ID": "${user_config.tracker_org_id}",
+        "TRACKER_ENTITIES_ENABLED": "${user_config.tracker_entities_enabled}"
+      }
+    }
+  },
+  "compatibility": {
+    "platforms": ["darwin", "linux", "win32"],
+    "runtimes": {
+      "python": ">=3.11"
+    }
+  },
+  "tools": [
+    {
+      "name": "queues_get_all",
+      "description": "List all available Yandex Tracker queues"
+    },
+    {
+      "name": "queue_get_tags",
+      "description": "Get all tags for a specific queue"
+    },
+    {
+      "name": "queue_get_versions",
+      "description": "Get all versions for a specific queue"
+    },
+    {
+      "name": "queue_get_components",
+      "description": "Get the components of a queue with lead, auto-assign flag and version"
+    },
+    {
+      "name": "queue_create_version",
+      "description": "Create a new version in a specific queue"
+    },
+    {
+      "name": "queue_get_fields",
+      "description": "Get fields for a specific queue"
+    },
+    {
+      "name": "queue_get_metadata",
+      "description": "Get detailed metadata about a specific queue"
+    },
+    {
+      "name": "component_get",
+      "description": "Get one queue component by its numeric id"
+    },
+    {
+      "name": "component_create",
+      "description": "Create a component in a queue"
+    },
+    {
+      "name": "component_update",
+      "description": "Change the name, description, lead or auto-assign flag of a component"
+    },
+    {
+      "name": "component_delete",
+      "description": "Permanently delete a component"
+    },
+    {
+      "name": "project_get",
+      "description": "Get a project by its id or shortId (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "project_find",
+      "description": "Search projects by name substring and/or field filters (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "project_get_comments",
+      "description": "Get a page of comments of a project by its id or shortId (cursor-paginated) (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "portfolio_get",
+      "description": "Get a portfolio by its id or shortId (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "portfolio_find",
+      "description": "Search portfolios by name substring and/or field filters (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "portfolio_get_comments",
+      "description": "Get a page of comments of a portfolio by its id or shortId (cursor-paginated) (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "goal_get",
+      "description": "Get a goal by its id or shortId (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "goal_find",
+      "description": "Search goals by name substring and/or field filters (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "goal_get_comments",
+      "description": "Get a page of comments of a goal by its id or shortId (cursor-paginated) (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "project_create",
+      "description": "Create a new project (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "project_update",
+      "description": "Update fields of an existing project (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "project_delete",
+      "description": "Delete a project (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "project_add_comment",
+      "description": "Add a comment to a project (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "project_update_comment",
+      "description": "Update an existing comment on a project (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "project_delete_comment",
+      "description": "Delete a comment from a project (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "project_add_checklist_item",
+      "description": "Add a checklist item to a project (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "project_update_checklist_item",
+      "description": "Update a checklist item on a project (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "project_move_checklist_item",
+      "description": "Reorder a checklist item on a project (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "project_delete_checklist_item",
+      "description": "Delete a checklist item from a project (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "project_update_checklist",
+      "description": "Bulk-edit all existing checklist items of a project (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "project_delete_checklist",
+      "description": "Delete the entire checklist of a project (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "portfolio_create",
+      "description": "Create a new portfolio (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "portfolio_update",
+      "description": "Update fields of an existing portfolio (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "portfolio_delete",
+      "description": "Delete a portfolio (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "portfolio_add_comment",
+      "description": "Add a comment to a portfolio (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "portfolio_update_comment",
+      "description": "Update an existing comment on a portfolio (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "portfolio_delete_comment",
+      "description": "Delete a comment from a portfolio (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "portfolio_add_checklist_item",
+      "description": "Add a checklist item to a portfolio (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "portfolio_update_checklist_item",
+      "description": "Update a checklist item on a portfolio (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "portfolio_move_checklist_item",
+      "description": "Reorder a checklist item on a portfolio (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "portfolio_delete_checklist_item",
+      "description": "Delete a checklist item from a portfolio (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "portfolio_update_checklist",
+      "description": "Bulk-edit all existing checklist items of a portfolio (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "portfolio_delete_checklist",
+      "description": "Delete the entire checklist of a portfolio (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "goal_create",
+      "description": "Create a new goal (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "goal_update",
+      "description": "Update fields of an existing goal (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "goal_delete",
+      "description": "Delete a goal (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "goal_add_comment",
+      "description": "Add a comment to a goal (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "goal_update_comment",
+      "description": "Update an existing comment on a goal (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "goal_delete_comment",
+      "description": "Delete a comment from a goal (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "users_get_all",
+      "description": "Get information about user accounts registered in the organization"
+    },
+    {
+      "name": "user_get",
+      "description": "Get information about a specific user by login or UID"
+    },
+    {
+      "name": "user_get_current",
+      "description": "Get information about the current authenticated user"
+    },
+    {
+      "name": "users_search",
+      "description": "Search user based on login, email or real name (first or last name, or both)"
+    },
+    {
+      "name": "get_global_fields",
+      "description": "Get all global fields available in Yandex Tracker"
+    },
+    {
+      "name": "get_statuses",
+      "description": "Get all available issue statuses"
+    },
+    {
+      "name": "get_issue_types",
+      "description": "Get all available issue types"
+    },
+    {
+      "name": "get_priorities",
+      "description": "Get all available issue priorities"
+    },
+    {
+      "name": "get_resolutions",
+      "description": "Get all available issue resolutions"
+    },
+    {
+      "name": "issue_templates_get_all",
+      "description": "Get all issue templates configured in Yandex Tracker, including the field values they prefill, optionally scoped to a single queue"
+    },
+    {
+      "name": "issue_template_get",
+      "description": "Get a single Yandex Tracker issue template by its id"
+    },
+    {
+      "name": "comment_templates_get_all",
+      "description": "Get all comment templates configured in Yandex Tracker, including the comment text and summonees they insert, optionally scoped to a single queue"
+    },
+    {
+      "name": "comment_template_get",
+      "description": "Get a single Yandex Tracker comment template by its id"
+    },
+    {
+      "name": "boards_get_all",
+      "description": "Get the agile boards available in the organization, optionally only those collecting issues of a given queue"
+    },
+    {
+      "name": "board_get",
+      "description": "Get a single agile board with its settings, including the auto-filter that says which issues the board collects"
+    },
+    {
+      "name": "board_get_columns",
+      "description": "Get the columns of an agile board together with the issue statuses mapped onto each of them"
+    },
+    {
+      "name": "board_get_sprints",
+      "description": "Get all sprints of a specific agile board"
+    },
+    {
+      "name": "issue_get",
+      "description": "Read one issue (task, ticket, bug) by its key/ID and return its full record"
+    },
+    {
+      "name": "issue_get_url",
+      "description": "Generate web URL for an issue"
+    },
+    {
+      "name": "issue_get_comments",
+      "description": "Fetch a page of comments for an issue (cursor-paginated)"
+    },
+    {
+      "name": "issue_add_comment",
+      "description": "Add a comment to a Yandex Tracker issue"
+    },
+    {
+      "name": "issue_update_comment",
+      "description": "Update an existing comment in a Yandex Tracker issue"
+    },
+    {
+      "name": "issue_delete_comment",
+      "description": "Delete a comment from a Yandex Tracker issue"
+    },
+    {
+      "name": "issue_add_link",
+      "description": "Create a link between a Yandex Tracker issue and another issue"
+    },
+    {
+      "name": "issue_delete_link",
+      "description": "Delete a link between a Yandex Tracker issue and another issue"
+    },
+    {
+      "name": "issue_get_links",
+      "description": "Get related issue links"
+    },
+    {
+      "name": "issue_get_worklogs",
+      "description": "Retrieve worklog entries"
+    },
+    {
+      "name": "issue_add_worklog",
+      "description": "Add a worklog entry (log spent time) to an issue"
+    },
+    {
+      "name": "issue_update_worklog",
+      "description": "Update a worklog entry (spent time record) in an issue"
+    },
+    {
+      "name": "issue_delete_worklog",
+      "description": "Delete a worklog entry (spent time record) from an issue"
+    },
+    {
+      "name": "issue_get_attachments",
+      "description": "Get attachments for an issue"
+    },
+    {
+      "name": "issue_add_checklist_items",
+      "description": "Add one or more items to the checklist of a Yandex Tracker issue"
+    },
+    {
+      "name": "issue_delete_checklist_item",
+      "description": "Delete a single item from the checklist of a Yandex Tracker issue"
+    },
+    {
+      "name": "issue_get_checklist",
+      "description": "Get checklist items of a Yandex Tracker issue by its id"
+    },
+    {
+      "name": "issue_update_checklist_item",
+      "description": "Update a single checklist item of a Yandex Tracker issue, e.g. to mark it as checked"
+    },
+    {
+      "name": "issue_get_transitions",
+      "description": "Get possible status transitions for a Yandex Tracker issue"
+    },
+    {
+      "name": "issue_get_changelog",
+      "description": "Get the change history (changelog) of a Yandex Tracker issue: status transitions, field edits, comment changes and executed triggers, who changed what and when. Supports cursor pagination and field/type filters."
+    },
+    {
+      "name": "issue_execute_transition",
+      "description": "Execute a status transition for a Yandex Tracker issue. Must call issue_get_transitions first to get available transition IDs."
+    },
+    {
+      "name": "issue_close",
+      "description": "Close a Yandex Tracker issue with a resolution. Automatically finds a transition to done status. Must call get_resolutions first."
+    },
+    {
+      "name": "issue_create",
+      "description": "Create a new issue in a Yandex Tracker queue"
+    },
+    {
+      "name": "issue_update",
+      "description": "Update an existing Yandex Tracker issue"
+    },
+    {
+      "name": "issue_move",
+      "description": "Move a Yandex Tracker issue to a different queue"
+    },
+    {
+      "name": "issues_find",
+      "description": "Search issues using Yandex Tracker Query Language"
+    },
+    {
+      "name": "issues_count",
+      "description": "Count issues matching a query using Yandex Tracker Query Language"
+    }
+  ],
+  "user_config": {
+    "tracker_token": {
+      "type": "string",
+      "title": "Yandex Tracker Token",
+      "description": "OAuth token for accessing Yandex Tracker API",
+      "required": false,
+      "sensitive": true,
+      "default": ""
+    },
+    "tracker_iam_token": {
+      "type": "string",
+      "title": "Yandex IAM Token",
+      "description": "IAM token for service-to-service authentication",
+      "required": false,
+      "sensitive": true,
+      "default": ""
+    },
+    "tracker_cloud_org_id": {
+      "type": "string",
+      "title": "Tracker Cloud Org Id",
+      "description": "ID of Yandex Cloud Organization",
+      "required": false,
+      "sensitive": false,
+      "default": ""
+    },
+    "tracker_org_id": {
+      "type": "string",
+      "title": "Tracker Org Id",
+      "description": "ID of Yandex 360 Organization",
+      "required": false,
+      "sensitive": false,
+      "default": ""
+    },
+    "tracker_entities_enabled": {
+      "type": "boolean",
+      "title": "Enable Project/Portfolio/Goal Tools",
+      "description": "Register the project, portfolio and goal tools. They add a large tool manifest and are not covered by the queue restrictions, so they are off by default.",
+      "required": false,
+      "sensitive": false,
+      "default": false
+    }
+  },
+  "keywords": [
+    "yandex",
+    "yandex-tracker"
+  ],
+  "license": "Apache 2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Hollway/yandex-tracker-mcp"
+  }
+}

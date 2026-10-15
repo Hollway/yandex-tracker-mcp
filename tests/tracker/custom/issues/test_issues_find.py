@@ -1,0 +1,127 @@
+from typing import Any
+
+from aioresponses import aioresponses
+
+from mcp_tracker.tracker.custom.client import TrackerClient
+from mcp_tracker.tracker.proto.types.issues import Issue
+from tests.aioresponses_utils import RequestCapture
+
+
+class TestIssuesFind:
+    async def test_success(
+        self, tracker_client: TrackerClient, sample_issue_data: dict[str, Any]
+    ) -> None:
+        search_response = [sample_issue_data]
+
+        with aioresponses() as m:
+            m.post(
+                "https://api.tracker.yandex.net/v3/issues/_search?page=1&perPage=15",
+                payload=search_response,
+            )
+
+            result = await tracker_client.issues_find("Queue: TEST")
+
+            assert len(result.values) == 1
+            assert isinstance(result.values[0], Issue)
+            assert result.values[0].key == "TEST-123"
+
+    async def test_with_pagination(
+        self, tracker_client: TrackerClient, sample_issue_data: dict[str, Any]
+    ) -> None:
+        search_response = [sample_issue_data]
+        capture = RequestCapture(payload=search_response)
+
+        with aioresponses() as m:
+            m.post(
+                "https://api.tracker.yandex.net/v3/issues/_search?page=2&perPage=50",
+                callback=capture.callback,
+            )
+
+            result = await tracker_client.issues_find(
+                "Queue: TEST", per_page=50, page=2
+            )
+
+            assert len(result.values) == 1
+
+        capture.assert_called_once()
+        capture.last_request.assert_params({"perPage": 50, "page": 2})
+        capture.last_request.assert_json_field("query", "Queue: TEST")
+
+    async def test_returns_totals_from_headers(
+        self, tracker_client: TrackerClient, sample_issue_data: dict[str, Any]
+    ) -> None:
+        with aioresponses() as m:
+            m.post(
+                "https://api.tracker.yandex.net/v3/issues/_search?page=1&perPage=100",
+                payload=[sample_issue_data],
+                headers={"X-Total-Count": "403", "X-Total-Pages": "5"},
+            )
+
+            result = await tracker_client.issues_find("Queue: TEST", per_page=100)
+
+            assert result.hits == 403
+            assert result.pages == 5
+
+    async def test_totals_are_none_without_headers(
+        self, tracker_client: TrackerClient, sample_issue_data: dict[str, Any]
+    ) -> None:
+        with aioresponses() as m:
+            m.post(
+                "https://api.tracker.yandex.net/v3/issues/_search?page=1&perPage=15",
+                payload=[sample_issue_data],
+            )
+
+            result = await tracker_client.issues_find("Queue: TEST")
+
+            assert result.hits is None
+            assert result.pages is None
+
+    async def test_malformed_totals_do_not_fail_the_call(
+        self, tracker_client: TrackerClient, sample_issue_data: dict[str, Any]
+    ) -> None:
+        with aioresponses() as m:
+            m.post(
+                "https://api.tracker.yandex.net/v3/issues/_search?page=1&perPage=15",
+                payload=[sample_issue_data],
+                headers={"X-Total-Count": "many", "X-Total-Pages": "5"},
+            )
+
+            result = await tracker_client.issues_find("Queue: TEST")
+
+            assert result.hits is None
+            assert result.pages == 5
+            assert len(result.values) == 1
+
+    async def test_fields_are_sent_as_query_param(
+        self, tracker_client: TrackerClient, sample_issue_data: dict[str, Any]
+    ) -> None:
+        capture = RequestCapture(payload=[sample_issue_data])
+
+        with aioresponses() as m:
+            m.post(
+                "https://api.tracker.yandex.net/v3/issues/_search?fields=key,storyPoints&page=1&perPage=15",
+                callback=capture.callback,
+            )
+
+            await tracker_client.issues_find(
+                "Queue: TEST", fields=["key", "storyPoints"]
+            )
+
+        capture.assert_called_once()
+        capture.last_request.assert_param("fields", "key,storyPoints")
+
+    async def test_no_fields_param_when_not_requested(
+        self, tracker_client: TrackerClient, sample_issue_data: dict[str, Any]
+    ) -> None:
+        capture = RequestCapture(payload=[sample_issue_data])
+
+        with aioresponses() as m:
+            m.post(
+                "https://api.tracker.yandex.net/v3/issues/_search?page=1&perPage=15",
+                callback=capture.callback,
+            )
+
+            await tracker_client.issues_find("Queue: TEST")
+
+        capture.assert_called_once()
+        assert "fields" not in capture.last_request.params
