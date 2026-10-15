@@ -463,6 +463,8 @@ claude mcp add yandex-tracker docker "run --rm -i -e TRACKER_TOKEN=ваш_ток
 | `queue_get_versions` | Версии очереди с датами и статусом | `queue_id` |
 | `queue_get_components` | Компоненты очереди целиком: с ответственным, флагом автоназначения и `version`; `queue_get_metadata` с `expand: ["components"]` даёт только id и названия | `queue_id` |
 | `queue_create_version` | Создать версию в очереди | `queue_id`, `name`, `description`, `start_date`, `due_date` (`YYYY-MM-DD`) |
+| `queue_update_version` | Переименовать версию или изменить её описание и даты | `version_id`, `name`, `description`, `start_date`, `due_date` |
+| `queue_delete_version` | Удалить версию - восстановить её нельзя | `version_id` |
 | `queue_get_fields` | Поля, настроенные в очереди, включая локальные; `schema.required` отмечает обязательные | `queue_id`, `include_local_fields` |
 | `queue_get_metadata` | Название, описание, тип и приоритет по умолчанию плюс то, что запрошено в `expand` | `queue_id`, `expand` (`all`, `projects`, `components`, `versions`, `types`, `team`, `workflows`, `fields`, `issueTypesConfig`) |
 

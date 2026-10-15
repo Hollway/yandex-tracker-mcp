@@ -143,6 +143,36 @@ def make_cached_protocols(
                 auth=auth,
             )
 
+        # Not cached: the write tools read the version for its queue.
+        async def queue_get_version(
+            self, version_id: int, *, auth: YandexAuth | None = None
+        ) -> QueueVersion:
+            return await self._original.queue_get_version(version_id, auth=auth)
+
+        async def queue_update_version(
+            self,
+            version_id: int,
+            *,
+            name: str | None = None,
+            description: str | None = None,
+            start_date: datetime.date | None = None,
+            due_date: datetime.date | None = None,
+            auth: YandexAuth | None = None,
+        ) -> QueueVersion:
+            return await self._original.queue_update_version(
+                version_id,
+                name=name,
+                description=description,
+                start_date=start_date,
+                due_date=due_date,
+                auth=auth,
+            )
+
+        async def queue_delete_version(
+            self, version_id: int, *, auth: YandexAuth | None = None
+        ) -> None:
+            return await self._original.queue_delete_version(version_id, auth=auth)
+
         @cached(**cache_config)
         async def queues_get_fields(
             self, queue_id: str, *, auth: YandexAuth | None = None

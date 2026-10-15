@@ -74,6 +74,8 @@ ENTITY_READ_ONLY_TOOL_NAMES = [
 WRITE_TOOL_NAMES = [
     "issue_delete_attachment",
     "queue_create_version",
+    "queue_update_version",
+    "queue_delete_version",
     "component_create",
     "component_update",
     "component_delete",

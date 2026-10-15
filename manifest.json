@@ -58,6 +58,14 @@
       "description": "Get the components of a queue with lead, auto-assign flag and version"
     },
     {
+      "name": "queue_update_version",
+      "description": "Rename a queue version or change its description or dates"
+    },
+    {
+      "name": "queue_delete_version",
+      "description": "Permanently delete a queue version"
+    },
+    {
       "name": "queue_create_version",
       "description": "Create a new version in a specific queue"
     },

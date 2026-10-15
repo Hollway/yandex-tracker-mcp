@@ -6,7 +6,11 @@ from typing import Any, Literal
 from pydantic import ConfigDict, Field, field_validator
 
 from mcp_tracker.tracker.proto.types.base import BaseTrackerEntity, NoneExcludedField
-from mcp_tracker.tracker.proto.types.refs import IssueTypeReference, PriorityReference
+from mcp_tracker.tracker.proto.types.refs import (
+    IssueTypeReference,
+    PriorityReference,
+    QueueReference,
+)
 from mcp_tracker.tracker.proto.types.resolutions import Resolution
 
 
@@ -62,6 +66,7 @@ class QueueVersion(BaseTrackerEntity):
 
     id: int
     version: int
+    queue: QueueReference | None = NoneExcludedField
     name: str
     description: str | None = None
     startDate: date | None = None

@@ -466,6 +466,8 @@ The server exposes the following tools through the MCP protocol:
 | `queue_get_versions` | The queue's versions, with dates and status | `queue_id` |
 | `queue_get_components` | The queue's components as full objects, with lead, auto-assign flag and `version`; `queue_get_metadata` with `expand: ["components"]` gives ids and names only | `queue_id` |
 | `queue_create_version` | Create a version in the queue | `queue_id`, `name`, `description`, `start_date`, `due_date` (`YYYY-MM-DD`) |
+| `queue_update_version` | Rename a version or change its description or dates | `version_id`, `name`, `description`, `start_date`, `due_date` |
+| `queue_delete_version` | Delete a version - it cannot be restored | `version_id` |
 | `queue_get_fields` | The fields configured on the queue, local ones included; `schema.required` marks the mandatory ones | `queue_id`, `include_local_fields` |
 | `queue_get_metadata` | Name, description, default type and priority, plus whatever `expand` asks for | `queue_id`, `expand` (`all`, `projects`, `components`, `versions`, `types`, `team`, `workflows`, `fields`, `issueTypesConfig`) |
 

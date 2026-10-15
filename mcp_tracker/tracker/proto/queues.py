@@ -53,6 +53,25 @@ class QueuesProtocol(Protocol):
         auth: YandexAuth | None = None,
     ) -> QueueVersion: ...
 
+    async def queue_get_version(
+        self, version_id: int, *, auth: YandexAuth | None = None
+    ) -> QueueVersion: ...
+
+    async def queue_update_version(
+        self,
+        version_id: int,
+        *,
+        name: str | None = None,
+        description: str | None = None,
+        start_date: date | None = None,
+        due_date: date | None = None,
+        auth: YandexAuth | None = None,
+    ) -> QueueVersion: ...
+
+    async def queue_delete_version(
+        self, version_id: int, *, auth: YandexAuth | None = None
+    ) -> None: ...
+
     async def queues_get_fields(
         self, queue_id: str, *, auth: YandexAuth | None = None
     ) -> list[GlobalField]: ...

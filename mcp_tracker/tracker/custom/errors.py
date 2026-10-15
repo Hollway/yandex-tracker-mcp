@@ -343,3 +343,22 @@ class CommentNotFound(YandexTrackerError):
         )
         self.issue_id = issue_id
         self.comment_id = comment_id
+
+
+class VersionNotFound(YandexTrackerError):
+    def __init__(self, version_id: int):
+        super().__init__(
+            f"Queue version with ID '{version_id}' not found - queue_get_versions "
+            f"lists the versions of a queue."
+        )
+        self.version_id = version_id
+
+
+class VersionEmptyUpdate(YandexTrackerError):
+    """Raised for a version update that would change nothing."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            "A version update must change something: pass at least one of `name`, "
+            "`description`, `start_date` or `due_date`."
+        )

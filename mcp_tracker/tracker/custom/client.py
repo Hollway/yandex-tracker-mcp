@@ -41,6 +41,8 @@ from mcp_tracker.tracker.custom.errors import (
     QueueNotFound,
     TrackerAPIError,
     TrackerAPITimeout,
+    VersionEmptyUpdate,
+    VersionNotFound,
     WorklogSearchTooLarge,
     YandexTrackerError,
 )
@@ -649,6 +651,61 @@ class TrackerClient(
 
         return QueueVersion.model_validate_json(
             await self._read("POST", "v3/versions/", auth=auth, json=body)
+        )
+
+    async def queue_get_version(
+        self, version_id: int, *, auth: YandexAuth | None = None
+    ) -> QueueVersion:
+        return QueueVersion.model_validate_json(
+            await self._read(
+                "GET",
+                f"v3/versions/{version_id}",
+                auth=auth,
+                not_found=VersionNotFound(version_id),
+            )
+        )
+
+    async def queue_update_version(
+        self,
+        version_id: int,
+        *,
+        name: str | None = None,
+        description: str | None = None,
+        start_date: datetime.date | None = None,
+        due_date: datetime.date | None = None,
+        auth: YandexAuth | None = None,
+    ) -> QueueVersion:
+        """Change a version; only what is passed is sent (`PATCH v3/versions/{id}`)."""
+        body: dict[str, Any] = {}
+        if name is not None:
+            body["name"] = name
+        if description is not None:
+            body["description"] = description
+        if start_date is not None:
+            body["startDate"] = start_date.isoformat()
+        if due_date is not None:
+            body["dueDate"] = due_date.isoformat()
+        if not body:
+            raise VersionEmptyUpdate()
+
+        return QueueVersion.model_validate_json(
+            await self._read(
+                "PATCH",
+                f"v3/versions/{version_id}",
+                auth=auth,
+                json=body,
+                not_found=VersionNotFound(version_id),
+            )
+        )
+
+    async def queue_delete_version(
+        self, version_id: int, *, auth: YandexAuth | None = None
+    ) -> None:
+        await self._read(
+            "DELETE",
+            f"v3/versions/{version_id}",
+            auth=auth,
+            not_found=VersionNotFound(version_id),
         )
 
     async def queues_get_fields(

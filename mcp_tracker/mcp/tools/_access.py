@@ -2,8 +2,13 @@
 
 from mcp_tracker.mcp.errors import TrackerError
 from mcp_tracker.settings import Settings
-from mcp_tracker.tracker.custom.errors import ComponentNotFound, IssueNotFound
+from mcp_tracker.tracker.custom.errors import (
+    ComponentNotFound,
+    IssueNotFound,
+    VersionNotFound,
+)
 from mcp_tracker.tracker.proto.types.components import Component
+from mcp_tracker.tracker.proto.types.queues import QueueVersion
 
 
 def _is_read_only_queue(settings: Settings, queue: str) -> bool:
@@ -103,4 +108,25 @@ def check_component_access(
     # API: a queue the allow-list hides must not be named back at them.
     _check_scoped_queue(
         settings, queue_key, not_found=ComponentNotFound(component.id), write=write
+    )
+
+
+def check_version_access(
+    settings: Settings, version: QueueVersion, *, write: bool = False
+) -> None:
+    """Check access to a queue version through its queue, as
+    `check_component_access` does for a component: a version outside
+    ``TRACKER_LIMIT_QUEUES`` raises `VersionNotFound`, one with no queue key is
+    refused under a restriction."""
+    if not queue_checks_needed(settings, write=write):
+        return
+
+    queue_key = version.queue.key if version.queue is not None else None
+    if queue_key is None:
+        raise TrackerError(
+            f"Version `{version.id}` names no queue, so its access cannot be "
+            f"checked against the queue restrictions; refusing."
+        )
+    _check_scoped_queue(
+        settings, queue_key, not_found=VersionNotFound(version.id), write=write
     )

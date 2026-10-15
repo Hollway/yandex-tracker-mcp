@@ -18,6 +18,7 @@ All notable changes to this project will be documented in this file.
 - **`issue_get_comment`** - one comment by its id, with its attached files
 - **`issue_delete_attachment`** - delete a file attached to an issue
 - **`queue_get_triggers`** - the automation triggers of a queue with their conditions and actions; webhook credentials are left out
+- **`queue_update_version`, `queue_delete_version`** - change or delete a queue version; versions could only be listed and created
 
 ### Bug Fixes
 
