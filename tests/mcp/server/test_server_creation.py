@@ -34,6 +34,7 @@ READ_ONLY_TOOL_NAMES = [
     # Issue read tools (10)
     "issue_get",
     "issue_get_comments",
+    "issue_get_comment",
     "issue_get_links",
     "issues_find",
     "issues_count",
@@ -70,6 +71,7 @@ ENTITY_READ_ONLY_TOOL_NAMES = [
 
 # Write tool names - only registered when not in read-only mode
 WRITE_TOOL_NAMES = [
+    "issue_delete_attachment",
     "queue_create_version",
     "component_create",
     "component_update",

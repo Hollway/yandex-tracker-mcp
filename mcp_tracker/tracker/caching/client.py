@@ -246,6 +246,18 @@ def make_cached_protocols(
                 auth=auth,
             )
 
+        @cached(**cache_config)
+        async def issue_get_comment(
+            self,
+            issue_id: str,
+            comment_id: int | str,
+            *,
+            auth: YandexAuth | None = None,
+        ) -> IssueComment:
+            return await self._original.issue_get_comment(
+                issue_id, comment_id, auth=auth
+            )
+
         async def issue_delete_comment(
             self,
             issue_id: str,
@@ -361,6 +373,17 @@ def make_cached_protocols(
             auth: YandexAuth | None = None,
         ) -> IssueAttachment:
             return await self._original.issue_get_attachment(
+                issue_id, attachment_id, auth=auth
+            )
+
+        async def issue_delete_attachment(
+            self,
+            issue_id: str,
+            attachment_id: str,
+            *,
+            auth: YandexAuth | None = None,
+        ) -> None:
+            return await self._original.issue_delete_attachment(
                 issue_id, attachment_id, auth=auth
             )
 

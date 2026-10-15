@@ -34,6 +34,7 @@ from mcp_tracker.tracker.proto.types.issues import (
     DownloadedIssueAttachment,
     Issue,
     IssueAttachment,
+    IssueComment,
     IssueLink,
     IssuesCount,
     IssueTransition,
@@ -203,6 +204,27 @@ def register_issue_read_tools(settings: Settings, mcp: FastMCP[Any]) -> None:
             auth=get_yandex_auth(ctx),
         )
         return IssuesCount(count=count)
+
+    @mcp.tool(
+        title="Get Issue Comment",
+        description="Get one comment of a Yandex Tracker issue by its id, with the "
+        "files attached to it - e.g. a comment a link, a mention or the changelog "
+        "points at, without paging through issue_get_comments.",
+        annotations=ToolAnnotations(readOnlyHint=True),
+    )
+    async def issue_get_comment(
+        ctx: Context[Any, AppContext],
+        issue_id: IssueID,
+        comment_id: Annotated[
+            int | str,
+            Field(description="The comment's numeric `id` or its `longId`."),
+        ],
+    ) -> IssueComment:
+        check_issue_access(settings, issue_id)
+
+        return await ctx.request_context.lifespan_context.issues.issue_get_comment(
+            issue_id, comment_id, auth=get_yandex_auth(ctx)
+        )
 
     @mcp.tool(
         title="Get Issue Worklogs",

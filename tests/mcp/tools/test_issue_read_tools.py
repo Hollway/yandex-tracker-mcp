@@ -904,3 +904,51 @@ class TestIssueGetChangelog:
 
         assert result.isError
         mock_issues_protocol.issue_get_changelog.assert_not_called()
+
+
+class TestIssueGetComment:
+    async def test_returns_the_comment(
+        self,
+        client_session: ClientSession,
+        mock_issues_protocol: AsyncMock,
+        sample_comment: IssueComment,
+    ) -> None:
+        mock_issues_protocol.issue_get_comment.return_value = sample_comment
+
+        result = await client_session.call_tool(
+            "issue_get_comment", {"issue_id": "TEST-1", "comment_id": 7}
+        )
+
+        assert not result.isError
+        assert mock_issues_protocol.issue_get_comment.call_args.args == ("TEST-1", 7)
+        assert get_tool_result_content(result)["id"] == sample_comment.id
+
+    async def test_takes_a_long_id(
+        self,
+        client_session: ClientSession,
+        mock_issues_protocol: AsyncMock,
+        sample_comment: IssueComment,
+    ) -> None:
+        mock_issues_protocol.issue_get_comment.return_value = sample_comment
+
+        await client_session.call_tool(
+            "issue_get_comment",
+            {"issue_id": "TEST-1", "comment_id": "5fa15a24ac894475dd14ff07"},
+        )
+
+        assert mock_issues_protocol.issue_get_comment.call_args.args == (
+            "TEST-1",
+            "5fa15a24ac894475dd14ff07",
+        )
+
+    async def test_restricted_queue_is_refused(
+        self,
+        client_session_with_limits: ClientSession,
+        mock_issues_protocol: AsyncMock,
+    ) -> None:
+        result = await client_session_with_limits.call_tool(
+            "issue_get_comment", {"issue_id": "RESTRICTED-1", "comment_id": 7}
+        )
+
+        assert result.isError
+        mock_issues_protocol.issue_get_comment.assert_not_called()

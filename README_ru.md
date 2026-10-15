@@ -602,6 +602,7 @@ claude mcp add yandex-tracker docker "run --rm -i -e TRACKER_TOKEN=ваш_ток
 | `issue_get` | Одна задача по ключу: полная запись, включая текущий `version` | `issue_id`, `include_description` |
 | `issue_get_url` | Веб-адрес задачи | `issue_id` |
 | `issue_get_comments` | Страница комментариев, от старых к новым; возвращает `{comments, next_cursor}` | `issue_id`, `cursor`, `per_page`, `fields` |
+| `issue_get_comment` | Один комментарий с прикреплёнными к нему файлами | `issue_id`, `comment_id` (`id` или `longId`) |
 | `issue_add_comment` | Добавить комментарий; уведомляет именно `summonees`, а `@login` в тексте не уведомляет никого | `issue_id`, `text`, `summonees`, `maillist_summonees`, `markup_type`, `is_add_to_followers`, `attachment_ids` (из `attachment_create`) |
 | `issue_update_comment` | Изменить комментарий | `issue_id`, `comment_id`, `text`, `summonees`, `maillist_summonees` |
 | `issue_delete_comment` | Удалить комментарий | `issue_id`, `comment_id` |
@@ -616,6 +617,7 @@ claude mcp add yandex-tracker docker "run --rm -i -e TRACKER_TOKEN=ваш_ток
 | `issue_get_attachments` | Метаданные вложений | `issue_id`, `fields` |
 | `issue_download_attachment` | Сохранить вложение на машину, где работает сервер, и вернуть абсолютный путь, MIME-тип и размер | `issue_id`, `attachment_id` из `issue_get_attachments` |
 | `issue_add_attachment` | Загрузить файл с машины, на которой работает сервер, и вернуть вложение; изображение показывается в описании, только если вставить его как `![name](/ajax/v2/attachments/<id>?inline=true)` | `issue_id`, `file_path`, `filename` |
+| `issue_delete_attachment` | Удалить файл, прикреплённый к задаче, - восстановить его нельзя | `issue_id`, `attachment_id` |
 | `attachment_create` | Загрузить файл с машины, где работает сервер, как временное вложение и вернуть `id`, который принимает `attachment_ids` у `issue_add_comment` | `file_path`, `filename` |
 | `issue_get_checklist` | Чек-лист вместе с id пунктов, которые нужны инструментам записи | `issue_id` |
 | `issue_add_checklist_items` | Добавить пункты по порядку, создав чек-лист, если его не было | `issue_id`, `items` (`text`, `checked`, `assignee`, `deadline`) |

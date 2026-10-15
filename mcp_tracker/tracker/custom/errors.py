@@ -329,3 +329,17 @@ class AbsencesForbidden(YandexTrackerError):
             "Yandex Tracker refused the absence search: it needs the rights of an "
             "organization administrator, which the token's owner does not have."
         )
+
+
+class CommentNotFound(YandexTrackerError):
+    """Raised for a 404 from a comment-scoped path, which Tracker answers alike
+    for an unknown issue and an unknown comment."""
+
+    def __init__(self, issue_id: str, comment_id: int | str):
+        super().__init__(
+            f"Comment '{comment_id}' was not found on issue '{issue_id}', or the "
+            f"issue itself does not exist - issue_get_comments lists the current "
+            f"comments of an issue."
+        )
+        self.issue_id = issue_id
+        self.comment_id = comment_id

@@ -239,6 +239,31 @@ class TestIssueGetAttachment:
         assert "issue_get_attachments" in message
 
 
+class TestIssueDeleteAttachment:
+    async def test_deletes_by_id(self, tracker_client: TrackerClient) -> None:
+        capture = RequestCapture(status=204)
+
+        with aioresponses() as m:
+            m.delete(
+                "https://api.tracker.yandex.net/v3/issues/TEST-123/attachments/4159",
+                callback=capture.callback,
+            )
+
+            await tracker_client.issue_delete_attachment("TEST-123", "4159")
+
+        capture.assert_called_once()
+
+    async def test_not_found(self, tracker_client: TrackerClient) -> None:
+        with aioresponses() as m:
+            m.delete(
+                "https://api.tracker.yandex.net/v3/issues/TEST-123/attachments/1",
+                status=404,
+            )
+
+            with pytest.raises(AttachmentNotFound):
+                await tracker_client.issue_delete_attachment("TEST-123", "1")
+
+
 class TestAttachmentCreate:
     async def test_uploads_to_the_temporary_attachments_endpoint(
         self,

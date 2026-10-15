@@ -322,6 +322,10 @@
       "description": "Fetch a page of comments for an issue (cursor-paginated)"
     },
     {
+      "name": "issue_get_comment",
+      "description": "Get one comment of an issue by its id, with its attached files"
+    },
+    {
       "name": "issue_add_comment",
       "description": "Add a comment to a Yandex Tracker issue"
     },
@@ -368,6 +372,10 @@
     {
       "name": "issue_get_attachments",
       "description": "Get attachments for an issue"
+    },
+    {
+      "name": "issue_delete_attachment",
+      "description": "Permanently delete a file attached to an issue"
     },
     {
       "name": "attachment_create",

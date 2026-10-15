@@ -55,6 +55,13 @@ class IssueProtocol(Protocol):
         attachment_ids: list[str] | None = None,
         auth: YandexAuth | None = None,
     ) -> IssueComment: ...
+    async def issue_get_comment(
+        self,
+        issue_id: str,
+        comment_id: int | str,
+        *,
+        auth: YandexAuth | None = None,
+    ) -> IssueComment: ...
     async def issue_update_comment(
         self,
         issue_id: str,
@@ -143,6 +150,9 @@ class IssueProtocol(Protocol):
     async def issue_get_attachment(
         self, issue_id: str, attachment_id: str, *, auth: YandexAuth | None = None
     ) -> IssueAttachment: ...
+    async def issue_delete_attachment(
+        self, issue_id: str, attachment_id: str, *, auth: YandexAuth | None = None
+    ) -> None: ...
     async def issue_add_attachment(
         self,
         issue_id: str,

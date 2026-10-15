@@ -4,8 +4,9 @@ import pytest
 from aioresponses import aioresponses
 
 from mcp_tracker.tracker.custom.client import TrackerClient
-from mcp_tracker.tracker.custom.errors import IssueNotFound
+from mcp_tracker.tracker.custom.errors import CommentNotFound, IssueNotFound
 from mcp_tracker.tracker.proto.types.issues import CommentsPage, IssueComment
+from tests.aioresponses_utils import RequestCapture
 
 COMMENTS_URL = "https://api.tracker.yandex.net/v3/issues/TEST-123/comments"
 
@@ -62,3 +63,44 @@ class TestIssueGetComments:
                 await tracker_client.issue_get_comments("NOTFOUND-123")
 
             assert exc_info.value.issue_id == "NOTFOUND-123"
+
+
+class TestIssueGetComment:
+    async def test_reads_one_comment_with_its_files(
+        self, tracker_client: TrackerClient
+    ) -> None:
+        capture = RequestCapture(
+            payload={
+                "id": 7,
+                "longId": "5fa15a24ac894475dd14ff07",
+                "text": "See the log",
+                "attachments": [{"id": "4159", "display": "app.log"}],
+            }
+        )
+
+        with aioresponses() as m:
+            m.get(
+                "https://api.tracker.yandex.net/v3/issues/TEST-1/comments/7?expand=attachments",
+                callback=capture.callback,
+            )
+
+            result = await tracker_client.issue_get_comment("TEST-1", 7)
+
+        capture.last_request.assert_param("expand", "attachments")
+        assert result.id == 7
+        assert result.attachments is not None
+        assert result.attachments[0].display == "app.log"
+
+    async def test_not_found_names_both_causes(
+        self, tracker_client: TrackerClient
+    ) -> None:
+        with aioresponses() as m:
+            m.get(
+                "https://api.tracker.yandex.net/v3/issues/TEST-1/comments/abc?expand=attachments",
+                status=404,
+            )
+
+            with pytest.raises(CommentNotFound) as exc_info:
+                await tracker_client.issue_get_comment("TEST-1", "abc")
+
+        assert "the issue itself does not exist" in str(exc_info.value)

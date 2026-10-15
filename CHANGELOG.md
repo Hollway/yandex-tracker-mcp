@@ -15,6 +15,8 @@ All notable changes to this project will be documented in this file.
   - Saved under `TRACKER_ATTACHMENTS_DIR` (default: a folder in the system temp directory); attachments over `TRACKER_MAX_ATTACHMENT_BYTES` (default 50 MiB) are refused
 - **`worklogs_find`** - the time one user logged across all issues over a period, by the day of the work or the day it was entered; time logged in advance can be missed, since Tracker filters by the entry date ([aikts#14](https://github.com/aikts/yandex-tracker-mcp/pull/14))
 - **`users_get_absences`** - vacations, sick leave and other absences of up to 100 users over a period; needs organization administrator rights
+- **`issue_get_comment`** - one comment by its id, with its attached files
+- **`issue_delete_attachment`** - delete a file attached to an issue
 
 ### Bug Fixes
 

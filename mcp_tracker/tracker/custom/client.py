@@ -28,6 +28,7 @@ from mcp_tracker.tracker.custom.errors import (
     ChecklistBatchPartiallyAdded,
     ChecklistItemEmptyUpdate,
     ChecklistItemNotFound,
+    CommentNotFound,
     CommentTemplateNotFound,
     ComponentEmptyUpdate,
     ComponentNotFound,
@@ -928,6 +929,24 @@ class TrackerClient(
             )
         )
 
+    async def issue_get_comment(
+        self,
+        issue_id: str,
+        comment_id: int | str,
+        *,
+        auth: YandexAuth | None = None,
+    ) -> IssueComment:
+        """One comment, by its numeric `id` or its `longId`, with its files."""
+        return IssueComment.model_validate_json(
+            await self._read(
+                "GET",
+                f"v3/issues/{issue_id}/comments/{quote(str(comment_id), safe='')}",
+                auth=auth,
+                params={"expand": "attachments"},
+                not_found=CommentNotFound(issue_id, comment_id),
+            )
+        )
+
     async def issue_delete_comment(
         self,
         issue_id: str,
@@ -1158,6 +1177,16 @@ class TrackerClient(
                 auth=auth,
                 not_found=AttachmentNotFound(issue_id, attachment_id),
             )
+        )
+
+    async def issue_delete_attachment(
+        self, issue_id: str, attachment_id: str, *, auth: YandexAuth | None = None
+    ) -> None:
+        await self._read(
+            "DELETE",
+            f"v3/issues/{issue_id}/attachments/{quote(attachment_id, safe='')}",
+            auth=auth,
+            not_found=AttachmentNotFound(issue_id, attachment_id),
         )
 
     async def issue_add_attachment(

@@ -605,6 +605,7 @@ These four are organization-wide. A queue may accept only some of the values the
 | `issue_get` | One issue by key: the full record, the current `version` included | `issue_id`, `include_description` |
 | `issue_get_url` | The web URL of an issue | `issue_id` |
 | `issue_get_comments` | A page of comments, oldest first; returns `{comments, next_cursor}` | `issue_id`, `cursor`, `per_page`, `fields` |
+| `issue_get_comment` | One comment, with its attached files | `issue_id`, `comment_id` (`id` or `longId`) |
 | `issue_add_comment` | Add a comment; `summonees` is what notifies a user, an `@login` in the text notifies nobody | `issue_id`, `text`, `summonees`, `maillist_summonees`, `markup_type`, `is_add_to_followers`, `attachment_ids` (from `attachment_create`) |
 | `issue_update_comment` | Edit a comment | `issue_id`, `comment_id`, `text`, `summonees`, `maillist_summonees` |
 | `issue_delete_comment` | Delete a comment | `issue_id`, `comment_id` |
@@ -619,6 +620,7 @@ These four are organization-wide. A queue may accept only some of the values the
 | `issue_get_attachments` | Attachment metadata | `issue_id`, `fields` |
 | `issue_download_attachment` | Save an attachment to the machine the server runs on, returning its absolute path, MIME type and size | `issue_id`, `attachment_id` from `issue_get_attachments` |
 | `issue_add_attachment` | Upload a file from the machine the server runs on, returning the attachment; an image shows inline in a description only when embedded as `![name](/ajax/v2/attachments/<id>?inline=true)` | `issue_id`, `file_path`, `filename` |
+| `issue_delete_attachment` | Delete a file attached to an issue - it cannot be restored | `issue_id`, `attachment_id` |
 | `attachment_create` | Upload a file from the machine the server runs on as a temporary attachment, returning the `id` that `attachment_ids` of `issue_add_comment` takes | `file_path`, `filename` |
 | `issue_get_checklist` | The checklist, with the item ids the write tools need | `issue_id` |
 | `issue_add_checklist_items` | Append items in order, creating the checklist if there is none | `issue_id`, `items` (`text`, `checked`, `assignee`, `deadline`) |

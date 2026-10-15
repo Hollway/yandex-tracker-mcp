@@ -1636,3 +1636,40 @@ class TestAttachmentCreate:
 
         assert result.isError
         mock_issues_protocol.attachment_create.assert_not_called()
+
+
+class TestIssueDeleteAttachment:
+    async def test_deletes_the_attachment(
+        self,
+        client_session: ClientSession,
+        mock_issues_protocol: AsyncMock,
+    ) -> None:
+        result = await client_session.call_tool(
+            "issue_delete_attachment", {"issue_id": "TEST-1", "attachment_id": "4159"}
+        )
+
+        assert not result.isError
+        assert mock_issues_protocol.issue_delete_attachment.call_args.args == (
+            "TEST-1",
+            "4159",
+        )
+
+    async def test_read_only_queue_is_refused(
+        self,
+        client_session_with_read_only_queues: ClientSession,
+        mock_issues_protocol: AsyncMock,
+    ) -> None:
+        result = await client_session_with_read_only_queues.call_tool(
+            "issue_delete_attachment",
+            {"issue_id": "READONLY-1", "attachment_id": "4159"},
+        )
+
+        assert result.isError
+        mock_issues_protocol.issue_delete_attachment.assert_not_called()
+
+    async def test_is_marked_destructive(self, client_session: ClientSession) -> None:
+        tools = {tool.name: tool for tool in (await client_session.list_tools()).tools}
+
+        annotations = tools["issue_delete_attachment"].annotations
+        assert annotations is not None
+        assert annotations.destructiveHint is True
