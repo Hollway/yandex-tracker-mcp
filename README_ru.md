@@ -590,9 +590,14 @@ claude mcp add yandex-tracker docker "run --rm -i -e TRACKER_TOKEN=ваш_ток
 | `board_get` | Одна доска с `autoFilterSettings` (что она собирает), `estimateBy`, `useRanking` и рабочим `calendar` | `board_id`, `fields` |
 | `board_get_columns` | Колонки доски со статусами задач, которые в них попадают | `board_id` |
 | `board_get_sprints` | Спринты доски со статусом (`draft`, `in_progress`, `released`, `archived`) и плановыми/фактическими датами | `board_id`, `fields` |
+| `board_create_sprint` | Создать спринт; он создаётся в статусе `draft` | `board_id`, `name`, `start_date`, `end_date` |
+| `board_update_sprint` | Переименовать спринт, сдвинуть даты или сменить статус | `sprint_id`, `name`, `start_date`, `end_date`, `status`, `version` |
+| `board_start_sprint` | Запустить спринт (`in_progress`) | `sprint_id`, `version` |
+| `board_archive_sprint` | Отправить спринт в архив | `sprint_id`, `version` |
+| `board_delete_sprint` | Удалить спринт; задачи остаются | `sprint_id` |
 
 - У доски нет собственной очереди, поэтому `queue` сопоставляется с фильтром самой доски и не находит доски, которые фильтруют по чему-то другому — например, персональные по исполнителю. Чтобы найти и их, прочитайте несколько задач очереди через `issues_find` и посмотрите их поле `boards`.
-- Доски принадлежат организации, а не очереди, поэтому `TRACKER_LIMIT_QUEUES` их не фильтрует: проверяется только аргумент `queue` у `boards_get_all`, а в ответах могут упоминаться закрытые очереди.
+- Доски принадлежат организации, а не очереди, поэтому `TRACKER_LIMIT_QUEUES` их не фильтрует: проверяется только аргумент `queue` у `boards_get_all`, а в ответах могут упоминаться закрытые очереди. Инструменты записи спринтов не подчиняются и `TRACKER_READ_ONLY_QUEUES` - убрать их может только `TRACKER_READ_ONLY`; `version` у них необязателен, без него читается текущая.
 - У не-scrum доски спринтов нет, и `board_get_sprints` для неё отклоняется. Возвращённый `id` спринта — это то, что принимают `issue_create` / `issue_update`.
 
 </details>

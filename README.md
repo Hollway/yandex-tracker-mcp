@@ -593,9 +593,14 @@ These four are organization-wide. A queue may accept only some of the values the
 | `board_get` | One board with `autoFilterSettings` (what it collects), `estimateBy`, `useRanking` and its working `calendar` | `board_id`, `fields` |
 | `board_get_columns` | The board's columns with the issue statuses that land in each | `board_id` |
 | `board_get_sprints` | The board's sprints with status (`draft`, `in_progress`, `released`, `archived`) and planned/actual dates | `board_id`, `fields` |
+| `board_create_sprint` | Create a sprint; it starts as `draft` | `board_id`, `name`, `start_date`, `end_date` |
+| `board_update_sprint` | Rename or reschedule a sprint, or change its status | `sprint_id`, `name`, `start_date`, `end_date`, `status`, `version` |
+| `board_start_sprint` | Start a sprint (`in_progress`) | `sprint_id`, `version` |
+| `board_archive_sprint` | Move a sprint to the archive | `sprint_id`, `version` |
+| `board_delete_sprint` | Delete a sprint; its issues stay | `sprint_id` |
 
 - A board has no queue of its own, so `queue` is matched against the board's own filter and misses the boards that filter by something else - a personal board filtering by assignee, for one. To catch those, read a few issues of the queue with `issues_find` and look at their `boards` field.
-- Boards belong to the organization, not to a queue, so `TRACKER_LIMIT_QUEUES` does not filter them: only the `queue` argument of `boards_get_all` is checked, and what these tools return can name restricted queues.
+- Boards belong to the organization, not to a queue, so `TRACKER_LIMIT_QUEUES` does not filter them: only the `queue` argument of `boards_get_all` is checked, and what these tools return can name restricted queues. The sprint write tools ignore `TRACKER_READ_ONLY_QUEUES` too - only `TRACKER_READ_ONLY` removes them; their `version` is optional, the current one is read when it is left out.
 - A non-scrum board has no sprints and `board_get_sprints` is rejected for it. The sprint `id` it returns is what `issue_create` / `issue_update` take.
 
 </details>

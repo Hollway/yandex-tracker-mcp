@@ -39,6 +39,9 @@ from mcp_tracker.tracker.custom.errors import (
     IssueTemplateNotFound,
     IssueVersionConflict,
     QueueNotFound,
+    SprintEmptyUpdate,
+    SprintNotFound,
+    SprintVersionConflict,
     TrackerAPIError,
     TrackerAPITimeout,
     VersionEmptyUpdate,
@@ -475,6 +478,7 @@ class TrackerClient(
         allow_statuses: Collection[int] = (),
         timeout: float | None = None,
         timeout_setting: str = "TRACKER_API_TIMEOUT",
+        extra_headers: Mapping[str, str] | None = None,
     ) -> AsyncIterator[ClientResponse]:
         """Every request to the Tracker API goes through here.
 
@@ -499,6 +503,8 @@ class TrackerClient(
         # Built before the `try`: the service account's IAM fetch is not a
         # Tracker request and must not be reported as one timing out.
         headers = await self._build_headers(auth)
+        if extra_headers:
+            headers = {**headers, **extra_headers}
         budget = self._timeout if timeout is None else timeout
 
         try:
@@ -536,6 +542,7 @@ class TrackerClient(
         json: Any = None,
         not_found: YandexTrackerError | None = None,
         conflict: YandexTrackerError | None = None,
+        extra_headers: Mapping[str, str] | None = None,
     ) -> bytes:
         """The body of a request whose caller needs nothing else from the response."""
         async with self._request(
@@ -546,6 +553,7 @@ class TrackerClient(
             json=json,
             not_found=not_found,
             conflict=conflict,
+            extra_headers=extra_headers,
         ) as response:
             return await response.read()
 
@@ -3359,6 +3367,117 @@ class TrackerClient(
                 not_found=BoardNotFound(board_id),
             )
         ).root
+
+    async def sprint_get(
+        self, sprint_id: int, *, auth: YandexAuth | None = None
+    ) -> Sprint:
+        return Sprint.model_validate_json(
+            await self._read(
+                "GET",
+                f"v3/sprints/{sprint_id}",
+                auth=auth,
+                not_found=SprintNotFound(sprint_id),
+            )
+        )
+
+    async def sprint_create(
+        self,
+        board_id: int,
+        *,
+        name: str,
+        start_date: datetime.date,
+        end_date: datetime.date,
+        auth: YandexAuth | None = None,
+    ) -> Sprint:
+        return Sprint.model_validate_json(
+            await self._read(
+                "POST",
+                "v3/sprints",
+                auth=auth,
+                json={
+                    "name": name,
+                    "board": {"id": str(board_id)},
+                    "startDate": start_date.isoformat(),
+                    "endDate": end_date.isoformat(),
+                },
+                not_found=BoardNotFound(board_id),
+            )
+        )
+
+    async def sprint_update(
+        self,
+        sprint_id: int,
+        *,
+        version: int,
+        name: str | None = None,
+        start_date: datetime.date | None = None,
+        end_date: datetime.date | None = None,
+        status: str | None = None,
+        auth: YandexAuth | None = None,
+    ) -> Sprint:
+        """Change a sprint under `If-Match: "<version>"`, as the API asks."""
+        body: dict[str, Any] = {}
+        if name is not None:
+            body["name"] = name
+        if start_date is not None:
+            body["startDate"] = start_date.isoformat()
+        if end_date is not None:
+            body["endDate"] = end_date.isoformat()
+        if status is not None:
+            body["status"] = status
+        if not body:
+            raise SprintEmptyUpdate()
+
+        return Sprint.model_validate_json(
+            await self._read(
+                "PATCH",
+                f"v3/sprints/{sprint_id}",
+                auth=auth,
+                json=body,
+                extra_headers={"If-Match": f'"{version}"'},
+                not_found=SprintNotFound(sprint_id),
+                conflict=SprintVersionConflict(sprint_id, version),
+            )
+        )
+
+    async def sprint_start(
+        self, sprint_id: int, *, version: int, auth: YandexAuth | None = None
+    ) -> Sprint:
+        return await self._sprint_action(sprint_id, "_start", version, auth=auth)
+
+    async def sprint_archive(
+        self, sprint_id: int, *, version: int, auth: YandexAuth | None = None
+    ) -> Sprint:
+        return await self._sprint_action(sprint_id, "_archive", version, auth=auth)
+
+    async def _sprint_action(
+        self,
+        sprint_id: int,
+        action: str,
+        version: int,
+        *,
+        auth: YandexAuth | None,
+    ) -> Sprint:
+        return Sprint.model_validate_json(
+            await self._read(
+                "POST",
+                f"v3/sprints/{sprint_id}/{action}",
+                auth=auth,
+                extra_headers={"If-Match": f'"{version}"'},
+                not_found=SprintNotFound(sprint_id),
+                conflict=SprintVersionConflict(sprint_id, version),
+            )
+        )
+
+    async def sprint_delete(
+        self, sprint_id: int, *, auth: YandexAuth | None = None
+    ) -> None:
+        await self._read(
+            "DELETE",
+            f"v3/sprints/{sprint_id}",
+            auth=auth,
+            not_found=SprintNotFound(sprint_id),
+        )
 
     async def component_get(
         self, component_id: int, *, auth: YandexAuth | None = None

@@ -318,6 +318,26 @@
       "description": "Get the columns of an agile board together with the issue statuses mapped onto each of them"
     },
     {
+      "name": "board_create_sprint",
+      "description": "Create a sprint on a scrum board"
+    },
+    {
+      "name": "board_update_sprint",
+      "description": "Rename or reschedule a sprint, or change its status"
+    },
+    {
+      "name": "board_start_sprint",
+      "description": "Start a sprint"
+    },
+    {
+      "name": "board_archive_sprint",
+      "description": "Move a sprint to the archive"
+    },
+    {
+      "name": "board_delete_sprint",
+      "description": "Permanently delete a sprint"
+    },
+    {
       "name": "board_get_sprints",
       "description": "Get all sprints of a specific agile board"
     },

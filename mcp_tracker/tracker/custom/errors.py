@@ -362,3 +362,34 @@ class VersionEmptyUpdate(YandexTrackerError):
             "A version update must change something: pass at least one of `name`, "
             "`description`, `start_date` or `due_date`."
         )
+
+
+class SprintNotFound(YandexTrackerError):
+    def __init__(self, sprint_id: int):
+        super().__init__(
+            f"Sprint with ID '{sprint_id}' not found - board_get_sprints lists the "
+            f"sprints of a board."
+        )
+        self.sprint_id = sprint_id
+
+
+class SprintVersionConflict(YandexTrackerError):
+    """Raised when a sprint write is rejected because `version` is stale."""
+
+    def __init__(self, sprint_id: int, version: int):
+        super().__init__(
+            f"Editing conflict for sprint '{sprint_id}' with version {version}: the "
+            f"sprint was changed since that version was read. Retry without "
+            f"`version` to act on the current one, or re-read it with "
+            f"board_get_sprints."
+        )
+        self.sprint_id = sprint_id
+        self.version = version
+
+
+class SprintEmptyUpdate(YandexTrackerError):
+    def __init__(self) -> None:
+        super().__init__(
+            "A sprint update must change something: pass at least one of `name`, "
+            "`start_date`, `end_date` or `status`."
+        )

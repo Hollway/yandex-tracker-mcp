@@ -1617,6 +1617,70 @@ def make_cached_protocols(
         ) -> list[Sprint]:
             return await self._original.board_get_sprints(board_id, auth=auth)
 
+        # Sprint reads are not cached: the write tools read the sprint for the
+        # `version` its If-Match needs, and a cached one would be stale.
+        async def sprint_get(
+            self, sprint_id: int, *, auth: YandexAuth | None = None
+        ) -> Sprint:
+            return await self._original.sprint_get(sprint_id, auth=auth)
+
+        async def sprint_create(
+            self,
+            board_id: int,
+            *,
+            name: str,
+            start_date: datetime.date,
+            end_date: datetime.date,
+            auth: YandexAuth | None = None,
+        ) -> Sprint:
+            return await self._original.sprint_create(
+                board_id,
+                name=name,
+                start_date=start_date,
+                end_date=end_date,
+                auth=auth,
+            )
+
+        async def sprint_update(
+            self,
+            sprint_id: int,
+            *,
+            version: int,
+            name: str | None = None,
+            start_date: datetime.date | None = None,
+            end_date: datetime.date | None = None,
+            status: str | None = None,
+            auth: YandexAuth | None = None,
+        ) -> Sprint:
+            return await self._original.sprint_update(
+                sprint_id,
+                version=version,
+                name=name,
+                start_date=start_date,
+                end_date=end_date,
+                status=status,
+                auth=auth,
+            )
+
+        async def sprint_start(
+            self, sprint_id: int, *, version: int, auth: YandexAuth | None = None
+        ) -> Sprint:
+            return await self._original.sprint_start(
+                sprint_id, version=version, auth=auth
+            )
+
+        async def sprint_archive(
+            self, sprint_id: int, *, version: int, auth: YandexAuth | None = None
+        ) -> Sprint:
+            return await self._original.sprint_archive(
+                sprint_id, version=version, auth=auth
+            )
+
+        async def sprint_delete(
+            self, sprint_id: int, *, auth: YandexAuth | None = None
+        ) -> None:
+            return await self._original.sprint_delete(sprint_id, auth=auth)
+
     class CachingComponentsProtocol(ComponentsProtocolWrap):
         # Component reads are not cached. The `component_update` /
         # `component_delete` tools read through this protocol to get the

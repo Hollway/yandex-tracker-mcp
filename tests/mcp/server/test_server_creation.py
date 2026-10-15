@@ -74,6 +74,11 @@ ENTITY_READ_ONLY_TOOL_NAMES = [
 
 # Write tool names - only registered when not in read-only mode
 WRITE_TOOL_NAMES = [
+    "board_create_sprint",
+    "board_update_sprint",
+    "board_start_sprint",
+    "board_archive_sprint",
+    "board_delete_sprint",
     "issue_add_remote_link",
     "issue_delete_remote_link",
     "issue_delete_attachment",

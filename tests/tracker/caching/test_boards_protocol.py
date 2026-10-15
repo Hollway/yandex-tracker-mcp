@@ -109,3 +109,21 @@ class TestCachingBoardsProtocol:
 
         mock_original.board_get_columns.assert_called_once_with(1, auth=None)
         assert result == mock_original.board_get_columns.return_value
+
+    async def test_sprint_writes_are_passthroughs(
+        self,
+        caching_boards_protocol: Any,
+        mock_original: AsyncMock,
+        yandex_auth: YandexAuth,
+    ) -> None:
+        for _ in range(2):
+            await caching_boards_protocol.sprint_get(4401, auth=yandex_auth)
+        await caching_boards_protocol.sprint_start(4401, version=2, auth=yandex_auth)
+        await caching_boards_protocol.sprint_delete(4401, auth=yandex_auth)
+
+        # The read feeds If-Match, so it is never answered from the cache.
+        assert mock_original.sprint_get.call_count == 2
+        mock_original.sprint_start.assert_called_once_with(
+            4401, version=2, auth=yandex_auth
+        )
+        mock_original.sprint_delete.assert_called_once_with(4401, auth=yandex_auth)
