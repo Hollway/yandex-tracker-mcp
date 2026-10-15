@@ -324,8 +324,10 @@ class TestIssuesFind:
         )
 
         assert not result.isError
+        # `key` rides along: the AI access check needs the queue it names.
         assert mock_issues_protocol.issues_find.call_args.kwargs["fields"] == [
-            "storyPoints"
+            "storyPoints",
+            "key",
         ]
 
     async def test_fields_accept_a_field_the_model_does_not_declare(

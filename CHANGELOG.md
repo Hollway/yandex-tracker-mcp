@@ -23,6 +23,7 @@ All notable changes to this project will be documented in this file.
 - **Sprint management** - `board_create_sprint`, `board_update_sprint`, `board_start_sprint`, `board_archive_sprint` and `board_delete_sprint`; not covered by the queue restrictions, since a board belongs to no queue
 - **Bulk changes** - `issues_bulk_update`, `issues_bulk_transition` and `issues_bulk_move` for up to 10 000 issues, with `issues_get_bulk_change` for the outcome
   - Opt-in via `TRACKER_BULK_ENABLED` (default `false`); every issue is checked against the queue restrictions, and the user confirms the change where the client supports elicitation
+- **The queue setting 'AI tools access' is honoured** - issues of a queue that forbids AI tools come back as their key and `restricted`, as from Tracker's own MCP server; writes still work, and `TRACKER_AI_ACCESS_IGNORED_QUEUES` lists the queues to read regardless
 
 ### Bug Fixes
 

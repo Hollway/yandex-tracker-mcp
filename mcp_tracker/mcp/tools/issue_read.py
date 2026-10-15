@@ -18,6 +18,11 @@ from mcp_tracker.mcp.params import (
     YTQuery,
 )
 from mcp_tracker.mcp.tools._access import check_issue_access
+from mcp_tracker.mcp.tools._ai_access import (
+    check_ai_access,
+    hide_ai_restricted,
+    is_restricted_row,
+)
 from mcp_tracker.mcp.utils import (
     get_yandex_auth,
     safe_file_name,
@@ -70,6 +75,7 @@ def register_issue_read_tools(settings: Settings, mcp: FastMCP[Any]) -> None:
         ] = True,
     ) -> Issue:
         check_issue_access(settings, issue_id)
+        await check_ai_access(ctx, settings, issue_id)
 
         issue = await ctx.request_context.lifespan_context.issues.issue_get(
             issue_id,
@@ -102,6 +108,7 @@ def register_issue_read_tools(settings: Settings, mcp: FastMCP[Any]) -> None:
         ] = None,
     ) -> CommentsPage:
         check_issue_access(settings, issue_id)
+        await check_ai_access(ctx, settings, issue_id)
 
         page = await ctx.request_context.lifespan_context.issues.issue_get_comments(
             issue_id,
@@ -186,6 +193,10 @@ def register_issue_read_tools(settings: Settings, mcp: FastMCP[Any]) -> None:
             # Asking for both spellings of one field would send it to the API twice.
             api_fields = list(dict.fromkeys(api for api, _ in resolved))
             selected = {key for _, key in resolved}
+            # The key names the issue's queue, which the AI access check needs;
+            # it is trimmed away again below unless it was asked for.
+            if "key" not in api_fields:
+                api_fields.append("key")
 
         result = await ctx.request_context.lifespan_context.issues.issues_find(
             query=query,
@@ -194,6 +205,8 @@ def register_issue_read_tools(settings: Settings, mcp: FastMCP[Any]) -> None:
             fields=api_fields,
             auth=get_yandex_auth(ctx),
         )
+
+        result.values = await hide_ai_restricted(ctx, settings, result.values)
 
         # A description asked for through `fields` is an explicit request for it,
         # so it is not stripped by `include_description` defaulting to False.
@@ -204,7 +217,10 @@ def register_issue_read_tools(settings: Settings, mcp: FastMCP[Any]) -> None:
         if selected is not None:
             # Tracker sends `self`, `id`, `version` and `favorite` on top of any
             # projection, so the response still needs trimming to what was asked for.
-            set_non_needed_fields_null(result.values, selected)
+            set_non_needed_fields_null(
+                [issue for issue in result.values if not is_restricted_row(issue)],
+                selected,
+            )
 
         return result
 
@@ -239,6 +255,7 @@ def register_issue_read_tools(settings: Settings, mcp: FastMCP[Any]) -> None:
         ],
     ) -> IssueComment:
         check_issue_access(settings, issue_id)
+        await check_ai_access(ctx, settings, issue_id)
 
         return await ctx.request_context.lifespan_context.issues.issue_get_comment(
             issue_id, comment_id, auth=get_yandex_auth(ctx)
@@ -262,6 +279,7 @@ def register_issue_read_tools(settings: Settings, mcp: FastMCP[Any]) -> None:
     ) -> dict[str, list[Worklog]]:
         for issue_id in issue_ids:
             check_issue_access(settings, issue_id)
+            await check_ai_access(ctx, settings, issue_id)
 
         result: dict[str, list[Worklog]] = {}
         for issue_id in issue_ids:
@@ -295,6 +313,7 @@ def register_issue_read_tools(settings: Settings, mcp: FastMCP[Any]) -> None:
         ] = None,
     ) -> list[IssueAttachment]:
         check_issue_access(settings, issue_id)
+        await check_ai_access(ctx, settings, issue_id)
 
         attachments = (
             await ctx.request_context.lifespan_context.issues.issue_get_attachments(
@@ -318,6 +337,7 @@ def register_issue_read_tools(settings: Settings, mcp: FastMCP[Any]) -> None:
         issue_id: IssueID,
     ) -> list[ChecklistItem]:
         check_issue_access(settings, issue_id)
+        await check_ai_access(ctx, settings, issue_id)
 
         return await ctx.request_context.lifespan_context.issues.issue_get_checklist(
             issue_id,
@@ -375,6 +395,7 @@ def register_issue_read_tools(settings: Settings, mcp: FastMCP[Any]) -> None:
         ] = None,
     ) -> ChangelogPage:
         check_issue_access(settings, issue_id)
+        await check_ai_access(ctx, settings, issue_id)
 
         return await ctx.request_context.lifespan_context.issues.issue_get_changelog(
             issue_id,
@@ -415,6 +436,7 @@ def register_issue_attachment_download_tools(
         ],
     ) -> DownloadedIssueAttachment:
         check_issue_access(settings, issue_id)
+        await check_ai_access(ctx, settings, issue_id)
 
         issues = ctx.request_context.lifespan_context.issues
         auth = get_yandex_auth(ctx)

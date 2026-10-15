@@ -654,6 +654,8 @@ These four are organization-wide. A queue may accept only some of the values the
 - **Reference fields take the same values on create and on update:** an object with `id` and/or `key`, or - for `type`, `priority` and `parent` - the bare key or id. `components` take `{"id": ...}` or `{"name": ...}`, and `components` / `followers` replace the current list rather than adding to it. Anything without a dedicated argument goes into the `fields` map, keyed by the field `id` from `queue_get_fields`; an entry there overrides the dedicated argument, and an explicit `null` clears the field.
 - **Transitions are not guessed.** `issue_execute_transition` only takes ids from `issue_get_transitions`, and before `issue_close` read the issue's `type` with `issue_get` and the resolutions valid for that type from `queue_get_metadata` with `expand: ["issueTypesConfig"]` - each type has its own set. Where the client supports elicitation, `issue_move` asks the user to confirm its flags first, and declining aborts the move.
 
+A queue whose setting **AI tools access** ('Доступ для AI инструментов') forbids them is honoured as Tracker's own MCP server honours it: `issues_find` returns its issues as `{key, restricted: true}`, the tools that read one issue refuse, `worklogs_find` drops the comments, and writes still work. `TRACKER_AI_ACCESS_IGNORED_QUEUES` lists the queues to read regardless.
+
 Every tool here respects `TRACKER_LIMIT_QUEUES` and `TRACKER_READ_ONLY_QUEUES`; the ones that write are registered only when `TRACKER_READ_ONLY` is off.
 
 The bulk tools are opt-in: registered only with `TRACKER_BULK_ENABLED=true` on a writable server. A bulk change cannot be undone and runs in the background - poll `issues_get_bulk_change` until its status is `COMPLETE` or `FAILED`. Every issue is checked against the queue restrictions before anything is sent, and where the client supports elicitation the user confirms the change first.
@@ -1039,6 +1041,7 @@ TRACKER_ATTACHMENT_TIMEOUT=300            # Default: 300 - Timeout in seconds fo
 TRACKER_LIMIT_QUEUES=PROJ1,PROJ2,DEV      # Comma-separated queue keys - allow-list of accessible queues
 TRACKER_READ_ONLY_QUEUES=PROJ2            # Comma-separated queue keys - allowed for reads but reject writes (per-queue read-only)
 TRACKER_ENTITIES_ENABLED=true             # Default: false - Register project/portfolio/goal tools (NOT covered by the queue restrictions above)
+TRACKER_AI_ACCESS_IGNORED_QUEUES=SAP      # Queues whose 'AI tools access' setting is ignored (by default a queue that forbids AI tools gets only issue keys)
 TRACKER_FILE_UPLOAD_ENABLED=true          # Default: false - Register issue_add_attachment and attachment_create, which upload local files (stdio only: refused with a network transport or OAUTH_ENABLED)
 TRACKER_BULK_ENABLED=true                 # Default: false - Register the bulk-change tools (up to 10 000 issues at once, irreversible)
 TRACKER_ATTACHMENT_DOWNLOAD_ENABLED=true  # Default: false - Register issue_download_attachment, which saves attachments to this machine (stdio only, like the flag above)

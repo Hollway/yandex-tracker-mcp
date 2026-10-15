@@ -150,3 +150,11 @@ class TestLocalFileTransportGuard:
 
         assert settings.tracker_file_upload_enabled is False
         assert settings.tracker_attachment_download_enabled is False
+
+
+def test_ai_access_ignored_queues_are_parsed_like_the_queue_lists(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("TRACKER_AI_ACCESS_IGNORED_QUEUES", "sap, Dev")
+
+    assert load_settings().tracker_ai_access_ignored_queues == {"SAP", "DEV"}

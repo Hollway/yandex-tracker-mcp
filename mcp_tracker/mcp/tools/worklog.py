@@ -11,6 +11,7 @@ from pydantic import Field
 from mcp_tracker.mcp.context import AppContext
 from mcp_tracker.mcp.errors import TrackerError
 from mcp_tracker.mcp.tools._access import is_queue_allowed
+from mcp_tracker.mcp.tools._ai_access import is_ai_restricted
 from mcp_tracker.mcp.utils import (
     get_yandex_auth,
     local_day_end,
@@ -102,6 +103,12 @@ def register_worklog_tools(settings: Settings, mcp: FastMCP[Any]) -> None:
             and (low is None or (worklog.start is not None and worklog.start >= low))
             and (high is None or (worklog.start is not None and worklog.start < high))
         ]
+        # The time logged is the user's own record; the comment is issue
+        # content, which a queue that forbids AI tools does not hand out.
+        for worklog in found:
+            key = worklog.issue.key if worklog.issue is not None else None
+            if key and await is_ai_restricted(ctx, settings, str(key).split("-", 1)[0]):
+                worklog.comment = None
         found.sort(
             key=lambda w: w.start or datetime.datetime.min.replace(tzinfo=datetime.UTC)
         )

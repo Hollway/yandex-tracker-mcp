@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from mcp_tracker.tracker.proto.boards import BoardsProtocol
 from mcp_tracker.tracker.proto.components import ComponentsProtocol
@@ -20,3 +20,5 @@ class AppContext:
     entities: EntitiesProtocol
     boards: BoardsProtocol
     components: ComponentsProtocol
+    # Queue key -> (forbids AI tools, monotonic time the answer expires).
+    ai_access: dict[str, tuple[bool, float]] = field(default_factory=dict)

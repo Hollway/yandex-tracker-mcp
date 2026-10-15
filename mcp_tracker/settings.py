@@ -40,6 +40,9 @@ class Settings(BaseSettings):
     # Project/portfolio/goal tools are opt-in: they add a large tool manifest and
     # are not subject to the queue restrictions (an entity has no single queue).
     tracker_entities_enabled: bool = False
+    # Queues whose «Доступ для AI инструментов» setting this server ignores and
+    # reads anyway; every other queue that forbids AI tools gets only issue keys.
+    tracker_ai_access_ignored_queues: Annotated[set[str] | None, NoDecode] = None
     # `issue_add_attachment` is opt-in and stdio-only: it reads whatever file the
     # server process can read (see `refuse_local_files_on_remote_transports`).
     tracker_file_upload_enabled: bool = False
@@ -156,7 +159,12 @@ class Settings(BaseSettings):
             return Path(self.tracker_attachments_dir).expanduser().resolve()
         return Path(tempfile.gettempdir()) / "yandex-tracker-mcp" / "attachments"
 
-    @field_validator("tracker_limit_queues", "tracker_read_only_queues", mode="before")
+    @field_validator(
+        "tracker_limit_queues",
+        "tracker_read_only_queues",
+        "tracker_ai_access_ignored_queues",
+        mode="before",
+    )
     @classmethod
     def decode_queue_keys(cls, v: Any) -> set[str] | None:
         """Parse a queue allow-list into a set of upper-cased keys.
