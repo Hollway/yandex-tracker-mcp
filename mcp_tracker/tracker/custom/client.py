@@ -21,6 +21,7 @@ from yandex.cloud.iam.v1.iam_token_service_pb2_grpc import IamTokenServiceStub
 from yarl import URL
 
 from mcp_tracker.tracker.custom.errors import (
+    AbsencesForbidden,
     AttachmentNotFound,
     AttachmentTooLarge,
     BoardNotFound,
@@ -39,6 +40,7 @@ from mcp_tracker.tracker.custom.errors import (
     QueueNotFound,
     TrackerAPIError,
     TrackerAPITimeout,
+    WorklogSearchTooLarge,
     YandexTrackerError,
 )
 from mcp_tracker.tracker.proto.boards import BoardsProtocol
@@ -102,7 +104,10 @@ from mcp_tracker.tracker.proto.types.queues import (
 from mcp_tracker.tracker.proto.types.resolutions import Resolution
 from mcp_tracker.tracker.proto.types.statuses import Status
 from mcp_tracker.tracker.proto.types.templates import CommentTemplate, IssueTemplate
-from mcp_tracker.tracker.proto.types.users import User
+from mcp_tracker.tracker.proto.types.users import (
+    User,
+    UserAbsences,
+)
 from mcp_tracker.tracker.proto.users import UsersProtocol
 
 QueueList = RootModel[list[Queue]]
@@ -115,6 +120,13 @@ IssueList = RootModel[list[Issue]]
 IssueCommentList = RootModel[list[IssueComment]]
 WorklogList = RootModel[list[Worklog]]
 IssueAttachmentList = RootModel[list[IssueAttachment]]
+
+
+class AbsenceSearchPage(BaseModel):
+    user_gaps: list[UserAbsences] = Field(default_factory=list, alias="userGaps")
+    has_more: bool = Field(False, alias="hasMore")
+
+
 ChecklistItemList = RootModel[list[ChecklistItem]]
 
 
@@ -315,6 +327,10 @@ def _attachment_form(content: bytes, filename: str) -> FormData:
         content_type=mimetypes.guess_type(filename)[0] or "application/octet-stream",
     )
     return form
+
+
+# A guard against a `next` link that never ends, not a page size.
+_MAX_WORKLOG_SEARCH_PAGES = 50
 
 
 class TrackerClient(
@@ -997,6 +1013,48 @@ class TrackerClient(
             )
         ).root
 
+    async def worklogs_find(
+        self,
+        *,
+        created_by: str | None = None,
+        created_from: datetime.datetime | None = None,
+        created_to: datetime.datetime | None = None,
+        auth: YandexAuth | None = None,
+    ) -> list[Worklog]:
+        """Worklogs across issues, `POST v3/worklog/_search`.
+
+        The API filters by the author and by when a record was *created*, not by
+        the `start` of the work it records. The documentation says nothing about
+        paging, so a `Link: rel="next"` header is followed if one comes back,
+        with the same body, up to `_MAX_WORKLOG_SEARCH_PAGES`.
+        """
+        body: dict[str, Any] = {}
+        if created_by is not None:
+            body["createdBy"] = created_by
+        created_at: dict[str, str] = {}
+        if created_from is not None:
+            created_at["from"] = _tracker_datetime(created_from)
+        if created_to is not None:
+            created_at["to"] = _tracker_datetime(created_to)
+        if created_at:
+            body["createdAt"] = created_at
+
+        worklogs: list[Worklog] = []
+        params: dict[str, str] | None = None
+        for _ in range(_MAX_WORKLOG_SEARCH_PAGES):
+            async with self._request(
+                "POST", "v3/worklog/_search", auth=auth, params=params, json=body
+            ) as response:
+                worklogs.extend(
+                    WorklogList.model_validate_json(await response.read()).root
+                )
+                next_link = response.links.get("next")
+            next_url = next_link.get("url") if next_link is not None else None
+            if not isinstance(next_url, URL):
+                return worklogs
+            params = dict(next_url.query)
+        raise WorklogSearchTooLarge(_MAX_WORKLOG_SEARCH_PAGES)
+
     async def issue_add_worklog(
         self,
         issue_id: str,
@@ -1192,6 +1250,47 @@ class TrackerClient(
                 raise
             partial.replace(destination)
             return written
+
+    async def users_get_absences(
+        self,
+        users: list[str],
+        *,
+        date_from: datetime.datetime | None = None,
+        date_to: datetime.datetime | None = None,
+        auth: YandexAuth | None = None,
+    ) -> list[UserAbsences]:
+        """Absences overlapping a period, `POST v3/gaps/_search`.
+
+        The API takes at most 100 users and pages by user, so one page of 100
+        holds every answer; `hasMore` is followed anyway. A 403 means the token
+        lacks the organization-administrator rights this method needs.
+        """
+        body: dict[str, Any] = {"users": users}
+        if date_from is not None:
+            body["from"] = _tracker_datetime(date_from)
+        if date_to is not None:
+            body["to"] = _tracker_datetime(date_to)
+
+        result: list[UserAbsences] = []
+        page = 1
+        while True:
+            try:
+                raw = await self._read(
+                    "POST",
+                    "v3/gaps/_search",
+                    auth=auth,
+                    params={"page": page, "perPage": 100},
+                    json=body,
+                )
+            except TrackerAPIError as exc:
+                if exc.status == 403:
+                    raise AbsencesForbidden() from exc
+                raise
+            found = AbsenceSearchPage.model_validate_json(raw)
+            result.extend(found.user_gaps)
+            if not found.has_more or not found.user_gaps:
+                return result
+            page += 1
 
     async def users_list(
         self, per_page: int = 50, page: int = 1, *, auth: YandexAuth | None = None

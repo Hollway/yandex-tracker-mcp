@@ -42,11 +42,14 @@ READ_ONLY_TOOL_NAMES = [
     "issue_get_checklist",
     "issue_get_transitions",
     "issue_get_changelog",
-    # User tools (4)
+    # Worklog tools (1)
+    "worklogs_find",
+    # User tools (5)
     "users_get_all",
     "users_search",
     "user_get",
     "user_get_current",
+    "users_get_absences",
 ]
 
 # Entity read tools - registered only when TRACKER_ENTITIES_ENABLED is set

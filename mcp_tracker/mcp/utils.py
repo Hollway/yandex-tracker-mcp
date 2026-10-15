@@ -1,3 +1,4 @@
+import datetime
 import re
 from collections.abc import Iterable
 from pathlib import Path
@@ -100,3 +101,17 @@ def safe_file_name(name: str) -> str:
         stem = cleaned[: _MAX_FILE_NAME_LENGTH - len(suffix)].rstrip(". ")
         cleaned = f"{stem}{suffix}"
     return cleaned
+
+
+def local_day_start(day: datetime.date) -> datetime.datetime:
+    """Midnight at the start of `day` in the server's local time zone.
+
+    The server runs on the user's own machine (the tools that take dates are
+    stdio-local in practice), so "a day" is the user's day, not a UTC one.
+    """
+    return datetime.datetime.combine(day, datetime.time()).astimezone()
+
+
+def local_day_end(day: datetime.date) -> datetime.datetime:
+    """Midnight at the end of `day`, local time - an inclusive day as a bound."""
+    return local_day_start(day + datetime.timedelta(days=1))

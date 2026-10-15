@@ -1,8 +1,9 @@
+import datetime
 from typing import Protocol, runtime_checkable
 
 from .common import YandexAuth
 from .types.pagination import PaginatedResult
-from .types.users import User
+from .types.users import User, UserAbsences
 
 
 @runtime_checkable
@@ -16,6 +17,15 @@ class UsersProtocol(Protocol):
     ) -> User | None: ...
 
     async def user_get_current(self, *, auth: YandexAuth | None = None) -> User: ...
+
+    async def users_get_absences(
+        self,
+        users: list[str],
+        *,
+        date_from: datetime.datetime | None = None,
+        date_to: datetime.datetime | None = None,
+        auth: YandexAuth | None = None,
+    ) -> list[UserAbsences]: ...
 
 
 class UsersProtocolWrap(UsersProtocol):

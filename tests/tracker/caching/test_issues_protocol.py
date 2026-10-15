@@ -1,3 +1,4 @@
+import datetime
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock
@@ -184,6 +185,26 @@ class TestCachingIssuesProtocol:
             "TEST-1", content=b"data", filename="a.png", auth=yandex_auth
         )
         assert (first.id, second.id) == ("att-1", "att-2")
+
+    async def test_worklogs_find_calls_original(
+        self,
+        caching_issues_protocol: Any,
+        mock_original: AsyncMock,
+        yandex_auth: YandexAuth,
+    ) -> None:
+        start = datetime.datetime(2026, 10, 5, tzinfo=datetime.UTC)
+
+        result = await caching_issues_protocol.worklogs_find(
+            created_by="i.ivanov", created_from=start, auth=yandex_auth
+        )
+
+        mock_original.worklogs_find.assert_called_once_with(
+            created_by="i.ivanov",
+            created_from=start,
+            created_to=None,
+            auth=yandex_auth,
+        )
+        assert result == mock_original.worklogs_find.return_value
 
     async def test_issue_get_attachment_calls_original(
         self,

@@ -1,5 +1,6 @@
 """User-related MCP tools (read-only)."""
 
+import datetime
 from typing import Annotated, Any
 
 from mcp.server import FastMCP
@@ -12,10 +13,15 @@ from mcp_tracker.mcp.context import AppContext
 from mcp_tracker.mcp.errors import TrackerError
 from mcp_tracker.mcp.params import PageParam, PerPageParam, UserID
 from mcp_tracker.mcp.tools._pagination import iter_pages
-from mcp_tracker.mcp.utils import get_yandex_auth, set_non_needed_fields_null
+from mcp_tracker.mcp.utils import (
+    get_yandex_auth,
+    local_day_end,
+    local_day_start,
+    set_non_needed_fields_null,
+)
 from mcp_tracker.settings import Settings
 from mcp_tracker.tracker.proto.types.pagination import PaginatedResult
-from mcp_tracker.tracker.proto.types.users import User, UserFieldsEnum
+from mcp_tracker.tracker.proto.types.users import User, UserAbsences, UserFieldsEnum
 
 
 def register_user_tools(_settings: Settings, mcp: FastMCP[Any]) -> None:
@@ -122,5 +128,42 @@ def register_user_tools(_settings: Settings, mcp: FastMCP[Any]) -> None:
         ctx: Context[Any, AppContext],
     ) -> User:
         return await ctx.request_context.lifespan_context.users.user_get_current(
+            auth=get_yandex_auth(ctx),
+        )
+
+    @mcp.tool(
+        title="Get User Absences",
+        description="Vacations, sick leave, business trips and other absences "
+        "('отсутствия', 'отпуск') of up to 100 users that overlap a period - check "
+        "before assigning work or planning a sprint. Needs organization "
+        "administrator rights.",
+        annotations=ToolAnnotations(readOnlyHint=True),
+    )
+    async def users_get_absences(
+        ctx: Context[Any, AppContext],
+        users: Annotated[
+            list[str],
+            Field(
+                min_length=1,
+                max_length=100,
+                description="Logins or uids, at most 100.",
+            ),
+        ],
+        date_from: Annotated[
+            datetime.date | None,
+            Field(description="First day of the period, YYYY-MM-DD; omit for now."),
+        ] = None,
+        date_to: Annotated[
+            datetime.date | None,
+            Field(description="Last day of the period, YYYY-MM-DD, inclusive."),
+        ] = None,
+    ) -> list[UserAbsences]:
+        if date_from is not None and date_to is not None and date_to < date_from:
+            raise TrackerError("`date_to` is before `date_from`.")
+
+        return await ctx.request_context.lifespan_context.users.users_get_absences(
+            users,
+            date_from=local_day_start(date_from) if date_from else None,
+            date_to=local_day_end(date_to) if date_to else None,
             auth=get_yandex_auth(ctx),
         )

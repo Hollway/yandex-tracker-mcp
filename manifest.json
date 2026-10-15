@@ -254,6 +254,10 @@
       "description": "Search user based on login, email or real name (first or last name, or both)"
     },
     {
+      "name": "users_get_absences",
+      "description": "Vacations, sick leave and other absences of users over a period (needs organization admin rights)"
+    },
+    {
       "name": "get_global_fields",
       "description": "Get all global fields available in Yandex Tracker"
     },
@@ -344,6 +348,10 @@
     {
       "name": "issue_get_worklogs",
       "description": "Retrieve worklog entries"
+    },
+    {
+      "name": "worklogs_find",
+      "description": "Find the time one user logged across all issues over a period"
     },
     {
       "name": "issue_add_worklog",

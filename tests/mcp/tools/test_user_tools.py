@@ -1,8 +1,15 @@
+import datetime
 from unittest.mock import AsyncMock
 
 from mcp.client.session import ClientSession
 
-from mcp_tracker.tracker.proto.types.users import User
+from mcp_tracker.mcp.utils import local_day_end, local_day_start
+from mcp_tracker.tracker.proto.types.users import (
+    Absence,
+    AbsenceUser,
+    User,
+    UserAbsences,
+)
 from tests.mcp.conftest import get_tool_result_content, page
 
 
@@ -187,3 +194,84 @@ class TestUserGetCurrent:
         assert isinstance(content, dict)
         assert content["login"] == sample_user.login
         assert content["display"] == sample_user.display
+
+
+class TestUsersGetAbsences:
+    async def test_passes_the_users_and_the_period_as_local_days(
+        self,
+        client_session: ClientSession,
+        mock_users_protocol: AsyncMock,
+    ) -> None:
+        mock_users_protocol.users_get_absences.return_value = [
+            UserAbsences(
+                user=AbsenceUser(login="i.ivanov", display="Иван Иванов"),
+                gaps=[
+                    Absence.model_validate(
+                        {
+                            "id": "1",
+                            "workflow": "vacation",
+                            "from": "2026-07-01T00:00:00.000+0000",
+                            "to": "2026-07-15T00:00:00.000+0000",
+                            "fullDay": True,
+                        }
+                    )
+                ],
+            )
+        ]
+
+        result = await client_session.call_tool(
+            "users_get_absences",
+            {
+                "users": ["i.ivanov"],
+                "date_from": "2026-07-01",
+                "date_to": "2026-08-31",
+            },
+        )
+
+        assert not result.isError
+        call = mock_users_protocol.users_get_absences.call_args
+        assert call.args == (["i.ivanov"],)
+        assert call.kwargs["date_from"] == local_day_start(datetime.date(2026, 7, 1))
+        assert call.kwargs["date_to"] == local_day_end(datetime.date(2026, 8, 31))
+        content = get_tool_result_content(result)
+        assert content[0]["user"]["login"] == "i.ivanov"
+        assert content[0]["gaps"][0]["workflow"] == "vacation"
+        assert content[0]["gaps"][0]["fullDay"] is True
+        assert "from" in content[0]["gaps"][0]
+
+    async def test_an_omitted_period_is_not_sent(
+        self,
+        client_session: ClientSession,
+        mock_users_protocol: AsyncMock,
+    ) -> None:
+        mock_users_protocol.users_get_absences.return_value = []
+
+        await client_session.call_tool("users_get_absences", {"users": ["a"]})
+
+        call = mock_users_protocol.users_get_absences.call_args
+        assert (call.kwargs["date_from"], call.kwargs["date_to"]) == (None, None)
+
+    async def test_a_reversed_period_is_refused(
+        self,
+        client_session: ClientSession,
+        mock_users_protocol: AsyncMock,
+    ) -> None:
+        result = await client_session.call_tool(
+            "users_get_absences",
+            {"users": ["a"], "date_from": "2026-08-01", "date_to": "2026-07-01"},
+        )
+
+        assert result.isError
+        mock_users_protocol.users_get_absences.assert_not_called()
+
+    async def test_more_than_100_users_are_refused(
+        self,
+        client_session: ClientSession,
+        mock_users_protocol: AsyncMock,
+    ) -> None:
+        result = await client_session.call_tool(
+            "users_get_absences", {"users": [f"u{i}" for i in range(101)]}
+        )
+
+        assert result.isError
+        mock_users_protocol.users_get_absences.assert_not_called()

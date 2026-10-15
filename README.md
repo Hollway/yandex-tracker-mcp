@@ -533,6 +533,7 @@ tool does, the columns which name to call:
 | `user_get` | One user by login or uid | `user_id` (`"john.doe"` or `"12345"`) |
 | `user_get_current` | The user the current token belongs to | - |
 | `users_search` | Find users by login, email or real name | `login_or_email_or_name` |
+| `users_get_absences` | Vacations, sick leave, trips and other absences overlapping a period; needs organization administrator rights | `users` (up to 100), `date_from`, `date_to` |
 
 - `users_search` matches login and email exactly first and falls back to fuzzy name matching (80% similarity, at most the three best matches).
 - The page from `users_get_all` is the last one when `page` equals `pages`.
@@ -611,6 +612,7 @@ These four are organization-wide. A queue may accept only some of the values the
 | `issue_add_link` | Link two issues | `issue_id`, `relationship`, `issue` |
 | `issue_delete_link` | Remove a link | `issue_id`, `link_id` (from `issue_get_links`) |
 | `issue_get_worklogs` | The time logged on one or more issues | `issue_ids`, `fields` |
+| `worklogs_find` | The time one user logged across all issues over a period; Tracker filters by the day a record was entered, so `start_*` misses time logged in advance | `author` (default: you), `start_from`, `start_to`, `created_from`, `created_to`, `fields` |
 | `issue_add_worklog` | Log spent time | `issue_id`, `duration` (ISO-8601, `PT1H30M`), `comment`, `start` |
 | `issue_update_worklog` | Edit a worklog entry | `issue_id`, `worklog_id`, `duration`, `comment`, `start` |
 | `issue_delete_worklog` | Delete a worklog entry | `issue_id`, `worklog_id` |

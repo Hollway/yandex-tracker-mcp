@@ -65,7 +65,7 @@ from mcp_tracker.tracker.proto.types.queues import (
 from mcp_tracker.tracker.proto.types.resolutions import Resolution
 from mcp_tracker.tracker.proto.types.statuses import Status
 from mcp_tracker.tracker.proto.types.templates import CommentTemplate, IssueTemplate
-from mcp_tracker.tracker.proto.types.users import User
+from mcp_tracker.tracker.proto.types.users import User, UserAbsences
 from mcp_tracker.tracker.proto.users import UsersProtocolWrap
 
 
@@ -280,6 +280,22 @@ def make_cached_protocols(
             self, issue_id: str, *, auth: YandexAuth | None = None
         ) -> list[Worklog]:
             return await self._original.issue_get_worklogs(issue_id, auth=auth)
+
+        @cached(**cache_config)
+        async def worklogs_find(
+            self,
+            *,
+            created_by: str | None = None,
+            created_from: datetime.datetime | None = None,
+            created_to: datetime.datetime | None = None,
+            auth: YandexAuth | None = None,
+        ) -> list[Worklog]:
+            return await self._original.worklogs_find(
+                created_by=created_by,
+                created_from=created_from,
+                created_to=created_to,
+                auth=auth,
+            )
 
         async def issue_add_worklog(
             self,
@@ -679,6 +695,19 @@ def make_cached_protocols(
             return await self._original.get_comment_template(template_id, auth=auth)
 
     class CachingUsersProtocol(UsersProtocolWrap):
+        @cached(**cache_config)
+        async def users_get_absences(
+            self,
+            users: list[str],
+            *,
+            date_from: datetime.datetime | None = None,
+            date_to: datetime.datetime | None = None,
+            auth: YandexAuth | None = None,
+        ) -> list[UserAbsences]:
+            return await self._original.users_get_absences(
+                users, date_from=date_from, date_to=date_to, auth=auth
+            )
+
         @cached(**cache_config)
         async def users_list(
             self, per_page: int = 50, page: int = 1, *, auth: YandexAuth | None = None

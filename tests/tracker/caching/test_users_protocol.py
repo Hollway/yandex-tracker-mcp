@@ -1,3 +1,4 @@
+import datetime
 from typing import Any
 from unittest.mock import AsyncMock
 
@@ -62,3 +63,20 @@ class TestCachingUsersProtocol:
 
         mock_original.user_get_current.assert_called_once_with(auth=yandex_auth)
         assert result == mock_original.user_get_current.return_value
+
+    async def test_users_get_absences_calls_original(
+        self,
+        caching_users_protocol: Any,
+        mock_original: AsyncMock,
+        yandex_auth: YandexAuth,
+    ) -> None:
+        start = datetime.datetime(2026, 7, 1, tzinfo=datetime.UTC)
+
+        result = await caching_users_protocol.users_get_absences(
+            ["i.ivanov"], date_from=start, auth=yandex_auth
+        )
+
+        mock_original.users_get_absences.assert_called_once_with(
+            ["i.ivanov"], date_from=start, date_to=None, auth=yandex_auth
+        )
+        assert result == mock_original.users_get_absences.return_value

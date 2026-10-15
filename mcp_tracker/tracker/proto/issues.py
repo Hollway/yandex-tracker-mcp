@@ -103,6 +103,14 @@ class IssueProtocol(Protocol):
     async def issue_get_worklogs(
         self, issue_id: str, *, auth: YandexAuth | None = None
     ) -> list[Worklog]: ...
+    async def worklogs_find(
+        self,
+        *,
+        created_by: str | None = None,
+        created_from: datetime.datetime | None = None,
+        created_to: datetime.datetime | None = None,
+        auth: YandexAuth | None = None,
+    ) -> list[Worklog]: ...
     async def issue_add_worklog(
         self,
         issue_id: str,

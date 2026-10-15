@@ -15,6 +15,7 @@ This package organizes MCP tools by category:
 - issue_write.py: Issue write tools (conditional on read-only mode); the file upload
   tool additionally needs tracker_file_upload_enabled
 - user.py: User-related tools (read-only)
+- worklog.py: Worklog search across issues (read-only)
 - project.py: Project entity tools (read-only)
 - project_write.py: Project entity write tools (conditional on read-only mode)
 - portfolio.py: Portfolio entity tools (read-only)
@@ -52,6 +53,7 @@ from mcp_tracker.mcp.tools.queue import register_queue_tools
 from mcp_tracker.mcp.tools.queue_write import register_queue_write_tools
 from mcp_tracker.mcp.tools.template import register_template_tools
 from mcp_tracker.mcp.tools.user import register_user_tools
+from mcp_tracker.mcp.tools.worklog import register_worklog_tools
 from mcp_tracker.settings import Settings
 
 
@@ -75,6 +77,7 @@ def register_all_tools(settings: Settings, mcp: FastMCP[Any]) -> None:
     register_component_tools(settings, mcp)
     register_issue_read_tools(settings, mcp)
     register_user_tools(settings, mcp)
+    register_worklog_tools(settings, mcp)
 
     # Changes nothing in Tracker, so it does not depend on tracker_read_only.
     if settings.tracker_attachment_download_enabled:

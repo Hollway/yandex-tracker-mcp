@@ -308,3 +308,24 @@ class AttachmentTooLarge(YandexTrackerError):
         self.attachment_id = attachment_id
         self.size = size
         self.limit = limit
+
+
+class WorklogSearchTooLarge(YandexTrackerError):
+    """Raised when a worklog search keeps paging past the safety limit."""
+
+    def __init__(self, pages: int):
+        super().__init__(
+            f"The worklog search returned more than {pages} pages. Narrow the period "
+            f"or search for one author at a time."
+        )
+        self.pages = pages
+
+
+class AbsencesForbidden(YandexTrackerError):
+    """Raised for a 403 from the absence search, which only admins may call."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            "Yandex Tracker refused the absence search: it needs the rights of an "
+            "organization administrator, which the token's owner does not have."
+        )

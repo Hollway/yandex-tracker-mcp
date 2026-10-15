@@ -530,6 +530,7 @@ claude mcp add yandex-tracker docker "run --rm -i -e TRACKER_TOKEN=ваш_ток
 | `user_get` | Один пользователь по логину или uid | `user_id` (`"john.doe"` или `"12345"`) |
 | `user_get_current` | Пользователь, которому принадлежит текущий токен | - |
 | `users_search` | Поиск пользователей по логину, email или имени | `login_or_email_or_name` |
+| `users_get_absences` | Отпуска, больничные, командировки и другие отсутствия, пересекающие период; нужны права администратора организации | `users` (до 100), `date_from`, `date_to` |
 
 - `users_search` сначала ищет точное совпадение по логину и email, затем — нечёткое по имени (порог схожести 80%, не более трёх лучших совпадений).
 - Страница `users_get_all` — последняя, когда `page` равен `pages`.
@@ -608,6 +609,7 @@ claude mcp add yandex-tracker docker "run --rm -i -e TRACKER_TOKEN=ваш_ток
 | `issue_add_link` | Связать две задачи | `issue_id`, `relationship`, `issue` |
 | `issue_delete_link` | Удалить связь | `issue_id`, `link_id` (из `issue_get_links`) |
 | `issue_get_worklogs` | Списанное время по одной или нескольким задачам | `issue_ids`, `fields` |
+| `worklogs_find` | Время, списанное одним пользователем по всем задачам за период; Трекер фильтрует по дню внесения записи, поэтому `start_*` не найдёт время, списанное заранее | `author` (по умолчанию — вы), `start_from`, `start_to`, `created_from`, `created_to`, `fields` |
 | `issue_add_worklog` | Списать время | `issue_id`, `duration` (ISO-8601, `PT1H30M`), `comment`, `start` |
 | `issue_update_worklog` | Изменить запись о времени | `issue_id`, `worklog_id`, `duration`, `comment`, `start` |
 | `issue_delete_worklog` | Удалить запись о времени | `issue_id`, `worklog_id` |
