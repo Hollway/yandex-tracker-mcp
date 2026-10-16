@@ -2013,3 +2013,27 @@ class TestBulkTools:
 
         assert "failures" not in get_tool_result_content(result)
         mock_issues_protocol.bulk_change_get_failures.assert_not_called()
+
+    async def test_failures_outside_the_allow_list_are_left_out(
+        self,
+        client_session_with_limits: Client,
+        mock_issues_protocol: AsyncMock,
+    ) -> None:
+        """A bulk change is read by id, and one started elsewhere can span queues
+        TRACKER_LIMIT_QUEUES hides."""
+        mock_issues_protocol.bulk_change_get.return_value = BulkChange(
+            id="b1", status="FAILED", total_issues=3, total_completed_issues=0
+        )
+        mock_issues_protocol.bulk_change_get_failures.return_value = [
+            BulkChangeFailure.model_validate(
+                {"issue": {"key": key}, "status": "FAILED"}
+            )
+            for key in ("ALLOWED-1", "HIDDEN-2")
+        ] + [BulkChangeFailure(status="FAILED")]
+
+        result = await client_session_with_limits.call_tool(
+            "issues_get_bulk_change", {"bulk_change_id": "b1"}
+        )
+
+        failures = get_tool_result_content(result)["failures"]
+        assert [f["issue"]["key"] for f in failures] == ["ALLOWED-1"]

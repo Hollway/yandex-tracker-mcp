@@ -5,14 +5,84 @@ import pytest
 from mcp_tracker.mcp.errors import TrackerError
 from mcp_tracker.mcp.tools._access import (
     check_component_access,
+    check_fetched_issue_access,
     check_issue_access,
     check_queue_access,
     queue_checks_needed,
+    queue_of_key,
 )
 from mcp_tracker.settings import Settings
 from mcp_tracker.tracker.custom.errors import ComponentNotFound, IssueNotFound
 from tests.mcp.conftest import create_test_settings
 from tests.mcp.tools.conftest import component_in
+
+INTERNAL_ID = "6ad1d166dc7d9f59dec67d79"
+
+
+@pytest.mark.parametrize(
+    ("issue_id", "queue"),
+    [
+        ("TEST-1", "TEST"),
+        ("test-12", "TEST"),
+        (" ABC2-5 ", "ABC2"),
+        (INTERNAL_ID, None),
+        ("TEST", None),
+        ("TEST-", None),
+        ("TEST-1a", None),
+        ("-1", None),
+    ],
+)
+def test_queue_of_key(issue_id: str, queue: str | None) -> None:
+    assert queue_of_key(issue_id) == queue
+
+
+class TestInternalIssueId:
+    """An internal id names no queue: taken for one, it used to let a write past
+    TRACKER_READ_ONLY_QUEUES."""
+
+    def test_passes_without_restrictions(self) -> None:
+        check_issue_access(create_test_settings(), INTERNAL_ID, write=True)
+
+    def test_a_read_passes_read_only_queues(self) -> None:
+        settings = create_test_settings(read_only_queues=["READONLY"])
+
+        check_issue_access(settings, INTERNAL_ID)
+
+    @pytest.mark.parametrize(
+        ("settings", "write"),
+        [
+            pytest.param(
+                create_test_settings(limit_queues=["ALLOWED"]), False, id="limit"
+            ),
+            pytest.param(
+                create_test_settings(read_only_queues=["READONLY"]),
+                True,
+                id="read-only",
+            ),
+        ],
+    )
+    def test_is_refused_under_a_restriction(
+        self, settings: Settings, write: bool
+    ) -> None:
+        with pytest.raises(TrackerError, match="pass the issue key"):
+            check_issue_access(settings, INTERNAL_ID, write=write)
+
+
+class TestCheckFetchedIssueAccess:
+    """Tracker serves a moved issue under its old key: the key it answers with
+    names the queue the issue is in now."""
+
+    def test_a_moved_issue_outside_the_allow_list_is_not_found(self) -> None:
+        settings = create_test_settings(limit_queues=["ALLOWED"])
+
+        with pytest.raises(IssueNotFound):
+            check_fetched_issue_access(settings, "ALLOWED-1", "HIDDEN-7")
+
+    @pytest.mark.parametrize("key", ["ALLOWED-9", None])
+    def test_an_allowed_or_missing_key_passes(self, key: str | None) -> None:
+        settings = create_test_settings(limit_queues=["ALLOWED"])
+
+        check_fetched_issue_access(settings, "ALLOWED-1", key)
 
 
 class TestCheckIssueAccess:

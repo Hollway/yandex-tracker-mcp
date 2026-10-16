@@ -9,8 +9,8 @@ from pydantic import Field
 
 from mcp_tracker.mcp.context import AppContext
 from mcp_tracker.mcp.errors import TrackerError
-from mcp_tracker.mcp.tools._access import is_queue_allowed
-from mcp_tracker.mcp.tools._ai_access import is_ai_restricted
+from mcp_tracker.mcp.tools._access import is_queue_allowed, queue_of_key
+from mcp_tracker.mcp.tools._ai_access import ai_restricted_queues
 from mcp_tracker.mcp.utils import (
     get_yandex_auth,
     local_day_end,
@@ -104,9 +104,11 @@ def register_worklog_tools(settings: Settings, mcp: MCPServer[AppContext]) -> No
         ]
         # The time logged is the user's own record; the comment is issue
         # content, which a queue that forbids AI tools does not hand out.
+        restricted = await ai_restricted_queues(
+            ctx, settings, (q for w in found if (q := _queue(w)) is not None)
+        )
         for worklog in found:
-            key = worklog.issue.key if worklog.issue is not None else None
-            if key and await is_ai_restricted(ctx, settings, str(key).split("-", 1)[0]):
+            if _queue(worklog) in restricted:
                 worklog.comment = None
         found.sort(
             key=lambda w: w.start or datetime.datetime.min.replace(tzinfo=datetime.UTC)
@@ -117,9 +119,15 @@ def register_worklog_tools(settings: Settings, mcp: MCPServer[AppContext]) -> No
         return found
 
 
+def _queue(worklog: Worklog) -> str | None:
+    """The queue of the worklog's issue, from its key."""
+    key = worklog.issue.key if worklog.issue is not None else None
+    return queue_of_key(str(key)) if key else None
+
+
 def _issue_allowed(settings: Settings, worklog: Worklog) -> bool:
     """Whether the worklog's issue is in a queue `TRACKER_LIMIT_QUEUES` allows."""
     if not settings.tracker_limit_queues:
         return True
-    key = worklog.issue.key if worklog.issue is not None else None
-    return bool(key) and is_queue_allowed(settings, str(key).split("-", 1)[0])
+    queue = _queue(worklog)
+    return queue is not None and is_queue_allowed(settings, queue)

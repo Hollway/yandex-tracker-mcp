@@ -31,6 +31,9 @@ All notable changes to this project will be documented in this file.
 - **Issues with a text `version`** - an issue whose `version` came back as a string such as `MVP-0` failed validation, and with it every listing that contained it ([aikts#49](https://github.com/aikts/yandex-tracker-mcp/pull/49))
 - Over streamable-http the Tracker client and its HTTP session are created once per process; they were created once per request
 - **Rate limiting** - a call Tracker refused with 429 Too Many Requests failed outright, which a few parallel tool calls were enough to trigger; it is now sent again after the wait Tracker asks for, file uploads excepted
+- **Queue restrictions and 'AI tools access' by the issue's real queue** - an internal issue id or the old key of a moved issue could read a queue that forbids AI tools, or, under `TRACKER_LIMIT_QUEUES` / `TRACKER_READ_ONLY_QUEUES`, one outside the restrictions; a failure reading the queue setting no longer counts as permission, and issue links follow the setting too
+  - Under a queue restriction, pass issue keys: an internal id is refused, since it names no queue to check
+- **Bulk change report** - `issues_get_bulk_change` no longer lists issues from queues outside `TRACKER_LIMIT_QUEUES`
 - **Sprint writes right after a change** - Tracker sometimes refuses a sprint update, start or archive for a moment even with the current version, which reached the agent as an editing conflict; without an explicit `version` the write is now retried on a fresh read
 
 ### Internal

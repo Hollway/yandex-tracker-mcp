@@ -16,9 +16,14 @@ from mcp_tracker.mcp.params import (
     PerPageParam,
     YTQuery,
 )
-from mcp_tracker.mcp.tools._access import check_issue_access
+from mcp_tracker.mcp.tools._access import (
+    check_fetched_issue_access,
+    check_issue_access,
+    queue_of_key,
+)
 from mcp_tracker.mcp.tools._ai_access import (
     check_ai_access,
+    check_fetched_issue_ai_access,
     hide_ai_restricted,
     is_restricted_row,
 )
@@ -74,12 +79,18 @@ def register_issue_read_tools(settings: Settings, mcp: MCPServer[AppContext]) ->
         ] = True,
     ) -> Issue:
         check_issue_access(settings, issue_id)
-        await check_ai_access(ctx, settings, issue_id)
+        # A key names its queue, so a forbidding one is refused unread.
+        if queue_of_key(issue_id) is not None:
+            await check_ai_access(ctx, settings, issue_id)
 
         issue = await ctx.request_context.lifespan_context.issues.issue_get(
             issue_id,
             auth=get_yandex_auth(ctx),
         )
+        # Checked again against the key the issue came back under: an internal
+        # id or the old key of a moved issue names no queue, or the wrong one.
+        check_fetched_issue_access(settings, issue_id, issue.key)
+        await check_fetched_issue_ai_access(ctx, settings, issue_id, issue)
 
         if not include_description:
             issue.description = None
@@ -131,6 +142,8 @@ def register_issue_read_tools(settings: Settings, mcp: MCPServer[AppContext]) ->
         issue_id: IssueID,
     ) -> list[IssueLink]:
         check_issue_access(settings, issue_id)
+        # Each link carries the linked issue's summary and status.
+        await check_ai_access(ctx, settings, issue_id)
 
         return await ctx.request_context.lifespan_context.issues.issues_get_links(
             issue_id,
@@ -149,6 +162,7 @@ def register_issue_read_tools(settings: Settings, mcp: MCPServer[AppContext]) ->
         issue_id: IssueID,
     ) -> list[RemoteLink]:
         check_issue_access(settings, issue_id)
+        await check_ai_access(ctx, settings, issue_id)
 
         return await ctx.request_context.lifespan_context.issues.issue_get_remote_links(
             issue_id, auth=get_yandex_auth(ctx)

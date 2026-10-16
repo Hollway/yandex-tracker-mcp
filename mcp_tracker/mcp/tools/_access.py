@@ -1,5 +1,7 @@
 """Access control helpers for MCP tools."""
 
+import re
+
 from mcp_tracker.mcp.errors import TrackerError
 from mcp_tracker.settings import Settings
 from mcp_tracker.tracker.custom.errors import (
@@ -50,12 +52,52 @@ def _check_scoped_queue(
         )
 
 
+_ISSUE_KEY = re.compile(r"([A-Za-z][A-Za-z0-9_]*)-\d+")
+
+
+def queue_of_key(issue_id: str) -> str | None:
+    """The queue an issue key names, upper-cased: `queue-12` -> `QUEUE`.
+
+    `None` for anything that is not a key - Tracker also takes an issue's
+    internal id (`6ad1d166dc7d9f59dec67d79`), which names no queue at all.
+    """
+    match = _ISSUE_KEY.fullmatch(issue_id.strip())
+    return match.group(1).upper() if match else None
+
+
 def check_issue_access(
     settings: Settings, issue_id: str, *, write: bool = False
 ) -> None:
-    """Check access to an issue through the queue its key names."""
-    queue = issue_id.split("-")[0]
+    """Check access to an issue through the queue its key names.
+
+    An internal id names no queue, so under a restriction it is refused rather
+    than let through - taking the id itself for the queue used to let a write
+    past ``TRACKER_READ_ONLY_QUEUES``. An old key of a moved issue still names
+    its old queue; `check_fetched_issue_access` covers that where the issue is
+    read anyway.
+    """
+    queue = queue_of_key(issue_id)
+    if queue is None:
+        if queue_checks_needed(settings, write=write):
+            raise TrackerError(
+                f"`{issue_id}` is not an issue key like QUEUE-123, so the queue "
+                f"restrictions cannot be checked; pass the issue key."
+            )
+        return
     _check_scoped_queue(settings, queue, not_found=IssueNotFound(issue_id), write=write)
+
+
+def check_fetched_issue_access(
+    settings: Settings, issue_id: str, issue_key: str | None
+) -> None:
+    """Check ``TRACKER_LIMIT_QUEUES`` against the key Tracker answered with.
+
+    Tracker serves an issue moved to another queue under its old key too, so
+    the key the caller passed can name a queue the issue has left.
+    """
+    queue = queue_of_key(issue_key or "")
+    if queue is not None and not is_queue_allowed(settings, queue):
+        raise IssueNotFound(issue_id)
 
 
 def check_queue_access(

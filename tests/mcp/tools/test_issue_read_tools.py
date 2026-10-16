@@ -52,6 +52,26 @@ class TestIssueGetUrl:
 
 
 class TestIssueGet:
+    async def test_a_moved_issue_is_checked_by_its_new_queue(
+        self,
+        client_session_with_limits: Client,
+        mock_issues_protocol: AsyncMock,
+    ) -> None:
+        """Tracker serves an issue moved out of an allowed queue under its old key
+        too: the key it answers with decides."""
+        mock_issues_protocol.issue_get.return_value = Issue(
+            key="HIDDEN-7", summary="secret"
+        )
+
+        result = await client_session_with_limits.call_tool(
+            "issue_get", {"issue_id": "ALLOWED-1"}
+        )
+
+        assert result.is_error
+        content = result.content[0]
+        assert isinstance(content, TextContent)
+        assert "secret" not in content.text
+
     async def test_returns_issue(
         self,
         client_session: Client,

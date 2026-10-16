@@ -1563,9 +1563,10 @@ class TrackerClient(
     ) -> int:
         """Stream an attachment into `destination`; returns the bytes written.
 
-        The URL needs the attachment's name as its last segment, quoted whole: a
-        name is free text, and a `/` or `..` left in it would point the request
-        at another endpoint under the server's credentials. The body goes to
+        The URL needs the attachment's name as its last segment; it and the id
+        are quoted whole: a name is free text, and a `/` or `..` left in either
+        would point the request at another endpoint under the server's
+        credentials. The body goes to
         `<destination>.part` and is renamed only once complete, so a download
         that fails halfway never leaves a truncated file under the final name for
         a later call to take as finished. Both the declared length and the bytes
@@ -1574,7 +1575,7 @@ class TrackerClient(
         limit = self._max_attachment_bytes
         async with self._request(
             "GET",
-            f"v3/issues/{issue_id}/attachments/{attachment_id}/"
+            f"v3/issues/{issue_id}/attachments/{quote(attachment_id, safe='')}/"
             f"{quote(file_name, safe='')}",
             auth=auth,
             not_found=AttachmentNotFound(issue_id, attachment_id),
@@ -1589,7 +1590,9 @@ class TrackerClient(
             written = 0
             try:
                 with partial.open("wb") as file:
-                    async for chunk in response.content.iter_chunked(64 * 1024):
+                    # Each write is a hop to a worker thread; chunks of up to a
+                    # megabyte rather than 64 KB cut the hops of a large file.
+                    async for chunk in response.content.iter_chunked(1024 * 1024):
                         written += len(chunk)
                         if written > limit:
                             raise AttachmentTooLarge(attachment_id, written, limit)

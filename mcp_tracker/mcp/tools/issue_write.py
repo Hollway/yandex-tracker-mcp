@@ -38,7 +38,12 @@ from mcp_tracker.mcp.params import (
     IssueTagsParam,
     MarkupTypeParam,
 )
-from mcp_tracker.mcp.tools._access import check_issue_access, check_queue_access
+from mcp_tracker.mcp.tools._access import (
+    check_issue_access,
+    check_queue_access,
+    is_queue_allowed,
+    queue_of_key,
+)
 from mcp_tracker.mcp.tools._files import (
     UploadFilenameParam,
     UploadFilePathParam,
@@ -52,6 +57,7 @@ from mcp_tracker.tracker.proto.types.inputs import (
 )
 from mcp_tracker.tracker.proto.types.issues import (
     BulkChange,
+    BulkChangeFailure,
     BulkChangeReport,
     ChecklistItem,
     Issue,
@@ -92,6 +98,18 @@ def _prefilled(name: str, value: bool) -> tuple[type[bool], Any]:
             default=value, description=IssueMoveOptions.model_fields[name].description
         ),
     )
+
+
+def _can_ask(ctx: Context) -> bool:
+    """Whether the client can be asked a question: form elicitation, and a
+    back-channel on a pre-2026-07-28 connection (see `confirm_move_options`)."""
+    capabilities = ctx.client_capabilities
+    elicitation = capabilities.elicitation if capabilities is not None else None
+    supports_form = elicitation is not None and (
+        elicitation.form is not None or elicitation.url is None
+    )
+    legacy = ctx.protocol_version not in MODERN_PROTOCOL_VERSIONS
+    return supports_form and not (legacy and not ctx.session.can_send_request)
 
 
 def _move_options_resolver(
@@ -135,13 +153,7 @@ def _move_options_resolver(
         check_issue_access(settings, issue_id, write=True)
         check_queue_access(settings, queue, write=True)
 
-        capabilities = ctx.client_capabilities
-        elicitation = capabilities.elicitation if capabilities is not None else None
-        supports_form = elicitation is not None and (
-            elicitation.form is not None or elicitation.url is None
-        )
-        legacy = ctx.protocol_version not in MODERN_PROTOCOL_VERSIONS
-        if not supports_form or (legacy and not ctx.session.can_send_request):
+        if not _can_ask(ctx):
             return IssueMoveOptions(
                 notify=notify,
                 notify_author=notify_author,
@@ -1003,18 +1015,6 @@ class BulkConfirmation(BaseModel):
     )
 
 
-def _can_ask(ctx: Context) -> bool:
-    """Whether the client can be asked a question, by the rule `issue_move` uses:
-    form elicitation, and a back-channel on a pre-2026-07-28 connection."""
-    capabilities = ctx.client_capabilities
-    elicitation = capabilities.elicitation if capabilities is not None else None
-    supports_form = elicitation is not None and (
-        elicitation.form is not None or elicitation.url is None
-    )
-    legacy = ctx.protocol_version not in MODERN_PROTOCOL_VERSIONS
-    return supports_form and not (legacy and not ctx.session.can_send_request)
-
-
 def _bulk_question(
     ctx: Context, what: str, count: int
 ) -> BulkConfirmation | Elicit[BulkConfirmation]:
@@ -1031,6 +1031,25 @@ def _bulk_question(
     )
 
 
+def _check_bulk_issues(settings: Settings, issues: list[str]) -> None:
+    """The write check of every issue of a bulk change."""
+    for issue_id in issues:
+        check_issue_access(settings, issue_id, write=True)
+
+
+def _bulk_failure_allowed(settings: Settings, failure: BulkChangeFailure) -> bool:
+    """Whether a failed issue of a bulk change is in a queue the allow-list shows.
+
+    The report is read by id, and a bulk change started elsewhere can span
+    queues ``TRACKER_LIMIT_QUEUES`` hides.
+    """
+    if not settings.tracker_limit_queues:
+        return True
+    key = failure.issue.key if failure.issue is not None else None
+    queue = queue_of_key(key) if key else None
+    return queue is not None and is_queue_allowed(settings, queue)
+
+
 def _bulk_resolvers(
     settings: Settings,
 ) -> dict[str, Callable[..., Awaitable[BulkConfirmation | Elicit[BulkConfirmation]]]]:
@@ -1038,26 +1057,22 @@ def _bulk_resolvers(
     tool body, so the access checks run here first: the user is not asked to
     confirm a change the body would refuse anyway."""
 
-    def check_all(issues: list[str]) -> None:
-        for issue_id in issues:
-            check_issue_access(settings, issue_id, write=True)
-
     async def confirm_update(
         ctx: Context, issues: list[str], values: dict[str, Any]
     ) -> BulkConfirmation | Elicit[BulkConfirmation]:
-        check_all(issues)
+        _check_bulk_issues(settings, issues)
         return _bulk_question(ctx, f"Update fields {sorted(values)}", len(issues))
 
     async def confirm_transition(
         ctx: Context, issues: list[str], transition: str
     ) -> BulkConfirmation | Elicit[BulkConfirmation]:
-        check_all(issues)
+        _check_bulk_issues(settings, issues)
         return _bulk_question(ctx, f"Run transition `{transition}`", len(issues))
 
     async def confirm_move(
         ctx: Context, issues: list[str], queue: str
     ) -> BulkConfirmation | Elicit[BulkConfirmation]:
-        check_all(issues)
+        _check_bulk_issues(settings, issues)
         check_queue_access(settings, queue, write=True)
         return _bulk_question(ctx, f"Move to queue `{queue}`", len(issues))
 
@@ -1079,10 +1094,6 @@ def register_issue_bulk_tools(settings: Settings, mcp: MCPServer[AppContext]) ->
     """Register the bulk-change tools (`TRACKER_BULK_ENABLED`, writable server)."""
 
     resolvers = _bulk_resolvers(settings)
-
-    def check_all(issues: list[str]) -> None:
-        for issue_id in issues:
-            check_issue_access(settings, issue_id, write=True)
 
     @mcp.tool(
         title="Bulk Update Issues",
@@ -1106,7 +1117,7 @@ def register_issue_bulk_tools(settings: Settings, mcp: MCPServer[AppContext]) ->
         ],
         notify: BulkNotifyParam = False,
     ) -> BulkChange:
-        check_all(issues)
+        _check_bulk_issues(settings, issues)
         _confirmed(confirmation, "The bulk update")
         return await ctx.request_context.lifespan_context.issues.issues_bulk_update(
             issues, values=values, notify=notify, auth=get_yandex_auth(ctx)
@@ -1132,7 +1143,7 @@ def register_issue_bulk_tools(settings: Settings, mcp: MCPServer[AppContext]) ->
         values: BulkValuesParam = None,
         notify: BulkNotifyParam = False,
     ) -> BulkChange:
-        check_all(issues)
+        _check_bulk_issues(settings, issues)
         _confirmed(confirmation, "The bulk transition")
         return await ctx.request_context.lifespan_context.issues.issues_bulk_transition(
             issues,
@@ -1173,7 +1184,7 @@ def register_issue_bulk_tools(settings: Settings, mcp: MCPServer[AppContext]) ->
         values: BulkValuesParam = None,
         notify: BulkNotifyParam = False,
     ) -> BulkChange:
-        check_all(issues)
+        _check_bulk_issues(settings, issues)
         check_queue_access(settings, queue, write=True)
         _confirmed(confirmation, "The bulk move")
         return await ctx.request_context.lifespan_context.issues.issues_bulk_move(
@@ -1213,4 +1224,5 @@ def register_issue_bulk_tools(settings: Settings, mcp: MCPServer[AppContext]) ->
             incomplete or change.status == "FAILED"
         ):
             failures = await issues.bulk_change_get_failures(bulk_change_id, auth=auth)
+            failures = [f for f in failures if _bulk_failure_allowed(settings, f)]
         return BulkChangeReport(change=change, failures=failures)
