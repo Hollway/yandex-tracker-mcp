@@ -9,16 +9,21 @@ empty message. These tests cover the funnel itself - that the sixty callers
 still behave is what the rest of the suite says.
 """
 
+from unittest.mock import AsyncMock
+
 import pytest
 from aiohttp import ClientTimeout, FormData
 from aioresponses import aioresponses
+from yarl import URL as YarlURL
 
+from mcp_tracker.tracker.custom import client as client_module
 from mcp_tracker.tracker.custom.client import TrackerClient
 from mcp_tracker.tracker.custom.errors import (
     IssueNotFound,
     IssueVersionConflict,
     TrackerAPIError,
     TrackerAPITimeout,
+    TrackerRateLimited,
 )
 from tests.aioresponses_utils import RequestCapture
 
@@ -288,6 +293,147 @@ class TestAllowStatuses:
                     "GET", PATH, auth=None, allow_statuses=(404,)
                 ):
                     pass  # pragma: no cover - the status is raised before this
+
+
+@pytest.fixture
+def sleeps(monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
+    """The waits between retries, recorded instead of slept."""
+    sleep = AsyncMock()
+    monkeypatch.setattr(client_module.asyncio, "sleep", sleep)
+    return sleep
+
+
+def _waits(sleeps: AsyncMock) -> list[float]:
+    return [call.args[0] for call in sleeps.await_args_list]
+
+
+def _sent(m: aioresponses, verb: str) -> int:
+    return len(m.requests.get((verb, YarlURL(URL)), []))
+
+
+class TestRateLimit:
+    """Tracker answers a burst of calls with 429; one parallel batch is enough."""
+
+    @pytest.mark.parametrize("verb", VERBS)
+    async def test_a_429_is_sent_again_writes_included(
+        self, tracker_client: TrackerClient, sleeps: AsyncMock, verb: str
+    ) -> None:
+        with aioresponses() as m:
+            m.add(URL, method=verb, status=429)
+            m.add(URL, method=verb, payload={"ok": True})
+
+            async with tracker_client._request(verb, PATH, auth=None) as response:
+                assert response.status == 200
+
+            assert _sent(m, verb) == 2
+        assert _waits(sleeps) == [1.0]
+
+    @pytest.mark.parametrize(
+        ("retry_after", "wait"),
+        [("3", 3.0), ("0.5", 0.5), ("-1", 0.0), ("Wed, 21 Oct 2015 07:28:00 GMT", 0.0)],
+    )
+    async def test_it_waits_as_long_as_retry_after_asks(
+        self,
+        tracker_client: TrackerClient,
+        sleeps: AsyncMock,
+        retry_after: str,
+        wait: float,
+    ) -> None:
+        with aioresponses() as m:
+            m.get(URL, status=429, headers={"Retry-After": retry_after})
+            m.get(URL, payload={"ok": True})
+
+            async with tracker_client._request("GET", PATH, auth=None):
+                pass
+
+        assert _waits(sleeps) == [wait]
+
+    async def test_an_unreadable_retry_after_falls_back_to_the_backoff(
+        self, tracker_client: TrackerClient, sleeps: AsyncMock
+    ) -> None:
+        with aioresponses() as m:
+            m.get(URL, status=429, headers={"Retry-After": "soon"})
+            m.get(URL, payload={"ok": True})
+
+            async with tracker_client._request("GET", PATH, auth=None):
+                pass
+
+        assert _waits(sleeps) == [1.0]
+
+    async def test_it_gives_up_after_three_retries(
+        self, tracker_client: TrackerClient, sleeps: AsyncMock
+    ) -> None:
+        with aioresponses() as m:
+            m.post(URL, status=429, repeat=True, payload={"errorMessages": ["Лимит."]})
+
+            with pytest.raises(TrackerRateLimited) as exc_info:
+                async with tracker_client._request("POST", PATH, auth=None):
+                    pass  # pragma: no cover - the status is raised before this
+
+            assert _sent(m, "POST") == 4
+        assert _waits(sleeps) == [1.0, 2.0, 4.0]
+        error = exc_info.value
+        assert isinstance(error, TrackerAPIError)
+        assert error.status == 429
+        assert error.retries == 3
+        assert "after 3 retries" in str(error)
+        assert "Nothing was changed" in str(error)
+
+    async def test_a_long_retry_after_is_raised_rather_than_sat_out(
+        self, tracker_client: TrackerClient, sleeps: AsyncMock
+    ) -> None:
+        with aioresponses() as m:
+            m.get(URL, status=429, headers={"Retry-After": "60"})
+
+            with pytest.raises(TrackerRateLimited) as exc_info:
+                async with tracker_client._request("GET", PATH, auth=None):
+                    pass  # pragma: no cover - the status is raised before this
+
+            assert _sent(m, "GET") == 1
+        sleeps.assert_not_awaited()
+        assert exc_info.value.retry_after == 60
+        assert "wait 60s" in str(exc_info.value)
+        assert "retries" not in str(exc_info.value)
+
+    async def test_a_multipart_body_is_not_sent_twice(
+        self, tracker_client: TrackerClient, sleeps: AsyncMock
+    ) -> None:
+        form = FormData()
+        form.add_field("file", b"bytes", filename="a.txt")
+
+        with aioresponses() as m:
+            m.post(URL, status=429)
+
+            with pytest.raises(TrackerRateLimited):
+                async with tracker_client._request("POST", PATH, auth=None, data=form):
+                    pass  # pragma: no cover - the status is raised before this
+
+            assert _sent(m, "POST") == 1
+        sleeps.assert_not_awaited()
+
+    async def test_an_allowed_429_reaches_the_caller(
+        self, tracker_client: TrackerClient, sleeps: AsyncMock
+    ) -> None:
+        with aioresponses() as m:
+            m.get(URL, status=429)
+
+            async with tracker_client._request(
+                "GET", PATH, auth=None, allow_statuses=(429,)
+            ) as response:
+                assert response.status == 429
+
+        sleeps.assert_not_awaited()
+
+    async def test_read_retries_too(
+        self, tracker_client: TrackerClient, sleeps: AsyncMock
+    ) -> None:
+        with aioresponses() as m:
+            m.get(URL, status=429)
+            m.get(URL, payload={"key": "TEST-1"})
+
+            body = await tracker_client._read("GET", PATH, auth=None)
+
+        assert body == b'{"key": "TEST-1"}'
 
 
 class TestRead:

@@ -8,6 +8,7 @@ from asyncio import CancelledError
 from collections.abc import AsyncIterator, Collection, Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 from typing import Any, Literal
 from urllib.parse import quote
@@ -45,6 +46,7 @@ from mcp_tracker.tracker.custom.errors import (
     SprintVersionConflict,
     TrackerAPIError,
     TrackerAPITimeout,
+    TrackerRateLimited,
     VersionEmptyUpdate,
     VersionNotFound,
     WorklogSearchTooLarge,
@@ -345,6 +347,30 @@ def _attachment_form(content: bytes, filename: str) -> FormData:
     return form
 
 
+# 429 Too Many Requests: the waits before each retry when Tracker sends no
+# `Retry-After`, and the longest `Retry-After` still sat out rather than raised.
+_RATE_LIMIT_BACKOFF = (1.0, 2.0, 4.0)
+_RATE_LIMIT_MAX_WAIT = 10.0
+
+
+def _retry_after(response: ClientResponse) -> float | None:
+    """Seconds the `Retry-After` header asks for - a number or an HTTP date."""
+    value = response.headers.get("Retry-After")
+    if value is None:
+        return None
+    try:
+        return max(float(value), 0.0)
+    except ValueError:
+        pass
+    try:
+        when = parsedate_to_datetime(value)
+    except (TypeError, ValueError):
+        return None
+    if when.tzinfo is None:
+        when = when.replace(tzinfo=datetime.UTC)
+    return max((when - datetime.datetime.now(datetime.UTC)).total_seconds(), 0.0)
+
+
 _TRIGGERS_PER_PAGE = 100
 
 # A guard against a `next` link that never ends, not a page size.
@@ -503,6 +529,11 @@ class TrackerClient(
         `timeout_setting` names the variable that sets it in the timeout error.
         Only a file upload needs this: the budget covers sending the body, and the
         default one fails any sizable file.
+
+        A 429 is sent again, writes included - Tracker refuses it before running
+        it - after the `Retry-After` it asks for or 1, 2 and 4 seconds, then
+        raises `TrackerRateLimited`. Agents call tools in parallel and Tracker's
+        per-user limit is low enough for four calls at once to hit it.
         """
         # Built before the `try`: the service account's IAM fetch is not a
         # Tracker request and must not be reported as one timing out.
@@ -510,24 +541,53 @@ class TrackerClient(
         if extra_headers:
             headers = {**headers, **extra_headers}
         budget = self._timeout if timeout is None else timeout
+        # A multipart body is not sent twice: aiohttp's `FormData` appends its
+        # parts to one writer, so a second send is not the same request.
+        retries = 0 if data is not None else len(_RATE_LIMIT_BACKOFF)
 
         try:
-            async with self._session.request(
-                method,
-                url,
-                headers=headers,
-                params=params,
-                json=json,
-                data=data,
-                timeout=ClientTimeout(total=budget),
-            ) as response:
-                if response.status not in allow_statuses:
-                    if not_found is not None and response.status == 404:
-                        raise not_found
-                    if conflict is not None and response.status in (409, 412):
-                        raise conflict
-                    await self._raise_for_status(response)
-                yield response
+            for attempt in range(retries + 1):
+                async with self._session.request(
+                    method,
+                    url,
+                    headers=headers,
+                    params=params,
+                    json=json,
+                    data=data,
+                    timeout=ClientTimeout(total=budget),
+                ) as response:
+                    if response.status == 429 and 429 not in allow_statuses:
+                        retry_after = _retry_after(response)
+                        # A wait longer than the cap is not sat out here: the
+                        # tool call would hang for it with nothing to show.
+                        if attempt == retries or (
+                            retry_after is not None
+                            and retry_after > _RATE_LIMIT_MAX_WAIT
+                        ):
+                            raise TrackerRateLimited(
+                                method=method,
+                                url=str(response.url),
+                                body=await response.text(),
+                                retries=attempt,
+                                retry_after=retry_after,
+                            )
+                        delay = (
+                            retry_after
+                            if retry_after is not None
+                            else _RATE_LIMIT_BACKOFF[attempt]
+                        )
+                        logger.info("429 on %s %s, retrying in %gs", method, url, delay)
+                    else:
+                        if response.status not in allow_statuses:
+                            if not_found is not None and response.status == 404:
+                                raise not_found
+                            if conflict is not None and response.status in (409, 412):
+                                raise conflict
+                            await self._raise_for_status(response)
+                        yield response
+                        return
+                # Outside the `async with`, so the connection is released first.
+                await asyncio.sleep(delay)
         except TimeoutError as exc:
             # A body read that times out lands here too: it runs inside the
             # caller's `async with`, and that exception is thrown back in at the
