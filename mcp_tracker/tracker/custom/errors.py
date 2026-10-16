@@ -462,14 +462,19 @@ class SprintNotFound(YandexTrackerError):
 
 
 class SprintVersionConflict(YandexTrackerError):
-    """Raised when a sprint write is rejected because `version` is stale."""
+    """Raised when Tracker refuses a sprint write over its `version`.
+
+    Tracker answers a stale version and a passing failure right after a change
+    with the same 412 and the same text, so the message names both.
+    """
 
     def __init__(self, sprint_id: int, version: int):
         super().__init__(
-            f"Editing conflict for sprint '{sprint_id}' with version {version}: the "
-            f"sprint was changed since that version was read. Retry without "
-            f"`version` to act on the current one, or re-read it with "
-            f"board_get_sprints."
+            f"Editing conflict for sprint '{sprint_id}' with version {version}: "
+            f"either the sprint was changed since that version was read, or "
+            f"Tracker refused the write for a moment, as it does right after a "
+            f"sprint changes. Retry without `version` to act on the current one, "
+            f"which is retried for you, or re-read it with board_get_sprints."
         )
         self.sprint_id = sprint_id
         self.version = version

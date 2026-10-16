@@ -31,6 +31,7 @@ All notable changes to this project will be documented in this file.
 - **Issues with a text `version`** - an issue whose `version` came back as a string such as `MVP-0` failed validation, and with it every listing that contained it ([aikts#49](https://github.com/aikts/yandex-tracker-mcp/pull/49))
 - Over streamable-http the Tracker client and its HTTP session are created once per process; they were created once per request
 - **Rate limiting** - a call Tracker refused with 429 Too Many Requests failed outright, which a few parallel tool calls were enough to trigger; it is now sent again after the wait Tracker asks for, file uploads excepted
+- **Sprint writes right after a change** - Tracker sometimes refuses a sprint update, start or archive for a moment even with the current version, which reached the agent as an editing conflict; without an explicit `version` the write is now retried on a fresh read
 
 ### Internal
 
