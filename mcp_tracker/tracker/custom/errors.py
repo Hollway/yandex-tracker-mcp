@@ -191,6 +191,41 @@ class TrackerAPIError(YandexTrackerError):
         super().__init__(message)
 
 
+class TrackerRateLimited(TrackerAPIError):
+    """Tracker kept answering 429 Too Many Requests after the retries ran out.
+
+    A subclass so that whoever catches `TrackerAPIError` by status still does,
+    with a message that says what to do: the request was refused before it ran,
+    so it is safe to send again once the limit clears, and calls made in parallel
+    count against the same limit.
+    """
+
+    def __init__(
+        self,
+        *,
+        method: str,
+        url: str,
+        body: str,
+        retries: int,
+        retry_after: float | None,
+    ):
+        super().__init__(status=429, method=method, url=url, body=body)
+        self.retries = retries
+        self.retry_after = retry_after
+        wait = (
+            f"wait {retry_after:g}s, as Tracker asks,"
+            if retry_after is not None
+            else "wait a few seconds"
+        )
+        refused = f", still refused after {retries} retries" if retries else ""
+        # Replaces the generic message `TrackerAPIError` built from the body.
+        self.args = (
+            f"Yandex Tracker API rate limit (429) on {method} {url}{refused}. "
+            f"Nothing was changed: {wait} and send it again, one call at a time - "
+            f"parallel calls share the same limit.",
+        )
+
+
 def _parse_error_body(body: str) -> tuple[list[str], dict[str, str]]:
     """Extract Tracker's `errorMessages` / `errors` from an error response body."""
     try:
