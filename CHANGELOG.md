@@ -24,10 +24,17 @@ All notable changes to this project will be documented in this file.
 - **Bulk changes** - `issues_bulk_update`, `issues_bulk_transition` and `issues_bulk_move` for up to 10 000 issues, with `issues_get_bulk_change` for the outcome
   - Opt-in via `TRACKER_BULK_ENABLED` (default `false`); every issue is checked against the queue restrictions, and the user confirms the change where the client supports elicitation
 - **The queue setting 'AI tools access' is honoured** - issues of a queue that forbids AI tools come back as their key and `restricted`, as from Tracker's own MCP server; writes still work, and `TRACKER_AI_ACCESS_IGNORED_QUEUES` lists the queues to read regardless
+- **`issue_move` confirms its options through the SDK's multi-round-trip elicitation** — works on clients speaking the 2026-07-28 protocol revision and on 2025-era clients alike; a client that cannot be asked (no form elicitation, or a 2025-era client over streamable-http, which has no channel for the question) gets the values passed to the tool
 
 ### Bug Fixes
 
 - **Issues with a text `version`** - an issue whose `version` came back as a string such as `MVP-0` failed validation, and with it every listing that contained it ([aikts#49](https://github.com/aikts/yandex-tracker-mcp/pull/49))
+- Over streamable-http the Tracker client and its HTTP session are created once per process; they were created once per request
+
+### Internal
+
+- **`mcp` 2.1** — the server speaks the 2026-07-28 protocol revision and still serves 2025-era clients; tool errors subclass `ToolError` so their text keeps reaching the model
+  - `tracker-mcp://configuration` is a resource template (`tracker-mcp://configuration{?cloudOrgId,orgId}`) and is listed under `resources/templates/list` rather than `resources/list`; the plain URI still reads
 
 ## [0.10.0] - 2026-10-15
 

@@ -26,10 +26,9 @@ This package organizes MCP tools by category:
 - goal_write.py: Goal entity write tools (conditional on read-only mode)
 """
 
-from typing import Any
+from mcp.server.mcpserver import MCPServer
 
-from mcp.server import FastMCP
-
+from mcp_tracker.mcp.context import AppContext
 from mcp_tracker.mcp.tools.application import register_application_tools
 from mcp_tracker.mcp.tools.attachment_write import (
     register_attachment_file_upload_tools,
@@ -62,7 +61,7 @@ from mcp_tracker.mcp.tools.worklog import register_worklog_tools
 from mcp_tracker.settings import Settings
 
 
-def register_all_tools(settings: Settings, mcp: FastMCP[Any]) -> None:
+def register_all_tools(settings: Settings, mcp: MCPServer[AppContext]) -> None:
     """Register all MCP tools based on settings.
 
     Args:
@@ -72,7 +71,7 @@ def register_all_tools(settings: Settings, mcp: FastMCP[Any]) -> None:
             file upload tools only if tracker_file_upload_enabled is True. The
             attachment download tool needs tracker_attachment_download_enabled,
             in read-only mode as well.
-        mcp: FastMCP server instance.
+        mcp: MCPServer instance.
     """
     # Always register read-only tools
     register_queue_tools(settings, mcp)

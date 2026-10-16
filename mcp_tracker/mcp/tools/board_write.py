@@ -6,10 +6,9 @@ TRACKER_READ_ONLY does.
 """
 
 import datetime
-from typing import Annotated, Any, Literal
+from typing import Annotated, Literal
 
-from mcp.server import FastMCP
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context, MCPServer
 from mcp.types import ToolAnnotations
 from pydantic import Field
 
@@ -42,7 +41,7 @@ async def _current_version(
     return sprint.version or 0
 
 
-def register_board_write_tools(settings: Settings, mcp: FastMCP[Any]) -> None:
+def register_board_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -> None:
     """Register sprint write tools (not registered in read-only mode)."""
 
     @mcp.tool(
@@ -50,10 +49,10 @@ def register_board_write_tools(settings: Settings, mcp: FastMCP[Any]) -> None:
         description="Create a sprint ('спринт') on a Yandex Tracker scrum board "
         "for a range of dates. It starts as `draft`; board_start_sprint runs it. "
         "Not covered by the queue restrictions.",
-        annotations=ToolAnnotations(readOnlyHint=False),
+        annotations=ToolAnnotations(read_only_hint=False),
     )
     async def board_create_sprint(
-        ctx: Context[Any, AppContext],
+        ctx: Context[AppContext],
         board_id: BoardID,
         name: Annotated[str, Field(description="Sprint name.")],
         start_date: Annotated[datetime.date, Field(description="YYYY-MM-DD.")],
@@ -72,10 +71,10 @@ def register_board_write_tools(settings: Settings, mcp: FastMCP[Any]) -> None:
         description="Rename or reschedule a sprint of a Yandex Tracker board, or "
         "change its status. Only the arguments passed change. Not covered by the "
         "queue restrictions.",
-        annotations=ToolAnnotations(readOnlyHint=False),
+        annotations=ToolAnnotations(read_only_hint=False),
     )
     async def board_update_sprint(
-        ctx: Context[Any, AppContext],
+        ctx: Context[AppContext],
         sprint_id: SprintIDParam,
         name: Annotated[str | None, Field(description="New name.")] = None,
         start_date: Annotated[
@@ -106,10 +105,10 @@ def register_board_write_tools(settings: Settings, mcp: FastMCP[Any]) -> None:
         title="Start Sprint",
         description="Start a sprint of a Yandex Tracker board: its status becomes "
         "`in_progress`. Not covered by the queue restrictions.",
-        annotations=ToolAnnotations(readOnlyHint=False),
+        annotations=ToolAnnotations(read_only_hint=False),
     )
     async def board_start_sprint(
-        ctx: Context[Any, AppContext],
+        ctx: Context[AppContext],
         sprint_id: SprintIDParam,
         version: SprintVersionParam = None,
     ) -> Sprint:
@@ -125,10 +124,10 @@ def register_board_write_tools(settings: Settings, mcp: FastMCP[Any]) -> None:
         title="Archive Sprint",
         description="Move a sprint of a Yandex Tracker board to the archive. Not "
         "covered by the queue restrictions.",
-        annotations=ToolAnnotations(readOnlyHint=False),
+        annotations=ToolAnnotations(read_only_hint=False),
     )
     async def board_archive_sprint(
-        ctx: Context[Any, AppContext],
+        ctx: Context[AppContext],
         sprint_id: SprintIDParam,
         version: SprintVersionParam = None,
     ) -> Sprint:
@@ -144,10 +143,10 @@ def register_board_write_tools(settings: Settings, mcp: FastMCP[Any]) -> None:
         title="Delete Sprint",
         description="Permanently delete a sprint of a Yandex Tracker board; its "
         "issues stay and lose the sprint. Not covered by the queue restrictions.",
-        annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True),
+        annotations=ToolAnnotations(read_only_hint=False, destructive_hint=True),
     )
     async def board_delete_sprint(
-        ctx: Context[Any, AppContext],
+        ctx: Context[AppContext],
         sprint_id: SprintIDParam,
     ) -> None:
         await ctx.request_context.lifespan_context.boards.sprint_delete(

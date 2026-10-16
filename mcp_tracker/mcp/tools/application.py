@@ -1,9 +1,6 @@
 """External application tools (read-only)."""
 
-from typing import Any
-
-from mcp.server import FastMCP
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context, MCPServer
 from mcp.types import ToolAnnotations
 
 from mcp_tracker.mcp.context import AppContext
@@ -12,7 +9,7 @@ from mcp_tracker.settings import Settings
 from mcp_tracker.tracker.proto.types.issues import ExternalApplication
 
 
-def register_application_tools(settings: Settings, mcp: FastMCP[Any]) -> None:
+def register_application_tools(settings: Settings, mcp: MCPServer[AppContext]) -> None:
     """Register external application tools."""
 
     @mcp.tool(
@@ -20,10 +17,10 @@ def register_application_tools(settings: Settings, mcp: FastMCP[Any]) -> None:
         description="List the applications a Yandex Tracker issue can be linked to "
         "(a repository host, a wiki, a CRM, ...): their `id` is the `origin` that "
         "issue_add_remote_link takes.",
-        annotations=ToolAnnotations(readOnlyHint=True),
+        annotations=ToolAnnotations(read_only_hint=True),
     )
     async def applications_get_all(
-        ctx: Context[Any, AppContext],
+        ctx: Context[AppContext],
     ) -> list[ExternalApplication]:
         return await ctx.request_context.lifespan_context.issues.applications_list(
             auth=get_yandex_auth(ctx)

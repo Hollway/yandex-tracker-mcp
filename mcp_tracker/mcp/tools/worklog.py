@@ -1,10 +1,9 @@
 """Worklog search across issues (read-only)."""
 
 import datetime
-from typing import Annotated, Any
+from typing import Annotated
 
-from mcp.server import FastMCP
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context, MCPServer
 from mcp.types import ToolAnnotations
 from pydantic import Field
 
@@ -22,7 +21,7 @@ from mcp_tracker.settings import Settings
 from mcp_tracker.tracker.proto.types.issues import Worklog, WorklogFieldsEnum
 
 
-def register_worklog_tools(settings: Settings, mcp: FastMCP[Any]) -> None:
+def register_worklog_tools(settings: Settings, mcp: MCPServer[AppContext]) -> None:
     """Register the worklog search tool."""
 
     @mcp.tool(
@@ -31,10 +30,10 @@ def register_worklog_tools(settings: Settings, mcp: FastMCP[Any]) -> None:
         "all issues over a period, e.g. 'what did I log last week'. Filter by the "
         "day the work was done (`start_*`) or by the day the record was entered "
         "(`created_*`); days are in the server's local time zone.",
-        annotations=ToolAnnotations(readOnlyHint=True),
+        annotations=ToolAnnotations(read_only_hint=True),
     )
     async def worklogs_find(
-        ctx: Context[Any, AppContext],
+        ctx: Context[AppContext],
         author: Annotated[
             str | None,
             Field(

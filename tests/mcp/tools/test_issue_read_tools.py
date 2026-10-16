@@ -5,12 +5,12 @@ from unittest.mock import AsyncMock
 
 import pytest
 import pytest_asyncio
-from mcp.client.session import ClientSession
+from mcp import Client
 from mcp.types import CallToolResult, TextContent
 
 from mcp_tracker.mcp.context import AppContext
 from mcp_tracker.mcp.server import create_mcp_server
-from mcp_tracker.tracker.custom.errors import AttachmentNotFound
+from mcp_tracker.tracker.custom.errors import AttachmentNotFound, TrackerAPIError
 from mcp_tracker.tracker.proto.common import YandexAuth
 from mcp_tracker.tracker.proto.types.issues import (
     ChangelogComments,
@@ -40,13 +40,13 @@ from tests.mcp.conftest import (
 class TestIssueGetUrl:
     async def test_returns_tracker_url(
         self,
-        client_session: ClientSession,
+        client_session: Client,
     ) -> None:
         result = await client_session.call_tool(
             "issue_get_url", {"issue_id": "TEST-123"}
         )
 
-        assert not result.isError
+        assert not result.is_error
         content = get_tool_result_content(result)
         assert content == "https://tracker.yandex.ru/TEST-123"
 
@@ -54,7 +54,7 @@ class TestIssueGetUrl:
 class TestIssueGet:
     async def test_returns_issue(
         self,
-        client_session: ClientSession,
+        client_session: Client,
         mock_issues_protocol: AsyncMock,
         sample_issue: Issue,
     ) -> None:
@@ -62,7 +62,7 @@ class TestIssueGet:
 
         result = await client_session.call_tool("issue_get", {"issue_id": "TEST-123"})
 
-        assert not result.isError
+        assert not result.is_error
         mock_issues_protocol.issue_get.assert_called_once()
         content = get_tool_result_content(result)
         assert isinstance(content, dict)
@@ -71,7 +71,7 @@ class TestIssueGet:
 
     async def test_with_description_excluded(
         self,
-        client_session: ClientSession,
+        client_session: Client,
         mock_issues_protocol: AsyncMock,
         sample_issue: Issue,
     ) -> None:
@@ -81,7 +81,7 @@ class TestIssueGet:
             "issue_get", {"issue_id": "TEST-123", "include_description": False}
         )
 
-        assert not result.isError
+        assert not result.is_error
         mock_issues_protocol.issue_get.assert_called_once()
         content = get_tool_result_content(result)
         assert content["key"] == sample_issue.key
@@ -90,21 +90,47 @@ class TestIssueGet:
 
     async def test_restricted_queue_raises_error(
         self,
-        client_session_with_limits: ClientSession,
+        client_session_with_limits: Client,
         mock_issues_protocol: AsyncMock,
     ) -> None:
         result = await client_session_with_limits.call_tool(
             "issue_get", {"issue_id": "RESTRICTED-123"}
         )
 
-        assert result.isError
+        assert result.is_error
         mock_issues_protocol.issue_get.assert_not_called()
+
+    async def test_tracker_api_error_text_reaches_the_caller(
+        self,
+        client_session: Client,
+        mock_issues_protocol: AsyncMock,
+    ) -> None:
+        """`TrackerAPIError` subclasses `ToolError`, so the SDK keeps its text in
+        the result instead of hiding it behind a bare `Error executing tool`."""
+        mock_issues_protocol.issue_get.side_effect = TrackerAPIError(
+            status=403,
+            method="GET",
+            url="https://api.tracker.yandex.net/v3/issues/TEST-123",
+            body='{"errorMessages": ["You do not have access to this issue."], "errors": {}}',
+        )
+
+        result = await client_session.call_tool("issue_get", {"issue_id": "TEST-123"})
+
+        assert result.is_error
+        error = result.content[0]
+        assert isinstance(error, TextContent)
+        assert error.text.startswith("Error executing tool issue_get:")
+        assert (
+            "Yandex Tracker API error 403 on GET "
+            "https://api.tracker.yandex.net/v3/issues/TEST-123" in error.text
+        )
+        assert "You do not have access to this issue." in error.text
 
 
 class TestIssueGetComments:
     async def test_returns_comments(
         self,
-        client_session: ClientSession,
+        client_session: Client,
         mock_issues_protocol: AsyncMock,
         sample_comments: list[IssueComment],
     ) -> None:
@@ -116,7 +142,7 @@ class TestIssueGetComments:
             "issue_get_comments", {"issue_id": "TEST-123"}
         )
 
-        assert not result.isError
+        assert not result.is_error
         mock_issues_protocol.issue_get_comments.assert_called_once_with(
             "TEST-123", per_page=50, cursor=None, auth=YandexAuth()
         )
@@ -127,7 +153,7 @@ class TestIssueGetComments:
 
     async def test_passes_pagination_params(
         self,
-        client_session: ClientSession,
+        client_session: Client,
         mock_issues_protocol: AsyncMock,
         sample_comments: list[IssueComment],
     ) -> None:
@@ -140,26 +166,26 @@ class TestIssueGetComments:
             {"issue_id": "TEST-123", "per_page": 10, "cursor": "42"},
         )
 
-        assert not result.isError
+        assert not result.is_error
         mock_issues_protocol.issue_get_comments.assert_called_once_with(
             "TEST-123", per_page=10, cursor="42", auth=YandexAuth()
         )
 
     async def test_restricted_queue_raises_error(
         self,
-        client_session_with_limits: ClientSession,
+        client_session_with_limits: Client,
         mock_issues_protocol: AsyncMock,
     ) -> None:
         result = await client_session_with_limits.call_tool(
             "issue_get_comments", {"issue_id": "RESTRICTED-123"}
         )
 
-        assert result.isError
+        assert result.is_error
         mock_issues_protocol.issue_get_comments.assert_not_called()
 
     async def test_fields_filters_response(
         self,
-        client_session: ClientSession,
+        client_session: Client,
         mock_issues_protocol: AsyncMock,
         sample_comments: list[IssueComment],
     ) -> None:
@@ -171,7 +197,7 @@ class TestIssueGetComments:
             "issue_get_comments", {"issue_id": "TEST-123", "fields": ["text"]}
         )
 
-        assert not result.isError
+        assert not result.is_error
         content = get_tool_result_content(result)
         assert content["comments"][0]["text"] == sample_comments[0].text
         assert content["comments"][0].get("createdBy") is None
@@ -180,7 +206,7 @@ class TestIssueGetComments:
 class TestIssueGetLinks:
     async def test_returns_links(
         self,
-        client_session: ClientSession,
+        client_session: Client,
         mock_issues_protocol: AsyncMock,
         sample_links: list[IssueLink],
     ) -> None:
@@ -190,7 +216,7 @@ class TestIssueGetLinks:
             "issue_get_links", {"issue_id": "TEST-123"}
         )
 
-        assert not result.isError
+        assert not result.is_error
         mock_issues_protocol.issues_get_links.assert_called_once()
         content = get_tool_result_content(result)
         assert isinstance(content, list)
@@ -201,7 +227,7 @@ class TestIssueGetLinks:
 class TestIssuesFind:
     async def test_finds_issues(
         self,
-        client_session: ClientSession,
+        client_session: Client,
         mock_issues_protocol: AsyncMock,
         sample_issues: list[Issue],
     ) -> None:
@@ -211,7 +237,7 @@ class TestIssuesFind:
 
         result = await client_session.call_tool("issues_find", {"query": "Queue: TEST"})
 
-        assert not result.isError
+        assert not result.is_error
         mock_issues_protocol.issues_find.assert_called_once()
         content = get_tool_result_content(result)
         assert len(content["values"]) == len(sample_issues)
@@ -219,7 +245,7 @@ class TestIssuesFind:
 
     async def test_returns_pagination_totals(
         self,
-        client_session: ClientSession,
+        client_session: Client,
         mock_issues_protocol: AsyncMock,
         sample_issues: list[Issue],
     ) -> None:
@@ -229,14 +255,14 @@ class TestIssuesFind:
 
         result = await client_session.call_tool("issues_find", {"query": "Queue: TEST"})
 
-        assert not result.isError
+        assert not result.is_error
         content = get_tool_result_content(result)
         assert content["hits"] == 403
         assert content["pages"] == 5
 
     async def test_with_pagination(
         self,
-        client_session: ClientSession,
+        client_session: Client,
         mock_issues_protocol: AsyncMock,
         sample_issues: list[Issue],
     ) -> None:
@@ -246,7 +272,7 @@ class TestIssuesFind:
             "issues_find", {"query": "Queue: TEST", "page": 2, "per_page": 50}
         )
 
-        assert not result.isError
+        assert not result.is_error
         call_kwargs = mock_issues_protocol.issues_find.call_args.kwargs
         assert call_kwargs["page"] == 2
         assert call_kwargs["per_page"] == 50
@@ -255,7 +281,7 @@ class TestIssuesFind:
 
     async def test_excludes_description_by_default(
         self,
-        client_session: ClientSession,
+        client_session: Client,
         mock_issues_protocol: AsyncMock,
         sample_issues: list[Issue],
     ) -> None:
@@ -263,7 +289,7 @@ class TestIssuesFind:
 
         result = await client_session.call_tool("issues_find", {"query": "Queue: TEST"})
 
-        assert not result.isError
+        assert not result.is_error
         mock_issues_protocol.issues_find.assert_called_once()
         content = get_tool_result_content(result)
         # By default, description is excluded (set to None)
@@ -272,7 +298,7 @@ class TestIssuesFind:
 
     async def test_fields_are_pushed_down_to_the_api(
         self,
-        client_session: ClientSession,
+        client_session: Client,
         mock_issues_protocol: AsyncMock,
         sample_issues: list[Issue],
     ) -> None:
@@ -282,7 +308,7 @@ class TestIssuesFind:
             "issues_find", {"query": "Queue: TEST", "fields": ["key", "story_points"]}
         )
 
-        assert not result.isError
+        assert not result.is_error
         # The API only understands Tracker's own spelling of a field name.
         assert sorted(mock_issues_protocol.issues_find.call_args.kwargs["fields"]) == [
             "key",
@@ -291,7 +317,7 @@ class TestIssuesFind:
 
     async def test_fields_accept_trackers_own_spelling(
         self,
-        client_session: ClientSession,
+        client_session: Client,
         mock_issues_protocol: AsyncMock,
     ) -> None:
         issue = Issue.model_construct(key="TEST-123", story_points=3.0)
@@ -301,7 +327,7 @@ class TestIssuesFind:
             "issues_find", {"query": "Queue: TEST", "fields": ["key", "storyPoints"]}
         )
 
-        assert not result.isError
+        assert not result.is_error
         assert mock_issues_protocol.issues_find.call_args.kwargs["fields"] == [
             "key",
             "storyPoints",
@@ -312,7 +338,7 @@ class TestIssuesFind:
 
     async def test_both_spellings_of_one_field_are_sent_once(
         self,
-        client_session: ClientSession,
+        client_session: Client,
         mock_issues_protocol: AsyncMock,
         sample_issues: list[Issue],
     ) -> None:
@@ -323,7 +349,8 @@ class TestIssuesFind:
             {"query": "Queue: TEST", "fields": ["story_points", "storyPoints"]},
         )
 
-        assert not result.isError
+        assert not result.is_error
+        assert not result.is_error
         # `key` rides along: the AI access check needs the queue it names.
         assert mock_issues_protocol.issues_find.call_args.kwargs["fields"] == [
             "storyPoints",
@@ -332,7 +359,7 @@ class TestIssuesFind:
 
     async def test_fields_accept_a_field_the_model_does_not_declare(
         self,
-        client_session: ClientSession,
+        client_session: Client,
         mock_issues_protocol: AsyncMock,
     ) -> None:
         """A queue's local fields and the standard fields `Issue` omits are only
@@ -355,7 +382,7 @@ class TestIssuesFind:
             },
         )
 
-        assert not result.isError
+        assert not result.is_error
         assert mock_issues_protocol.issues_find.call_args.kwargs["fields"] == [
             "key",
             "resolution",
@@ -371,7 +398,7 @@ class TestIssuesFind:
 
     async def test_no_fields_param_when_not_selected(
         self,
-        client_session: ClientSession,
+        client_session: Client,
         mock_issues_protocol: AsyncMock,
         sample_issues: list[Issue],
     ) -> None:
@@ -379,12 +406,12 @@ class TestIssuesFind:
 
         result = await client_session.call_tool("issues_find", {"query": "Queue: TEST"})
 
-        assert not result.isError
+        assert not result.is_error
         assert mock_issues_protocol.issues_find.call_args.kwargs["fields"] is None
 
     async def test_fields_drop_undeclared_api_fields(
         self,
-        client_session: ClientSession,
+        client_session: Client,
         mock_issues_protocol: AsyncMock,
     ) -> None:
         # Tracker adds `self`, `id`, `version` and `favorite` to every projection,
@@ -408,13 +435,13 @@ class TestIssuesFind:
             "issues_find", {"query": "Queue: TEST", "fields": ["key"]}
         )
 
-        assert not result.isError
+        assert not result.is_error
         content = get_tool_result_content(result)
         assert content["values"] == [{"key": "TEST-123"}]
 
     async def test_description_selected_through_fields_is_kept(
         self,
-        client_session: ClientSession,
+        client_session: Client,
         mock_issues_protocol: AsyncMock,
     ) -> None:
         issue = Issue.model_construct(key="TEST-123", description="Body text")
@@ -425,7 +452,7 @@ class TestIssuesFind:
             {"query": "Queue: TEST", "fields": ["key", "description"]},
         )
 
-        assert not result.isError
+        assert not result.is_error
         content = get_tool_result_content(result)
         # `include_description` defaults to False, but asking for `description`
         # through `fields` is an explicit request for it.
@@ -435,7 +462,7 @@ class TestIssuesFind:
 class TestIssuesCount:
     async def test_returns_count(
         self,
-        client_session: ClientSession,
+        client_session: Client,
         mock_issues_protocol: AsyncMock,
     ) -> None:
         mock_issues_protocol.issues_count.return_value = 42
@@ -444,7 +471,7 @@ class TestIssuesCount:
             "issues_count", {"query": "Queue: TEST"}
         )
 
-        assert not result.isError
+        assert not result.is_error
         mock_issues_protocol.issues_count.assert_called_once()
         content = get_tool_result_content(result)
         # A named field, so the number cannot be mistaken for an HTTP status.
@@ -454,7 +481,7 @@ class TestIssuesCount:
 class TestIssueGetWorklogs:
     async def test_returns_worklogs_for_multiple_issues(
         self,
-        client_session: ClientSession,
+        client_session: Client,
         mock_issues_protocol: AsyncMock,
         sample_worklogs: list[Worklog],
     ) -> None:
@@ -464,7 +491,7 @@ class TestIssueGetWorklogs:
             "issue_get_worklogs", {"issue_ids": ["TEST-123", "TEST-124"]}
         )
 
-        assert not result.isError
+        assert not result.is_error
         # Should be called once per issue
         assert mock_issues_protocol.issue_get_worklogs.call_count == 2
         content = get_tool_result_content(result)
@@ -475,19 +502,19 @@ class TestIssueGetWorklogs:
 
     async def test_restricted_queue_raises_error(
         self,
-        client_session_with_limits: ClientSession,
+        client_session_with_limits: Client,
         mock_issues_protocol: AsyncMock,
     ) -> None:
         result = await client_session_with_limits.call_tool(
             "issue_get_worklogs", {"issue_ids": ["RESTRICTED-123"]}
         )
 
-        assert result.isError
+        assert result.is_error
         mock_issues_protocol.issue_get_worklogs.assert_not_called()
 
     async def test_fields_filters_response(
         self,
-        client_session: ClientSession,
+        client_session: Client,
         mock_issues_protocol: AsyncMock,
         sample_worklogs: list[Worklog],
     ) -> None:
@@ -498,7 +525,7 @@ class TestIssueGetWorklogs:
             {"issue_ids": ["TEST-123"], "fields": ["comment"]},
         )
 
-        assert not result.isError
+        assert not result.is_error
         content = get_tool_result_content(result)
         assert content["TEST-123"][0]["comment"] == sample_worklogs[0].comment
         assert content["TEST-123"][0].get("createdBy") is None
@@ -507,7 +534,7 @@ class TestIssueGetWorklogs:
 class TestIssueGetAttachments:
     async def test_returns_attachments(
         self,
-        client_session: ClientSession,
+        client_session: Client,
         mock_issues_protocol: AsyncMock,
         sample_attachments: list[IssueAttachment],
     ) -> None:
@@ -517,7 +544,7 @@ class TestIssueGetAttachments:
             "issue_get_attachments", {"issue_id": "TEST-123"}
         )
 
-        assert not result.isError
+        assert not result.is_error
         mock_issues_protocol.issue_get_attachments.assert_called_once()
         content = get_tool_result_content(result)
         assert isinstance(content, list)
@@ -526,7 +553,7 @@ class TestIssueGetAttachments:
 
     async def test_fields_filters_response(
         self,
-        client_session: ClientSession,
+        client_session: Client,
         mock_issues_protocol: AsyncMock,
         sample_attachments: list[IssueAttachment],
     ) -> None:
@@ -536,7 +563,7 @@ class TestIssueGetAttachments:
             "issue_get_attachments", {"issue_id": "TEST-123", "fields": ["name"]}
         )
 
-        assert not result.isError
+        assert not result.is_error
         content = get_tool_result_content(result)
         assert content[0]["name"] == sample_attachments[0].name
         assert content[0].get("content") is None
@@ -545,7 +572,7 @@ class TestIssueGetAttachments:
 @pytest_asyncio.fixture(loop_scope="function")
 async def download_session(
     mock_app_context: AppContext, tmp_path: Path
-) -> AsyncIterator[ClientSession]:
+) -> AsyncIterator[Client]:
     """A session whose downloads land in `tmp_path`, with ALLOWED the only queue."""
     server = create_mcp_server(
         settings=create_test_settings(
@@ -586,7 +613,7 @@ class TestIssueDownloadAttachment:
 
     async def test_saves_under_the_issue_and_returns_the_absolute_path(
         self,
-        download_session: ClientSession,
+        download_session: Client,
         mock_issues_protocol: AsyncMock,
         attachment: IssueAttachment,
         tmp_path: Path,
@@ -599,7 +626,7 @@ class TestIssueDownloadAttachment:
             {"issue_id": "ALLOWED-1", "attachment_id": "7946"},
         )
 
-        assert not result.isError
+        assert not result.is_error
         mock_issues_protocol.issue_get_attachment.assert_called_once()
         assert mock_issues_protocol.issue_get_attachment.call_args.args == (
             "ALLOWED-1",
@@ -623,7 +650,7 @@ class TestIssueDownloadAttachment:
 
     async def test_a_file_already_downloaded_is_reused(
         self,
-        download_session: ClientSession,
+        download_session: Client,
         mock_issues_protocol: AsyncMock,
         attachment: IssueAttachment,
         tmp_path: Path,
@@ -638,13 +665,13 @@ class TestIssueDownloadAttachment:
             {"issue_id": "ALLOWED-1", "attachment_id": "7946"},
         )
 
-        assert not result.isError
+        assert not result.is_error
         mock_issues_protocol.issue_download_attachment.assert_not_called()
         assert get_tool_result_content(result)["path"] == str(existing)
 
     async def test_a_file_of_another_size_is_downloaded_again(
         self,
-        download_session: ClientSession,
+        download_session: Client,
         mock_issues_protocol: AsyncMock,
         attachment: IssueAttachment,
         tmp_path: Path,
@@ -660,12 +687,12 @@ class TestIssueDownloadAttachment:
             {"issue_id": "ALLOWED-1", "attachment_id": "7946"},
         )
 
-        assert not result.isError
+        assert not result.is_error
         mock_issues_protocol.issue_download_attachment.assert_called_once()
 
     async def test_an_unsafe_name_stays_inside_the_directory(
         self,
-        download_session: ClientSession,
+        download_session: Client,
         mock_issues_protocol: AsyncMock,
         tmp_path: Path,
     ) -> None:
@@ -681,7 +708,7 @@ class TestIssueDownloadAttachment:
             {"issue_id": "ALLOWED-1", "attachment_id": "7946"},
         )
 
-        assert not result.isError
+        assert not result.is_error
         call_args = mock_issues_protocol.issue_download_attachment.call_args
         destination = call_args.args[3]
         assert destination.parent == tmp_path / "ALLOWED-1"
@@ -691,7 +718,7 @@ class TestIssueDownloadAttachment:
 
     async def test_an_unknown_attachment_is_reported_without_a_download(
         self,
-        download_session: ClientSession,
+        download_session: Client,
         mock_issues_protocol: AsyncMock,
     ) -> None:
         mock_issues_protocol.issue_get_attachment.side_effect = AttachmentNotFound(
@@ -703,13 +730,13 @@ class TestIssueDownloadAttachment:
             {"issue_id": "ALLOWED-1", "attachment_id": "1"},
         )
 
-        assert result.isError
+        assert result.is_error
         assert "issue_get_attachments" in error_text(result)
         mock_issues_protocol.issue_download_attachment.assert_not_called()
 
     async def test_an_oversized_attachment_is_refused_before_the_download(
         self,
-        download_session: ClientSession,
+        download_session: Client,
         mock_issues_protocol: AsyncMock,
     ) -> None:
         mock_issues_protocol.issue_get_attachment.return_value = (
@@ -723,13 +750,13 @@ class TestIssueDownloadAttachment:
             {"issue_id": "ALLOWED-1", "attachment_id": "7946"},
         )
 
-        assert result.isError
+        assert result.is_error
         assert "TRACKER_MAX_ATTACHMENT_BYTES" in error_text(result)
         mock_issues_protocol.issue_download_attachment.assert_not_called()
 
     async def test_a_queue_outside_the_allow_list_is_refused(
         self,
-        download_session: ClientSession,
+        download_session: Client,
         mock_issues_protocol: AsyncMock,
     ) -> None:
         result = await download_session.call_tool(
@@ -737,7 +764,7 @@ class TestIssueDownloadAttachment:
             {"issue_id": "OTHER-1", "attachment_id": "7946"},
         )
 
-        assert result.isError
+        assert result.is_error
         mock_issues_protocol.issue_get_attachment.assert_not_called()
         mock_issues_protocol.issue_download_attachment.assert_not_called()
 
@@ -745,7 +772,7 @@ class TestIssueDownloadAttachment:
 class TestIssueGetChecklist:
     async def test_returns_checklist(
         self,
-        client_session: ClientSession,
+        client_session: Client,
         mock_issues_protocol: AsyncMock,
         sample_checklist: list[ChecklistItem],
     ) -> None:
@@ -755,7 +782,7 @@ class TestIssueGetChecklist:
             "issue_get_checklist", {"issue_id": "TEST-123"}
         )
 
-        assert not result.isError
+        assert not result.is_error
         mock_issues_protocol.issue_get_checklist.assert_called_once()
         content = get_tool_result_content(result)
         assert isinstance(content, list)
@@ -770,7 +797,7 @@ class TestIssueGetChecklist:
 class TestIssueGetTransitions:
     async def test_returns_transitions(
         self,
-        client_session: ClientSession,
+        client_session: Client,
         mock_issues_protocol: AsyncMock,
         sample_transitions: list[IssueTransition],
     ) -> None:
@@ -780,7 +807,7 @@ class TestIssueGetTransitions:
             "issue_get_transitions", {"issue_id": "TEST-123"}
         )
 
-        assert not result.isError
+        assert not result.is_error
         mock_issues_protocol.issue_get_transitions.assert_called_once()
         content = get_tool_result_content(result)
         assert isinstance(content, list)
@@ -792,7 +819,7 @@ class TestIssueGetTransitions:
 class TestIssueGetChangelog:
     async def test_returns_changelog(
         self,
-        client_session: ClientSession,
+        client_session: Client,
         mock_issues_protocol: AsyncMock,
         sample_changelog: ChangelogPage,
     ) -> None:
@@ -802,7 +829,7 @@ class TestIssueGetChangelog:
             "issue_get_changelog", {"issue_id": "TEST-123"}
         )
 
-        assert not result.isError
+        assert not result.is_error
         mock_issues_protocol.issue_get_changelog.assert_called_once()
         content = get_tool_result_content(result)
         assert isinstance(content, dict)
@@ -823,7 +850,7 @@ class TestIssueGetChangelog:
 
     async def test_surfaces_comment_and_trigger_payload(
         self,
-        client_session: ClientSession,
+        client_session: Client,
         mock_issues_protocol: AsyncMock,
     ) -> None:
         # A comment-type entry carries its payload in top-level `comments`/
@@ -852,7 +879,7 @@ class TestIssueGetChangelog:
             "issue_get_changelog", {"issue_id": "TEST-123"}
         )
 
-        assert not result.isError
+        assert not result.is_error
         entry = get_tool_result_content(result)["entries"][0]
         assert entry["comments"]["added"][0]["display"] == "Looks good"
         assert entry["executedTriggers"][0]["trigger"]["display"] == "Auto-assign"
@@ -860,7 +887,7 @@ class TestIssueGetChangelog:
 
     async def test_passes_pagination_and_filters(
         self,
-        client_session: ClientSession,
+        client_session: Client,
         mock_issues_protocol: AsyncMock,
         sample_changelog: ChangelogPage,
     ) -> None:
@@ -877,7 +904,7 @@ class TestIssueGetChangelog:
             },
         )
 
-        assert not result.isError
+        assert not result.is_error
         _, kwargs = mock_issues_protocol.issue_get_changelog.call_args
         assert kwargs["per_page"] == 10
         assert kwargs["cursor"] == "prev-entry-id"
@@ -886,33 +913,33 @@ class TestIssueGetChangelog:
 
     async def test_restricted_queue_raises_error(
         self,
-        client_session_with_limits: ClientSession,
+        client_session_with_limits: Client,
         mock_issues_protocol: AsyncMock,
     ) -> None:
         result = await client_session_with_limits.call_tool(
             "issue_get_changelog", {"issue_id": "RESTRICTED-123"}
         )
 
-        assert result.isError
+        assert result.is_error
         mock_issues_protocol.issue_get_changelog.assert_not_called()
 
     async def test_rejects_non_positive_per_page(
         self,
-        client_session: ClientSession,
+        client_session: Client,
         mock_issues_protocol: AsyncMock,
     ) -> None:
         result = await client_session.call_tool(
             "issue_get_changelog", {"issue_id": "TEST-123", "per_page": 0}
         )
 
-        assert result.isError
+        assert result.is_error
         mock_issues_protocol.issue_get_changelog.assert_not_called()
 
 
 class TestIssueGetComment:
     async def test_returns_the_comment(
         self,
-        client_session: ClientSession,
+        client_session: Client,
         mock_issues_protocol: AsyncMock,
         sample_comment: IssueComment,
     ) -> None:
@@ -922,13 +949,13 @@ class TestIssueGetComment:
             "issue_get_comment", {"issue_id": "TEST-1", "comment_id": 7}
         )
 
-        assert not result.isError
+        assert not result.is_error
         assert mock_issues_protocol.issue_get_comment.call_args.args == ("TEST-1", 7)
         assert get_tool_result_content(result)["id"] == sample_comment.id
 
     async def test_takes_a_long_id(
         self,
-        client_session: ClientSession,
+        client_session: Client,
         mock_issues_protocol: AsyncMock,
         sample_comment: IssueComment,
     ) -> None:
@@ -946,21 +973,21 @@ class TestIssueGetComment:
 
     async def test_restricted_queue_is_refused(
         self,
-        client_session_with_limits: ClientSession,
+        client_session_with_limits: Client,
         mock_issues_protocol: AsyncMock,
     ) -> None:
         result = await client_session_with_limits.call_tool(
             "issue_get_comment", {"issue_id": "RESTRICTED-1", "comment_id": 7}
         )
 
-        assert result.isError
+        assert result.is_error
         mock_issues_protocol.issue_get_comment.assert_not_called()
 
 
 class TestIssueGetRemoteLinks:
     async def test_returns_the_links(
         self,
-        client_session: ClientSession,
+        client_session: Client,
         mock_issues_protocol: AsyncMock,
     ) -> None:
         mock_issues_protocol.issue_get_remote_links.return_value = [
@@ -971,17 +998,17 @@ class TestIssueGetRemoteLinks:
             "issue_get_remote_links", {"issue_id": "TEST-1"}
         )
 
-        assert not result.isError
+        assert not result.is_error
         assert get_tool_result_content(result)[0]["object"]["key"] == "repo/pr/7"
 
     async def test_restricted_queue_is_refused(
         self,
-        client_session_with_limits: ClientSession,
+        client_session_with_limits: Client,
         mock_issues_protocol: AsyncMock,
     ) -> None:
         result = await client_session_with_limits.call_tool(
             "issue_get_remote_links", {"issue_id": "RESTRICTED-1"}
         )
 
-        assert result.isError
+        assert result.is_error
         mock_issues_protocol.issue_get_remote_links.assert_not_called()

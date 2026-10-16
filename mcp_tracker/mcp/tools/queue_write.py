@@ -1,10 +1,9 @@
 """Queue write MCP tools (conditionally registered based on read-only mode)."""
 
 import datetime
-from typing import Annotated, Any
+from typing import Annotated
 
-from mcp.server import FastMCP
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context, MCPServer
 from mcp.types import ToolAnnotations
 from pydantic import Field
 
@@ -20,16 +19,16 @@ from mcp_tracker.settings import Settings
 from mcp_tracker.tracker.proto.types.queues import QueueVersion
 
 
-def register_queue_write_tools(settings: Settings, mcp: FastMCP[Any]) -> None:
+def register_queue_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -> None:
     """Register queue write tools (not registered in read-only mode)."""
 
     @mcp.tool(
         title="Create Queue Version",
         description="Create a new version in a Yandex Tracker queue.",
-        annotations=ToolAnnotations(readOnlyHint=False),
+        annotations=ToolAnnotations(read_only_hint=False),
     )
     async def queue_create_version(
-        ctx: Context[Any, AppContext],
+        ctx: Context[AppContext],
         queue_id: QueueID,
         name: Annotated[str, Field(description="Version name")],
         description: Annotated[
@@ -63,10 +62,10 @@ def register_queue_write_tools(settings: Settings, mcp: FastMCP[Any]) -> None:
         title="Update Queue Version",
         description="Rename a version of a Yandex Tracker queue or change its "
         "description or dates. Only the arguments passed change.",
-        annotations=ToolAnnotations(readOnlyHint=False),
+        annotations=ToolAnnotations(read_only_hint=False),
     )
     async def queue_update_version(
-        ctx: Context[Any, AppContext],
+        ctx: Context[AppContext],
         version_id: VersionIDParam,
         name: Annotated[str | None, Field(description="New name.")] = None,
         description: Annotated[
@@ -101,10 +100,10 @@ def register_queue_write_tools(settings: Settings, mcp: FastMCP[Any]) -> None:
         title="Delete Queue Version",
         description="Permanently delete a version of a Yandex Tracker queue. Issues "
         "that had it in their fix or affected versions lose it.",
-        annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True),
+        annotations=ToolAnnotations(read_only_hint=False, destructive_hint=True),
     )
     async def queue_delete_version(
-        ctx: Context[Any, AppContext],
+        ctx: Context[AppContext],
         version_id: VersionIDParam,
     ) -> None:
         queues = ctx.request_context.lifespan_context.queues

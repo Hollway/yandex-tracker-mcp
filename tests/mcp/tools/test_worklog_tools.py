@@ -2,7 +2,7 @@ import datetime
 from unittest.mock import AsyncMock
 
 import pytest
-from mcp.client.session import ClientSession
+from mcp import Client
 from mcp.types import TextContent
 
 from mcp_tracker.mcp.utils import local_day_end, local_day_start
@@ -33,7 +33,7 @@ FRIDAY = datetime.date(2026, 10, 9)
 class TestWorklogsFind:
     async def test_defaults_to_the_current_user(
         self,
-        client_session: ClientSession,
+        client_session: Client,
         mock_issues_protocol: AsyncMock,
         mock_users_protocol: AsyncMock,
         sample_user: User,
@@ -45,13 +45,13 @@ class TestWorklogsFind:
             "worklogs_find", {"start_from": MONDAY.isoformat()}
         )
 
-        assert not result.isError
+        assert not result.is_error
         call_kwargs = mock_issues_protocol.worklogs_find.call_args.kwargs
         assert call_kwargs["created_by"] == sample_user.login
 
     async def test_start_days_pick_the_work_done_in_them(
         self,
-        client_session: ClientSession,
+        client_session: Client,
         mock_issues_protocol: AsyncMock,
     ) -> None:
         mock_issues_protocol.worklogs_find.return_value = [
@@ -70,7 +70,7 @@ class TestWorklogsFind:
             },
         )
 
-        assert not result.isError
+        assert not result.is_error
         # Records entered from Monday on are asked for; their work days are
         # checked here, and the result comes back in the order of the work.
         call_kwargs = mock_issues_protocol.worklogs_find.call_args.kwargs
@@ -84,7 +84,7 @@ class TestWorklogsFind:
 
     async def test_created_days_are_passed_to_the_api(
         self,
-        client_session: ClientSession,
+        client_session: Client,
         mock_issues_protocol: AsyncMock,
     ) -> None:
         mock_issues_protocol.worklogs_find.return_value = [
@@ -100,7 +100,7 @@ class TestWorklogsFind:
             },
         )
 
-        assert not result.isError
+        assert not result.is_error
         call_kwargs = mock_issues_protocol.worklogs_find.call_args.kwargs
         assert call_kwargs["created_from"] == local_day_start(MONDAY)
         assert call_kwargs["created_to"] == local_day_end(FRIDAY)
@@ -108,12 +108,12 @@ class TestWorklogsFind:
 
     async def test_a_first_day_is_required(
         self,
-        client_session: ClientSession,
+        client_session: Client,
         mock_issues_protocol: AsyncMock,
     ) -> None:
         result = await client_session.call_tool("worklogs_find", {"author": "i.ivanov"})
 
-        assert result.isError
+        assert result.is_error
         content = result.content[0]
         assert isinstance(content, TextContent)
         assert "start_from" in content.text
@@ -121,7 +121,7 @@ class TestWorklogsFind:
 
     async def test_issues_outside_the_allowed_queues_are_dropped(
         self,
-        client_session_with_limits: ClientSession,
+        client_session_with_limits: Client,
         mock_issues_protocol: AsyncMock,
     ) -> None:
         mock_issues_protocol.worklogs_find.return_value = [
@@ -134,13 +134,13 @@ class TestWorklogsFind:
             "worklogs_find", {"author": "i.ivanov", "start_from": MONDAY.isoformat()}
         )
 
-        assert not result.isError
+        assert not result.is_error
         assert [w["id"] for w in get_tool_result_content(result)] == [1, 3]
 
     @pytest.mark.parametrize("field", ["issue", "duration"])
     async def test_fields_trim_each_entry(
         self,
-        client_session: ClientSession,
+        client_session: Client,
         mock_issues_protocol: AsyncMock,
         field: str,
     ) -> None:

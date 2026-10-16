@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 import pytest_asyncio
-from mcp.client.session import ClientSession
+from mcp import Client
 from mcp.types import TextContent
 
 from mcp_tracker.mcp.context import AppContext
@@ -49,7 +49,7 @@ def queues_by_key(mock_queues_protocol: AsyncMock) -> dict[str, Any]:
 @pytest_asyncio.fixture(loop_scope="function")
 async def session(
     mock_app_context: AppContext, queues_by_key: dict[str, Any]
-) -> AsyncIterator[ClientSession]:
+) -> AsyncIterator[Client]:
     server = create_mcp_server(
         settings=create_test_settings(),
         lifespan=make_test_lifespan(mock_app_context),
@@ -79,17 +79,17 @@ def test_queue_forbids_ai(settings: dict[str, Any], forbids: bool) -> None:
 
 class TestSingleIssueReads:
     async def test_a_forbidding_queue_is_refused(
-        self, session: ClientSession, mock_issues_protocol: AsyncMock
+        self, session: Client, mock_issues_protocol: AsyncMock
     ) -> None:
         result = await session.call_tool("issue_get", {"issue_id": "CLOSED-1"})
 
-        assert result.isError
+        assert result.is_error
         assert "Доступ для AI инструментов" in text(result)
         mock_issues_protocol.issue_get.assert_not_called()
 
     async def test_an_allowing_queue_is_read(
         self,
-        session: ClientSession,
+        session: Client,
         mock_issues_protocol: AsyncMock,
         sample_comment: IssueComment,
     ) -> None:
@@ -99,11 +99,11 @@ class TestSingleIssueReads:
             "issue_get_comment", {"issue_id": "OPEN-1", "comment_id": 1}
         )
 
-        assert not result.isError
+        assert not result.is_error
 
     async def test_the_setting_is_read_once_per_queue(
         self,
-        session: ClientSession,
+        session: Client,
         mock_queues_protocol: AsyncMock,
     ) -> None:
         for _ in range(3):
@@ -113,7 +113,7 @@ class TestSingleIssueReads:
 
     async def test_writes_still_work(
         self,
-        session: ClientSession,
+        session: Client,
         mock_issues_protocol: AsyncMock,
         sample_comment: IssueComment,
     ) -> None:
@@ -123,11 +123,11 @@ class TestSingleIssueReads:
             "issue_add_comment", {"issue_id": "CLOSED-1", "text": "x"}
         )
 
-        assert not result.isError
+        assert not result.is_error
 
     async def test_an_unreadable_queue_does_not_block(
         self,
-        session: ClientSession,
+        session: Client,
         mock_queues_protocol: AsyncMock,
         mock_issues_protocol: AsyncMock,
     ) -> None:
@@ -136,13 +136,13 @@ class TestSingleIssueReads:
 
         result = await session.call_tool("issue_get_checklist", {"issue_id": "OTHER-1"})
 
-        assert not result.isError
+        assert not result.is_error
 
 
 class TestListings:
     async def test_issues_find_keeps_only_the_key(
         self,
-        session: ClientSession,
+        session: Client,
         mock_issues_protocol: AsyncMock,
     ) -> None:
         mock_issues_protocol.issues_find.return_value = page(
@@ -156,7 +156,7 @@ class TestListings:
             "issues_find", {"query": "Queue: OPEN, CLOSED", "fields": ["summary"]}
         )
 
-        assert not result.isError
+        assert not result.is_error
         values = get_tool_result_content(result)["values"]
         assert values[0]["summary"] == "visible"
         assert values[1] == {"key": "CLOSED-1", "restricted": True}
@@ -180,4 +180,4 @@ class TestListings:
                 "issue_get_checklist", {"issue_id": "CLOSED-1"}
             )
 
-        assert not result.isError
+        assert not result.is_error

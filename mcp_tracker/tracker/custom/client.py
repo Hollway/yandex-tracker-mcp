@@ -14,7 +14,7 @@ from urllib.parse import quote
 
 import jwt
 import yandexcloud
-from aiohttp import ClientResponse, ClientSession, ClientTimeout, FormData
+from aiohttp import ClientError, ClientResponse, ClientSession, ClientTimeout, FormData
 from pydantic import BaseModel, Field, RootModel
 from yandex.cloud.iam.v1.iam_token_service_pb2 import CreateIamTokenRequest
 from yandex.cloud.iam.v1.iam_token_service_pb2_grpc import IamTokenServiceStub
@@ -39,12 +39,15 @@ from mcp_tracker.tracker.custom.errors import (
     IssueNotFound,
     IssueTemplateNotFound,
     IssueVersionConflict,
+    NoDoneTransition,
     QueueNotFound,
     SprintEmptyUpdate,
     SprintNotFound,
     SprintVersionConflict,
+    TrackerAPIConnectionError,
     TrackerAPIError,
     TrackerAPITimeout,
+    TrackerAuthConfigError,
     VersionEmptyUpdate,
     VersionNotFound,
     WorklogSearchTooLarge,
@@ -418,7 +421,7 @@ class TrackerClient(
             auth_header = f"Bearer {iam_token}"
 
         if not auth_header:
-            raise ValueError(
+            raise TrackerAuthConfigError(
                 "No authentication method provided. "
                 "Provide either OAuth token, IAM token, or use OAuth flow."
             )
@@ -432,14 +435,18 @@ class TrackerClient(
         )
 
         if org_id and cloud_org_id:
-            raise ValueError("Only one of org_id or cloud_org_id should be provided.")
+            raise TrackerAuthConfigError(
+                "Only one of org_id or cloud_org_id should be provided."
+            )
 
         if org_id:
             headers["X-Org-ID"] = org_id
         elif cloud_org_id:
             headers["X-Cloud-Org-ID"] = cloud_org_id
         else:
-            raise ValueError("Either org_id or cloud_org_id must be provided.")
+            raise TrackerAuthConfigError(
+                "Either org_id or cloud_org_id must be provided."
+            )
 
         return headers
 
@@ -535,6 +542,11 @@ class TrackerClient(
             raise TrackerAPITimeout(
                 method=method, url=url, timeout=budget, setting=timeout_setting
             ) from exc
+        except ClientError as exc:
+            # After the timeout: aiohttp's own timeouts subclass both, and time
+            # is the more useful thing to report. `TrackerAPIError` is not a
+            # `ClientError`, so a non-2xx is not caught here.
+            raise TrackerAPIConnectionError(method=method, url=url, cause=exc) from exc
 
     async def _read(
         self,
@@ -1936,10 +1948,7 @@ class TrackerClient(
                     break
 
         if done_transition is None:
-            raise ValueError(
-                f"No transition to a 'done' status found for issue {issue_id}. "
-                f"Available transitions: {[t.id for t in transitions]}."
-            )
+            raise NoDoneTransition(issue_id, [t.id for t in transitions])
 
         if fields is None:
             fields = {}

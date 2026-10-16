@@ -1,6 +1,6 @@
 from unittest.mock import AsyncMock
 
-from mcp.client.session import ClientSession
+from mcp import Client
 from mcp.types import TextContent
 
 from mcp_tracker.tracker.proto.types.queues import QueueVersion
@@ -11,7 +11,7 @@ from tests.mcp.conftest import get_tool_result_content
 class TestQueueCreateVersion:
     async def test_creates_version(
         self,
-        client_session: ClientSession,
+        client_session: Client,
         mock_queues_protocol: AsyncMock,
         sample_queue_versions: list[QueueVersion],
     ) -> None:
@@ -29,7 +29,7 @@ class TestQueueCreateVersion:
             },
         )
 
-        assert not result.isError
+        assert not result.is_error
         mock_queues_protocol.queue_create_version.assert_called_once()
         call_args = mock_queues_protocol.queue_create_version.call_args
         assert call_args.args[0] == "TEST"
@@ -43,7 +43,7 @@ class TestQueueCreateVersion:
 
     async def test_restricted_queue_raises_error(
         self,
-        client_session_with_limits: ClientSession,
+        client_session_with_limits: Client,
         mock_queues_protocol: AsyncMock,
     ) -> None:
         result = await client_session_with_limits.call_tool(
@@ -51,7 +51,7 @@ class TestQueueCreateVersion:
             {"queue_id": "RESTRICTED", "name": "1.0.0"},
         )
 
-        assert result.isError
+        assert result.is_error
         mock_queues_protocol.queue_create_version.assert_not_called()
 
 
@@ -60,7 +60,7 @@ class TestPerQueueReadOnlyAccess:
 
     async def test_create_version_in_read_only_queue_rejected(
         self,
-        client_session_with_read_only_queues: ClientSession,
+        client_session_with_read_only_queues: Client,
         mock_queues_protocol: AsyncMock,
     ) -> None:
         result = await client_session_with_read_only_queues.call_tool(
@@ -68,12 +68,12 @@ class TestPerQueueReadOnlyAccess:
             {"queue_id": "READONLY", "name": "1.0.0"},
         )
 
-        assert result.isError
+        assert result.is_error
         mock_queues_protocol.queue_create_version.assert_not_called()
 
     async def test_create_version_in_writable_queue_allowed(
         self,
-        client_session_with_read_only_queues: ClientSession,
+        client_session_with_read_only_queues: Client,
         mock_queues_protocol: AsyncMock,
         sample_queue_versions: list[QueueVersion],
     ) -> None:
@@ -86,7 +86,7 @@ class TestPerQueueReadOnlyAccess:
             {"queue_id": "TEST", "name": "1.0.0"},
         )
 
-        assert not result.isError
+        assert not result.is_error
         mock_queues_protocol.queue_create_version.assert_called_once()
 
 
@@ -104,7 +104,7 @@ def version_in(queue_key: str) -> QueueVersion:
 class TestQueueUpdateVersion:
     async def test_updates_without_an_extra_read_when_unrestricted(
         self,
-        client_session: ClientSession,
+        client_session: Client,
         mock_queues_protocol: AsyncMock,
     ) -> None:
         mock_queues_protocol.queue_update_version.return_value = version_in("TEST")
@@ -113,7 +113,7 @@ class TestQueueUpdateVersion:
             "queue_update_version", {"version_id": 123, "name": "1.1"}
         )
 
-        assert not result.isError
+        assert not result.is_error
         mock_queues_protocol.queue_get_version.assert_not_called()
         call = mock_queues_protocol.queue_update_version.call_args
         assert call.args == (123,)
@@ -121,7 +121,7 @@ class TestQueueUpdateVersion:
 
     async def test_a_version_in_a_hidden_queue_is_reported_missing(
         self,
-        client_session_with_limits: ClientSession,
+        client_session_with_limits: Client,
         mock_queues_protocol: AsyncMock,
     ) -> None:
         mock_queues_protocol.queue_get_version.return_value = version_in("SECRET")
@@ -130,7 +130,7 @@ class TestQueueUpdateVersion:
             "queue_update_version", {"version_id": 123, "name": "1.1"}
         )
 
-        assert result.isError
+        assert result.is_error
         content = result.content[0]
         assert isinstance(content, TextContent)
         assert "not found" in content.text
@@ -139,7 +139,7 @@ class TestQueueUpdateVersion:
 
     async def test_a_read_only_queue_is_refused(
         self,
-        client_session_with_read_only_queues: ClientSession,
+        client_session_with_read_only_queues: Client,
         mock_queues_protocol: AsyncMock,
     ) -> None:
         mock_queues_protocol.queue_get_version.return_value = version_in("READONLY")
@@ -148,26 +148,26 @@ class TestQueueUpdateVersion:
             "queue_update_version", {"version_id": 123, "name": "1.1"}
         )
 
-        assert result.isError
+        assert result.is_error
         mock_queues_protocol.queue_update_version.assert_not_called()
 
 
 class TestQueueDeleteVersion:
     async def test_deletes(
         self,
-        client_session: ClientSession,
+        client_session: Client,
         mock_queues_protocol: AsyncMock,
     ) -> None:
         result = await client_session.call_tool(
             "queue_delete_version", {"version_id": 123}
         )
 
-        assert not result.isError
+        assert not result.is_error
         assert mock_queues_protocol.queue_delete_version.call_args.args == (123,)
 
     async def test_an_allowed_queue_is_checked_then_deleted(
         self,
-        client_session_with_limits: ClientSession,
+        client_session_with_limits: Client,
         mock_queues_protocol: AsyncMock,
     ) -> None:
         mock_queues_protocol.queue_get_version.return_value = version_in("ALLOWED")
@@ -176,5 +176,5 @@ class TestQueueDeleteVersion:
             "queue_delete_version", {"version_id": 123}
         )
 
-        assert not result.isError
+        assert not result.is_error
         mock_queues_protocol.queue_delete_version.assert_called_once()

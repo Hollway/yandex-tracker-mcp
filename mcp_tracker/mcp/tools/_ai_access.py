@@ -9,9 +9,8 @@ server does what Tracker's own one does, unless the queue is listed in
 """
 
 import time
-from typing import Any
 
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 
 from mcp_tracker.mcp.context import AppContext
 from mcp_tracker.mcp.errors import TrackerError
@@ -46,7 +45,7 @@ def queue_forbids_ai(queue: Queue) -> bool:
 
 
 async def is_ai_restricted(
-    ctx: Context[Any, AppContext], settings: Settings, queue: str
+    ctx: Context[AppContext], settings: Settings, queue: str
 ) -> bool:
     key = queue.upper()
     if settings.tracker_ai_access_ignored_queues and (
@@ -77,7 +76,7 @@ def _queue_of(issue_id: str) -> str:
 
 
 async def check_ai_access(
-    ctx: Context[Any, AppContext], settings: Settings, issue_id: str
+    ctx: Context[AppContext], settings: Settings, issue_id: str
 ) -> None:
     """Refuse to return the content of an issue in a queue that forbids AI tools."""
     queue = _queue_of(issue_id)
@@ -86,7 +85,7 @@ async def check_ai_access(
 
 
 async def hide_ai_restricted(
-    ctx: Context[Any, AppContext], settings: Settings, issues: list[Issue]
+    ctx: Context[AppContext], settings: Settings, issues: list[Issue]
 ) -> list[Issue]:
     """Replace each issue of a forbidding queue with its key and `restricted`."""
     result: list[Issue] = []

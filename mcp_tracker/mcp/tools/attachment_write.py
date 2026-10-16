@@ -1,10 +1,7 @@
 """Temporary attachment tools (registered with TRACKER_FILE_UPLOAD_ENABLED on a
 writable server)."""
 
-from typing import Any
-
-from mcp.server import FastMCP
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context, MCPServer
 from mcp.types import ToolAnnotations
 
 from mcp_tracker.mcp.context import AppContext
@@ -19,7 +16,7 @@ from mcp_tracker.tracker.proto.types.issues import IssueAttachment
 
 
 def register_attachment_file_upload_tools(
-    settings: Settings, mcp: FastMCP[Any]
+    settings: Settings, mcp: MCPServer[AppContext]
 ) -> None:
     """Register the tools that upload a local file as a temporary attachment.
 
@@ -33,10 +30,10 @@ def register_attachment_file_upload_tools(
         "temporary attachment and return its `id`, to attach the file to a comment "
         "via `attachment_ids` of issue_add_comment (requires "
         "TRACKER_FILE_UPLOAD_ENABLED).",
-        annotations=ToolAnnotations(readOnlyHint=False),
+        annotations=ToolAnnotations(read_only_hint=False),
     )
     async def attachment_create(
-        ctx: Context[Any, AppContext],
+        ctx: Context[AppContext],
         file_path: UploadFilePathParam,
         filename: UploadFilenameParam = None,
     ) -> IssueAttachment:
