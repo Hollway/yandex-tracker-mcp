@@ -683,7 +683,8 @@ def register_issue_write_tools(settings: Settings, mcp: FastMCP[Any]) -> None:
         title="Add Issue Remote Link",
         description="Link a Yandex Tracker issue to an object in another "
         "application, e.g. a pull request or a document. `origin` is an "
-        "application `id` from applications_get_all.",
+        "application `id` from applications_get_all. Wiki pages cannot be linked "
+        "this way: Tracker refuses them with 403 for want of an X-Iam-Token header.",
         annotations=ToolAnnotations(readOnlyHint=False),
     )
     async def issue_add_remote_link(
