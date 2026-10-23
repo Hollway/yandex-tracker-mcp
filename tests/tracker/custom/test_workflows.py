@@ -334,8 +334,8 @@ class TestWorkflowGetDraft:
 
             draft = await tracker_client.workflow_get_draft("W9")
 
-        assert sorted(workflow_reads.languages) == ["en", "ru"]
-        assert sorted(screen_reads.languages) == ["en", "ru"]
+        assert sorted(map(str, workflow_reads.languages)) == ["en", "ru"]
+        assert sorted(map(str, screen_reads.languages)) == ["en", "ru"]
         assert isinstance(draft, WorkflowDraft)
         assert (draft.id, draft.version, draft.name, draft.queue) == (
             "W9",
