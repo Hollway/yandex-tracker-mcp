@@ -17,6 +17,13 @@ from mcp_tracker.tracker.proto.types.workflows import (
 )
 from tests.mcp.conftest import get_tool_result_content
 
+FIXED_REF = {
+    "self": "https://api.tracker.yandex.net/v3/resolutions/1",
+    "id": "1",
+    "key": "fixed",
+    "display": "Решен",
+}
+
 
 def status(key: str, display: str) -> StatusReference:
     return StatusReference.model_construct(key=key, display=display)
@@ -61,7 +68,7 @@ def workflow(
                         post_functions=[
                             {
                                 "type": "SetResolutionFunction",
-                                "resolution": {"id": "1", "key": "fixed"},
+                                "resolution": FIXED_REF,
                             }
                         ],
                     )
@@ -187,14 +194,60 @@ class TestWorkflowGet:
         ]
         # The wire spellings, as the write tools and Tracker name them.
         assert content["steps"][0]["statusType"] == "new"
+        close = content["steps"][1]["actions"][0]
+        assert close["screen"]["id"] == "704"
+        # Compact by default: references by key, no diagram coordinates.
+        assert close["postFunctions"] == [
+            {"type": "SetResolutionFunction", "resolution": "fixed"}
+        ]
+        assert "stepCoords" not in content["steps"][0]
+        assert "actionCoords" not in content["steps"][0]["actions"][0]
+
+    async def test_full_keeps_references_and_coordinates(
+        self, client_session: Client, mock_workflows_protocol: AsyncMock
+    ) -> None:
+        mock_workflows_protocol.workflow_get.return_value = workflow("W9", "TEST")
+
+        result = await client_session.call_tool(
+            "workflow_get", {"workflow_id": "W9", "full": True}
+        )
+
+        content = get_tool_result_content(result)
         assert content["steps"][0]["stepCoords"] == {"x": 100, "y": 100}
         assert content["steps"][0]["actions"][0]["actionCoords"] == {
             "start": 2,
             "finish": 0,
         }
-        close = content["steps"][1]["actions"][0]
-        assert close["screen"]["id"] == "704"
-        assert close["postFunctions"][0]["type"] == "SetResolutionFunction"
+        assert content["steps"][1]["actions"][0]["postFunctions"] == [
+            {"type": "SetResolutionFunction", "resolution": FIXED_REF}
+        ]
+
+    async def test_one_status(
+        self, client_session: Client, mock_workflows_protocol: AsyncMock
+    ) -> None:
+        mock_workflows_protocol.workflow_get.return_value = workflow("W9", "TEST")
+
+        result = await client_session.call_tool(
+            "workflow_get", {"workflow_id": "W9", "status": "inProgress"}
+        )
+
+        content = get_tool_result_content(result)
+        assert [s["status"]["key"] for s in content["steps"]] == ["inProgress"]
+        assert content["initialAction"]["target"]["key"] == "open"
+
+    async def test_unknown_status_names_the_statuses_there_are(
+        self, client_session: Client, mock_workflows_protocol: AsyncMock
+    ) -> None:
+        mock_workflows_protocol.workflow_get.return_value = workflow("W9", "TEST")
+
+        result = await client_session.call_tool(
+            "workflow_get", {"workflow_id": "W9", "status": "nowhere"}
+        )
+
+        assert result.is_error
+        text = result.content[0]
+        assert isinstance(text, TextContent)
+        assert "open, inProgress, closed" in text.text
 
     async def test_unknown_workflow_error_is_passed_through(
         self, client_session: Client, mock_workflows_protocol: AsyncMock

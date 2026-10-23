@@ -618,7 +618,7 @@ claude mcp add yandex-tracker docker "run --rm -i -e TRACKER_TOKEN=ваш_ток
 | Инструмент | Что делает | Ключевые аргументы |
 | --- | --- | --- |
 | `workflows_get_all` | Все рабочие процессы, по компактной строке на каждый: id, название, очередь, `version` и число статусов | - |
-| `workflow_get` | Один рабочий процесс целиком: статусы с исходящими переходами, их экранами, условиями и пост-функциями | `workflow_id` (из `workflows_get_all` или `queue_get_workflows`) |
+| `workflow_get` | Один рабочий процесс: статусы с исходящими переходами, их экранами, условиями и пост-функциями - ссылки сокращены до ключей, если не указан `full`; большой процесс удобнее читать по одному статусу через `status` | `workflow_id` (из `workflows_get_all` или `queue_get_workflows`), `status`, `full` |
 | `screen_get` | Экран перехода с его полями и признаком обязательности каждого | `screen_id` (`screen.id` перехода из `workflow_get`) |
 | `workflow_create` | Создать рабочий процесс из статусов и переходов, при желании привязав к очереди | `name`, `steps`, `initial_status`, `queue` |
 | `workflow_delete` | Удалить рабочий процесс | `workflow_id` |

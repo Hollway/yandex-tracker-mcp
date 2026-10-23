@@ -621,7 +621,7 @@ A workflow ('рабочий процесс') is the set of statuses an issue typ
 | Tool | What it does | Key arguments |
 | --- | --- | --- |
 | `workflows_get_all` | Every workflow as a compact row: id, name, queue, `version` and the number of statuses | - |
-| `workflow_get` | One workflow in full: its statuses with their outgoing transitions, screens, conditions and post-functions | `workflow_id` (from `workflows_get_all` or `queue_get_workflows`) |
+| `workflow_get` | One workflow: its statuses with their outgoing transitions, screens, conditions and post-functions - references cut down to keys unless `full`, one status at a time with `status` for a large workflow | `workflow_id` (from `workflows_get_all` or `queue_get_workflows`), `status`, `full` |
 | `screen_get` | A transition screen with its fields and which of them are required | `screen_id` (a transition's `screen.id` from `workflow_get`) |
 | `workflow_create` | Create a workflow from statuses and transitions, optionally bound to a queue | `name`, `steps`, `initial_status`, `queue` |
 | `workflow_delete` | Delete a workflow | `workflow_id` |
