@@ -26,6 +26,7 @@ from mcp_tracker.tracker.proto.issues import IssueProtocol
 from mcp_tracker.tracker.proto.queues import QueuesProtocol
 from mcp_tracker.tracker.proto.templates import TemplatesProtocol
 from mcp_tracker.tracker.proto.users import UsersProtocol
+from mcp_tracker.tracker.proto.workflows import WorkflowsProtocol
 
 # Type alias for lifespan
 Lifespan = Callable[[MCPServer[AppContext]], AbstractAsyncContextManager[AppContext]]
@@ -105,6 +106,7 @@ def make_tracker_lifespan(settings: Settings) -> Lifespan:
         entities: EntitiesProtocol = tracker
         boards: BoardsProtocol = tracker
         components: ComponentsProtocol = tracker
+        workflows: WorkflowsProtocol = tracker
         if settings.tools_cache_enabled:
             cache_collection = make_cached_protocols(settings.cache_kwargs())
             queues = cache_collection.queues(queues)
@@ -115,6 +117,7 @@ def make_tracker_lifespan(settings: Settings) -> Lifespan:
             entities = cache_collection.entities(entities)
             boards = cache_collection.boards(boards)
             components = cache_collection.components(components)
+            workflows = cache_collection.workflows(workflows)
 
         try:
             await tracker.prepare()
@@ -128,6 +131,7 @@ def make_tracker_lifespan(settings: Settings) -> Lifespan:
                 entities=entities,
                 boards=boards,
                 components=components,
+                workflows=workflows,
             )
         finally:
             await tracker.close()

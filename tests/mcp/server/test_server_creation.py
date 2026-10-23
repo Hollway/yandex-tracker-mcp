@@ -7,6 +7,10 @@ from tests.test_release_metadata import VERSION
 
 # Read-only tool names (35 tools) - always registered
 READ_ONLY_TOOL_NAMES = [
+    "workflows_get_all",
+    "workflow_get",
+    "queue_get_workflows",
+    "screen_get",
     # Queue tools (6)
     "queues_get_all",
     "queue_get_tags",
@@ -15,6 +19,14 @@ READ_ONLY_TOOL_NAMES = [
     "queue_get_components",
     "queue_get_fields",
     "queue_get_metadata",
+    # Queue automation tools (7)
+    "queue_get_trigger",
+    "queue_get_trigger_logs",
+    "queue_get_autoactions",
+    "queue_get_autoaction",
+    "queue_get_autoaction_logs",
+    "queue_get_macros",
+    "queue_get_macro",
     # Component tools (1)
     "component_get",
     # Field tools (10)
@@ -86,6 +98,17 @@ WRITE_TOOL_NAMES = [
     "queue_create_version",
     "queue_update_version",
     "queue_delete_version",
+    "queue_create_trigger",
+    "queue_update_trigger",
+    "queue_create_autoaction",
+    "queue_create_macro",
+    "queue_update_macro",
+    "queue_delete_macro",
+    "queue_create",
+    "queue_delete",
+    "queue_restore",
+    "queue_set_issue_type_workflow",
+    "queue_remove_issue_type",
     "component_create",
     "component_update",
     "component_delete",
@@ -161,12 +184,34 @@ BULK_TOOL_NAMES = [
     "issues_get_bulk_change",
 ]
 
+# Workflow writes - require both write mode and TRACKER_WORKFLOWS_WRITE_ENABLED
+WORKFLOW_WRITE_TOOL_NAMES = [
+    "workflow_create",
+    "workflow_delete",
+    "workflow_add_action",
+    "workflow_update_action",
+    "workflow_delete_action",
+    "workflow_add_status",
+    "workflow_delete_status",
+    "workflow_update",
+    "workflow_update_status",
+    "status_create",
+    "status_update",
+    "resolution_create",
+    "resolution_update",
+    "issue_type_create",
+    "issue_type_update",
+    "priority_create",
+    "priority_update",
+]
+
 ALL_READ_ONLY_TOOL_NAMES = READ_ONLY_TOOL_NAMES + ENTITY_READ_ONLY_TOOL_NAMES
 ALL_WRITE_TOOL_NAMES = (
     WRITE_TOOL_NAMES
     + ENTITY_WRITE_TOOL_NAMES
     + FILE_UPLOAD_TOOL_NAMES
     + BULK_TOOL_NAMES
+    + WORKFLOW_WRITE_TOOL_NAMES
 )
 
 # All tool names that should be registered in normal mode (entity tools enabled)
@@ -272,7 +317,8 @@ class TestEntityToolRegistration:
         + WRITE_TOOL_NAMES
         + FILE_UPLOAD_TOOL_NAMES
         + BULK_TOOL_NAMES
-        + ATTACHMENT_DOWNLOAD_TOOL_NAMES,
+        + ATTACHMENT_DOWNLOAD_TOOL_NAMES
+        + WORKFLOW_WRITE_TOOL_NAMES,
     )
     async def test_non_entity_tools_stay_registered(
         self,
@@ -296,6 +342,7 @@ class TestEntityToolRegistration:
             + len(FILE_UPLOAD_TOOL_NAMES)
             + len(BULK_TOOL_NAMES)
             + len(ATTACHMENT_DOWNLOAD_TOOL_NAMES)
+            + len(WORKFLOW_WRITE_TOOL_NAMES)
         )
         assert len(result.tools) == expected, (
             f"Expected {expected} tools with entity tools disabled, "
@@ -428,6 +475,49 @@ class TestBulkToolRegistration:
         disabled_names = {tool.name for tool in await disabled.list_tools()}
 
         assert enabled_names - disabled_names == set(BULK_TOOL_NAMES)
+
+
+class TestWorkflowWriteToolRegistration:
+    """A workflow is often shared by several queues and a change applies to all
+    of them: opt-in through TRACKER_WORKFLOWS_WRITE_ENABLED, on top of a
+    writable server."""
+
+    @pytest.mark.parametrize(
+        ("read_only", "workflows_write_enabled", "registered"),
+        [
+            pytest.param(False, False, False, id="default-flag-off"),
+            pytest.param(True, True, False, id="read-only-despite-flag"),
+            pytest.param(False, True, True, id="enabled"),
+        ],
+    )
+    @pytest.mark.parametrize("tool_name", WORKFLOW_WRITE_TOOL_NAMES)
+    async def test_registered_only_when_enabled_and_writable(
+        self,
+        tool_name: str,
+        read_only: bool,
+        workflows_write_enabled: bool,
+        registered: bool,
+    ) -> None:
+        server = create_mcp_server(
+            settings=create_test_settings(
+                read_only=read_only, workflows_write_enabled=workflows_write_enabled
+            )
+        )
+
+        tool_names = {tool.name for tool in await server.list_tools()}
+
+        assert (tool_name in tool_names) is registered
+
+    async def test_the_flag_gates_nothing_else(self) -> None:
+        enabled = create_mcp_server(settings=create_test_settings())
+        disabled = create_mcp_server(
+            settings=create_test_settings(workflows_write_enabled=False)
+        )
+
+        enabled_names = {tool.name for tool in await enabled.list_tools()}
+        disabled_names = {tool.name for tool in await disabled.list_tools()}
+
+        assert enabled_names - disabled_names == set(WORKFLOW_WRITE_TOOL_NAMES)
 
 
 class TestResourceRegistration:

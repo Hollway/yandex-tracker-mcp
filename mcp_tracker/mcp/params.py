@@ -561,6 +561,14 @@ ComponentID = Annotated[
     ),
 ]
 
+WorkflowID = Annotated[
+    str,
+    Field(
+        description="Workflow id, like 'W9' or 'quickStartV2PresetWorkflow', as "
+        "returned by `workflows_get_all` or `queue_get_workflows`"
+    ),
+]
+
 ComponentNameParam = Annotated[
     str,
     Field(description="Component name, e.g. 'Backend' or 'Billing'."),
@@ -686,6 +694,78 @@ IssueChecklistItemClearDeadlineParam = Annotated[
         description="Remove the checklist item's deadline. Cannot be combined with "
         "`deadline`. Example: true"
     ),
+]
+
+
+# Queue automation: triggers, autoactions, macros.
+
+TriggerIDParam = Annotated[
+    int, Field(description="Trigger `id` from queue_get_triggers.")
+]
+
+TriggerNameParam = Annotated[str, Field(description="Trigger name.")]
+
+_TRIGGER_ACTIONS = (
+    "What the trigger does, one object per action, keyed by `type`: "
+    '{"type": "Transition", "status": {"key": "inProgress"}}, '
+    '{"type": "Update", "update": {"tags": {"add": "x"}, "resolution": null}}, '
+    '{"type": "CreateComment", "text": "...", "fromRobot": true}, '
+    '{"type": "Move", "queue": "KEY"}, {"type": "CalculateFormula", '
+    '"formula": "now()+3M", "resultField": "start"}, also "CreateChecklist", '
+    '"Webhook", "CreateIssue". Replaces all the actions.'
+)
+
+TriggerActionsParam = Annotated[
+    list[dict[str, Any]], Field(description=_TRIGGER_ACTIONS)
+]
+
+TriggerActionsUpdateParam = Annotated[
+    list[dict[str, Any]] | None, Field(description=_TRIGGER_ACTIONS)
+]
+
+TriggerConditionsParam = Annotated[
+    list[dict[str, Any]] | dict[str, Any] | None,
+    Field(
+        description="When the trigger fires. A list of conditions must all hold; "
+        'group them as {"type": "Or" | "And", "conditions": [...]}. Examples: '
+        '{"type": "Event.update"}, {"type": "Event.create"}, '
+        '{"type": "FieldChangedCondition", "field": "priority"}, '
+        '{"type": "FieldEquals", "field": "status", "value": "inProgress"}, '
+        '{"type": "CommentFullyMatchCondition", "word": "Need info"}. '
+        "Replaces all the conditions."
+    ),
+]
+
+TriggerActiveParam = Annotated[
+    bool | None,
+    Field(description="false switches the trigger off, true back on."),
+]
+
+AutoactionIDParam = Annotated[
+    int, Field(description="Autoaction `id` from queue_get_autoactions.")
+]
+
+MacroIDParam = Annotated[int, Field(description="Macro `id` from queue_get_macros.")]
+
+MacroBodyParam = Annotated[
+    str | None,
+    Field(
+        description="Comment the macro posts, in Tracker markup; may use "
+        "variables such as {{currentDateTime}} or {{issue.author}}."
+    ),
+]
+
+MacroIssueUpdateParam = Annotated[
+    dict[str, Any] | None,
+    Field(
+        description="Field changes the macro makes: field key -> new value, null "
+        'to clear, or {"set" | "add" | "remove": value}, e.g. '
+        '{"tags": {"add": "x"}, "resolution": null}. Replaces the current ones.'
+    ),
+]
+
+QueueIssueTypeParam = Annotated[
+    str, Field(description="Issue type key, e.g. 'task' or 'bug'.")
 ]
 
 

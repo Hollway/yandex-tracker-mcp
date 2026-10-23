@@ -1,6 +1,7 @@
 """Queue-related MCP tools (read-only)."""
 
 import asyncio
+import datetime
 from typing import Annotated
 
 from mcp.server.mcpserver import Context, MCPServer
@@ -9,14 +10,29 @@ from pydantic import Field
 from starlette.requests import Request
 
 from mcp_tracker.mcp.context import AppContext
-from mcp_tracker.mcp.params import PageOrAllParam, PerPageParam, QueueID
+from mcp_tracker.mcp.params import (
+    AutoactionIDParam,
+    MacroIDParam,
+    PageOrAllParam,
+    PerPageParam,
+    QueueID,
+    TriggerIDParam,
+)
 from mcp_tracker.mcp.tools._access import check_queue_access, is_queue_allowed
+from mcp_tracker.mcp.tools._ai_access import is_ai_restricted
 from mcp_tracker.mcp.tools._pagination import collect_pages
 from mcp_tracker.mcp.utils import get_yandex_auth, set_non_needed_fields_null
 from mcp_tracker.settings import Settings
 from mcp_tracker.tracker.proto.types.components import Component
 from mcp_tracker.tracker.proto.types.fields import GlobalField
 from mcp_tracker.tracker.proto.types.pagination import PaginatedResult
+from mcp_tracker.tracker.proto.types.queue_automation import (
+    QueueAutoaction,
+    QueueAutoactionRun,
+    QueueAutoactionRunIssue,
+    QueueMacro,
+    QueueTriggerLog,
+)
 from mcp_tracker.tracker.proto.types.queues import (
     Queue,
     QueueExpandOption,
@@ -24,6 +40,7 @@ from mcp_tracker.tracker.proto.types.queues import (
     QueueTrigger,
     QueueVersion,
 )
+from mcp_tracker.tracker.proto.types.refs import IssueTypeReference
 
 # `expand` sections that are lists, and so can meaningfully come back empty.
 EXPAND_SECTIONS = frozenset(
@@ -156,6 +173,25 @@ def register_queue_tools(settings: Settings, mcp: MCPServer[AppContext]) -> None
         )
 
     @mcp.tool(
+        title="Get Queue Workflows",
+        description="Get the workflows (in russian - 'рабочие процессы') a Yandex "
+        "Tracker queue runs: workflow id -> the issue types that follow it. "
+        "`workflow_get` reads a workflow's statuses and transitions.",
+        annotations=ToolAnnotations(read_only_hint=True),
+    )
+    async def queue_get_workflows(
+        ctx: Context[AppContext],
+        queue_id: QueueID,
+    ) -> dict[str, list[IssueTypeReference]]:
+        check_queue_access(settings, queue_id)
+        return (
+            await ctx.request_context.lifespan_context.workflows.queues_get_workflows(
+                queue_id,
+                auth=get_yandex_auth(ctx),
+            )
+        )
+
+    @mcp.tool(
         title="Get Queue Fields",
         description="Get the fields configured on a Yandex Tracker queue (in russian - "
         "'поля очереди'), its local ones included; `schema.required` marks the "
@@ -231,3 +267,174 @@ def register_queue_tools(settings: Settings, mcp: MCPServer[AppContext]) -> None
                 setattr(queue, option, [])
 
         return queue
+
+    @mcp.tool(
+        title="Get Queue Trigger",
+        description="Get one automation trigger of a Yandex Tracker queue "
+        "('триггер') with its conditions, actions and current `version`, which "
+        "queue_update_trigger takes. Webhook credentials and headers are left out.",
+        annotations=ToolAnnotations(read_only_hint=True),
+    )
+    async def queue_get_trigger(
+        ctx: Context[AppContext],
+        queue_id: QueueID,
+        trigger_id: TriggerIDParam,
+    ) -> QueueTrigger:
+        check_queue_access(settings, queue_id)
+        return await ctx.request_context.lifespan_context.queues.queue_get_trigger(
+            queue_id, trigger_id, auth=get_yandex_auth(ctx)
+        )
+
+    @mcp.tool(
+        title="Get Queue Trigger Logs",
+        description="Get the run log of a Yandex Tracker queue trigger's HTTP "
+        "request (Webhook) actions: when it ran, for which issue, the request "
+        "sent and the status code back. Only Webhook actions are logged; the "
+        "latest 10 runs unless `limit` says otherwise.",
+        annotations=ToolAnnotations(read_only_hint=True),
+    )
+    async def queue_get_trigger_logs(
+        ctx: Context[AppContext],
+        queue_id: QueueID,
+        trigger_id: TriggerIDParam,
+        issue_id: Annotated[
+            str | None,
+            Field(description="Only the runs for this issue, e.g. 'QUEUE-123'."),
+        ] = None,
+        limit: Annotated[
+            int | None,
+            Field(
+                description="How many runs, at most 100; 10 when omitted.",
+                ge=1,
+                le=100,
+            ),
+        ] = None,
+        created_from: Annotated[
+            datetime.datetime | None,
+            Field(description="Only runs that started at or after this time."),
+        ] = None,
+        created_to: Annotated[
+            datetime.datetime | None,
+            Field(description="Only runs that started at or before this time."),
+        ] = None,
+    ) -> list[QueueTriggerLog]:
+        check_queue_access(settings, queue_id)
+        queues = ctx.request_context.lifespan_context.queues
+        logs = await queues.queue_get_trigger_logs(
+            queue_id,
+            trigger_id,
+            issue_id=issue_id,
+            limit=limit,
+            created_from=created_from,
+            created_to=created_to,
+            auth=get_yandex_auth(ctx),
+        )
+        # A request body is rendered from the issue it ran for, so a queue that
+        # forbids AI tools its issues' content does not get it handed out here.
+        if logs and await is_ai_restricted(ctx, settings, queue_id):
+            for log in logs:
+                if log.request is not None:
+                    log.request.pop("body", None)
+        return logs
+
+    @mcp.tool(
+        title="Get Queue Autoactions",
+        description="Get the autoactions of a Yandex Tracker queue ('автодействия'): "
+        "scheduled actions on the issues a filter or query selects, with their "
+        "interval and last launch.",
+        annotations=ToolAnnotations(read_only_hint=True),
+    )
+    async def queue_get_autoactions(
+        ctx: Context[AppContext],
+        queue_id: QueueID,
+    ) -> list[QueueAutoaction]:
+        check_queue_access(settings, queue_id)
+        return await ctx.request_context.lifespan_context.queues.queues_get_autoactions(
+            queue_id, auth=get_yandex_auth(ctx)
+        )
+
+    @mcp.tool(
+        title="Get Queue Autoaction",
+        description="Get one autoaction of a Yandex Tracker queue ('автодействие'): "
+        "its filter or query, actions, interval, calendar and last launch.",
+        annotations=ToolAnnotations(read_only_hint=True),
+    )
+    async def queue_get_autoaction(
+        ctx: Context[AppContext],
+        queue_id: QueueID,
+        autoaction_id: AutoactionIDParam,
+    ) -> QueueAutoaction:
+        check_queue_access(settings, queue_id)
+        return await ctx.request_context.lifespan_context.queues.queue_get_autoaction(
+            queue_id, autoaction_id, auth=get_yandex_auth(ctx)
+        )
+
+    @mcp.tool(
+        title="Get Queue Autoaction Logs",
+        description="Get the launches of a Yandex Tracker queue autoaction "
+        "('автодействие') with how many issues each found and changed; with "
+        "`run_id`, the issues of that one launch and how each went. Only "
+        "autoactions that update issues are logged.",
+        annotations=ToolAnnotations(read_only_hint=True),
+    )
+    async def queue_get_autoaction_logs(
+        ctx: Context[AppContext],
+        queue_id: QueueID,
+        autoaction_id: AutoactionIDParam,
+        run_id: Annotated[
+            str | None,
+            Field(
+                description="A launch `id` from a call without it; returns the "
+                "issues of that launch instead of the list of launches."
+            ),
+        ] = None,
+    ) -> list[QueueAutoactionRun] | list[QueueAutoactionRunIssue]:
+        check_queue_access(settings, queue_id)
+        queues = ctx.request_context.lifespan_context.queues
+        auth = get_yandex_auth(ctx)
+        if run_id is None:
+            return await queues.queue_get_autoaction_runs(
+                queue_id, autoaction_id, auth=auth
+            )
+
+        issues = await queues.queue_get_autoaction_run(
+            queue_id, autoaction_id, run_id, auth=auth
+        )
+        # `display` is the issue's summary - content a queue that forbids AI
+        # tools does not hand out.
+        if issues and await is_ai_restricted(ctx, settings, queue_id):
+            for row in issues:
+                if row.issueReference is not None:
+                    row.issueReference.display = None
+        return issues
+
+    @mcp.tool(
+        title="Get Queue Macros",
+        description="Get the macros of a Yandex Tracker queue ('макросы'): the "
+        "comment each posts and the issue fields it changes when applied.",
+        annotations=ToolAnnotations(read_only_hint=True),
+    )
+    async def queue_get_macros(
+        ctx: Context[AppContext],
+        queue_id: QueueID,
+    ) -> list[QueueMacro]:
+        check_queue_access(settings, queue_id)
+        return await ctx.request_context.lifespan_context.queues.queues_get_macros(
+            queue_id, auth=get_yandex_auth(ctx)
+        )
+
+    @mcp.tool(
+        title="Get Queue Macro",
+        description="Get one macro of a Yandex Tracker queue ('макрос'): its name, "
+        "the comment it posts and the issue fields it changes.",
+        annotations=ToolAnnotations(read_only_hint=True),
+    )
+    async def queue_get_macro(
+        ctx: Context[AppContext],
+        queue_id: QueueID,
+        macro_id: MacroIDParam,
+    ) -> QueueMacro:
+        check_queue_access(settings, queue_id)
+        return await ctx.request_context.lifespan_context.queues.queue_get_macro(
+            queue_id, macro_id, auth=get_yandex_auth(ctx)
+        )

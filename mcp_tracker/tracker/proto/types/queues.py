@@ -14,12 +14,21 @@ from mcp_tracker.tracker.proto.types.refs import (
 from mcp_tracker.tracker.proto.types.resolutions import Resolution
 
 
+class QueueWorkflowReference(BaseTrackerEntity):
+    """The workflow an issue type of a queue follows, as `issueTypesConfig`
+    names it."""
+
+    id: str | None = None
+    display: str | None = NoneExcludedField
+
+
 class QueueIssueTypeConfig(BaseTrackerEntity):
     """Issue type configuration within a queue, including available resolutions."""
 
     issueType: IssueTypeReference | None = Field(
         None, description="Issue type reference"
     )
+    workflow: QueueWorkflowReference | None = NoneExcludedField
     resolutions: list[Resolution] | None = Field(
         None, description="Available resolutions for this issue type"
     )

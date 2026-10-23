@@ -1,4 +1,5 @@
 import json
+from collections.abc import Sequence
 from typing import Any
 
 from mcp.server.mcpserver.exceptions import ToolError
@@ -495,3 +496,159 @@ class BulkChangeNotFound(YandexTrackerError):
             f"tool returned."
         )
         self.bulk_change_id = bulk_change_id
+
+
+class WorkflowNotFound(YandexTrackerError):
+    def __init__(self, workflow_id: str):
+        super().__init__(
+            f"Workflow with ID '{workflow_id}' not found - workflows_get_all lists "
+            f"the workflows, queue_get_workflows those of one queue."
+        )
+        self.workflow_id = workflow_id
+
+
+class WorkflowVersionConflict(YandexTrackerError):
+    """Raised when Tracker refuses a workflow write over its `version` (412).
+
+    Tracker words it as a passing failure ("не удалось сохранить изменения,
+    попробуйте ещё раз"), the same text it gives a stale sprint version.
+    """
+
+    def __init__(self, workflow_id: str, version: int):
+        super().__init__(
+            f"Editing conflict for workflow '{workflow_id}' with version {version}: "
+            f"the workflow was changed since that version was read. Re-read it with "
+            f"workflow_get and retry, or omit `version` to act on the current one."
+        )
+        self.workflow_id = workflow_id
+        self.version = version
+
+
+class ScreenNotFound(YandexTrackerError):
+    def __init__(self, screen_id: int):
+        super().__init__(
+            f"Screen with ID '{screen_id}' not found - a transition's `screen.id` "
+            f"in workflow_get names its screen."
+        )
+        self.screen_id = screen_id
+
+
+class CatalogObjectNotFound(YandexTrackerError):
+    """An organization-wide status, resolution, issue type or priority that
+    does not exist."""
+
+    def __init__(self, kind: str, object_id: str, listing: str):
+        super().__init__(
+            f"No {kind} with key or ID '{object_id}' - {listing} lists them."
+        )
+        self.kind = kind
+        self.object_id = object_id
+
+
+class CatalogVersionConflict(YandexTrackerError):
+    """Raised when Tracker refuses a status, resolution, issue type or priority
+    update over its `version` - documented as 409 for some and 412 for others."""
+
+    def __init__(self, kind: str, object_id: str, version: int, listing: str):
+        super().__init__(
+            f"Editing conflict for {kind} '{object_id}' with version {version}: it "
+            f"was changed since that version was read. Re-read it with {listing} "
+            f"and retry, or omit `version` to update the current one."
+        )
+        self.kind = kind
+        self.object_id = object_id
+        self.version = version
+
+
+class CatalogEmptyUpdate(YandexTrackerError):
+    """Raised for a status, resolution, issue type or priority update that
+    would change nothing."""
+
+    def __init__(self, kind: str, fields: Sequence[str]):
+        names = ", ".join(f"`{f}`" for f in fields)
+        super().__init__(
+            f"A {kind} update must change something: pass at least one of {names}."
+        )
+
+
+class CatalogNameEnWithoutName(YandexTrackerError):
+    """Raised for an update that passes the English name alone - Tracker takes
+    a name as both languages at once."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            "`name_en` cannot be changed alone: pass `name` (the Russian name) "
+            "with it - the name is written in both languages at once."
+        )
+
+
+class TriggerNotFound(YandexTrackerError):
+    """Raised for a 404 from a trigger-scoped path, which Tracker answers alike
+    for an unknown queue and an unknown trigger."""
+
+    def __init__(self, queue_id: str, trigger_id: int):
+        super().__init__(
+            f"Trigger '{trigger_id}' was not found in queue '{queue_id}', or the "
+            f"queue itself does not exist - queue_get_triggers lists the triggers "
+            f"of a queue."
+        )
+        self.queue_id = queue_id
+        self.trigger_id = trigger_id
+
+
+class TriggerVersionConflict(YandexTrackerError):
+    """Raised when a trigger update is rejected (409/412) over its `version`."""
+
+    def __init__(self, queue_id: str, trigger_id: int, version: int):
+        super().__init__(
+            f"Editing conflict for trigger '{trigger_id}' of queue '{queue_id}' with "
+            f"version {version}: the trigger was changed since that version was "
+            f"read. Re-read it with queue_get_trigger and retry, or omit `version` "
+            f"to update the current one."
+        )
+        self.queue_id = queue_id
+        self.trigger_id = trigger_id
+        self.version = version
+
+
+class TriggerEmptyUpdate(YandexTrackerError):
+    def __init__(self) -> None:
+        super().__init__(
+            "A trigger update must change something: pass at least one of `name`, "
+            "`actions`, `conditions`, `active` or `before`."
+        )
+
+
+class AutoactionNotFound(YandexTrackerError):
+    """Raised for a 404 from an autoaction-scoped path, which Tracker answers
+    alike for an unknown queue and an unknown autoaction."""
+
+    def __init__(self, queue_id: str, autoaction_id: int):
+        super().__init__(
+            f"Autoaction '{autoaction_id}' was not found in queue '{queue_id}', or "
+            f"the queue itself does not exist - queue_get_autoactions lists the "
+            f"autoactions of a queue."
+        )
+        self.queue_id = queue_id
+        self.autoaction_id = autoaction_id
+
+
+class MacroNotFound(YandexTrackerError):
+    """Raised for a 404 from a macro-scoped path, which Tracker answers alike
+    for an unknown queue and an unknown macro."""
+
+    def __init__(self, queue_id: str, macro_id: int):
+        super().__init__(
+            f"Macro '{macro_id}' was not found in queue '{queue_id}', or the queue "
+            f"itself does not exist - queue_get_macros lists the macros of a queue."
+        )
+        self.queue_id = queue_id
+        self.macro_id = macro_id
+
+
+class MacroEmptyUpdate(YandexTrackerError):
+    def __init__(self) -> None:
+        super().__init__(
+            "A macro update must change something: pass at least one of `name`, "
+            "`body`, `issue_update` or `clear_body`."
+        )

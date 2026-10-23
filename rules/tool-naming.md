@@ -15,7 +15,9 @@
 
 `applications` (external applications an issue links to), `attachment` (a temporary attachment, not yet bound to an issue), `board`,
 `boards`, `comment`, `component`, `goal`, `issue`, `issues`, `portfolio`,
-`project`, `queue`, `queues`, `user`, `users`, `worklogs` (records across issues).
+`priority`, `project`, `queue`, `queues`, `resolution`, `screen` (a transition
+screen), `status`, `user`, `users`, `workflow`, `workflows`, `worklogs` (records
+across issues).
 
 A tool for a new entity means adding its prefix to `TOOL_NAME_ENTITIES` in that test,
 in the same PR - a deliberate line, not a regex that lets anything through.

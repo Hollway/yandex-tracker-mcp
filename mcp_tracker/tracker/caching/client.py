@@ -61,17 +61,36 @@ from mcp_tracker.tracker.proto.types.issues import (
 )
 from mcp_tracker.tracker.proto.types.pagination import PaginatedResult
 from mcp_tracker.tracker.proto.types.priorities import Priority
+from mcp_tracker.tracker.proto.types.queue_automation import (
+    QueueAutoaction,
+    QueueAutoactionRun,
+    QueueAutoactionRunIssue,
+    QueueIssueTypeConfigInput,
+    QueueMacro,
+    QueueTriggerLog,
+)
 from mcp_tracker.tracker.proto.types.queues import (
     Queue,
     QueueExpandOption,
     QueueTrigger,
     QueueVersion,
 )
+from mcp_tracker.tracker.proto.types.refs import IssueTypeReference
 from mcp_tracker.tracker.proto.types.resolutions import Resolution
-from mcp_tracker.tracker.proto.types.statuses import Status
+from mcp_tracker.tracker.proto.types.statuses import Status, StatusType
 from mcp_tracker.tracker.proto.types.templates import CommentTemplate, IssueTemplate
 from mcp_tracker.tracker.proto.types.users import User, UserAbsences
+from mcp_tracker.tracker.proto.types.workflows import (
+    IssueTypeResolutionsDraft,
+    LocalizedText,
+    Screen,
+    Workflow,
+    WorkflowActionDraft,
+    WorkflowDraft,
+    WorkflowStepDraft,
+)
 from mcp_tracker.tracker.proto.users import UsersProtocolWrap
+from mcp_tracker.tracker.proto.workflows import WorkflowsProtocolWrap
 
 
 @dataclass
@@ -84,6 +103,7 @@ class CacheCollection:
     entities: type[EntitiesProtocolWrap]
     boards: type[BoardsProtocolWrap]
     components: type[ComponentsProtocolWrap]
+    workflows: type[WorkflowsProtocolWrap]
 
 
 def make_cached_protocols(
@@ -192,6 +212,252 @@ def make_cached_protocols(
             auth: YandexAuth | None = None,
         ) -> Queue:
             return await self._original.queue_get(queue_id, expand=expand, auth=auth)
+
+        # Not cached: the trigger and macro writes read the current object for
+        # its `version` / `name`, and a stale one would be written back.
+        async def queue_get_trigger(
+            self, queue_id: str, trigger_id: int, *, auth: YandexAuth | None = None
+        ) -> QueueTrigger:
+            return await self._original.queue_get_trigger(
+                queue_id, trigger_id, auth=auth
+            )
+
+        async def queue_create_trigger(
+            self,
+            queue_id: str,
+            *,
+            name: str,
+            actions: list[dict[str, Any]],
+            conditions: list[dict[str, Any]] | dict[str, Any] | None = None,
+            active: bool | None = None,
+            auth: YandexAuth | None = None,
+        ) -> QueueTrigger:
+            return await self._original.queue_create_trigger(
+                queue_id,
+                name=name,
+                actions=actions,
+                conditions=conditions,
+                active=active,
+                auth=auth,
+            )
+
+        async def queue_update_trigger(
+            self,
+            queue_id: str,
+            trigger_id: int,
+            *,
+            version: int,
+            name: str | None = None,
+            actions: list[dict[str, Any]] | None = None,
+            conditions: list[dict[str, Any]] | dict[str, Any] | None = None,
+            active: bool | None = None,
+            before: int | None = None,
+            auth: YandexAuth | None = None,
+        ) -> QueueTrigger:
+            return await self._original.queue_update_trigger(
+                queue_id,
+                trigger_id,
+                version=version,
+                name=name,
+                actions=actions,
+                conditions=conditions,
+                active=active,
+                before=before,
+                auth=auth,
+            )
+
+        # Logs are not cached: they are read to see what just happened.
+        async def queue_get_trigger_logs(
+            self,
+            queue_id: str,
+            trigger_id: int,
+            *,
+            issue_id: str | None = None,
+            limit: int | None = None,
+            created_from: datetime.datetime | None = None,
+            created_to: datetime.datetime | None = None,
+            auth: YandexAuth | None = None,
+        ) -> list[QueueTriggerLog]:
+            return await self._original.queue_get_trigger_logs(
+                queue_id,
+                trigger_id,
+                issue_id=issue_id,
+                limit=limit,
+                created_from=created_from,
+                created_to=created_to,
+                auth=auth,
+            )
+
+        @cached(**cache_config)
+        async def queues_get_autoactions(
+            self, queue_id: str, *, auth: YandexAuth | None = None
+        ) -> list[QueueAutoaction]:
+            return await self._original.queues_get_autoactions(queue_id, auth=auth)
+
+        @cached(**cache_config)
+        async def queue_get_autoaction(
+            self, queue_id: str, autoaction_id: int, *, auth: YandexAuth | None = None
+        ) -> QueueAutoaction:
+            return await self._original.queue_get_autoaction(
+                queue_id, autoaction_id, auth=auth
+            )
+
+        async def queue_create_autoaction(
+            self,
+            queue_id: str,
+            *,
+            name: str,
+            actions: list[dict[str, Any]],
+            filter: dict[str, Any] | list[dict[str, Any]] | None = None,
+            query: str | None = None,
+            active: bool | None = None,
+            enable_notifications: bool | None = None,
+            interval_millis: int | None = None,
+            calendar_id: int | None = None,
+            auth: YandexAuth | None = None,
+        ) -> QueueAutoaction:
+            return await self._original.queue_create_autoaction(
+                queue_id,
+                name=name,
+                actions=actions,
+                filter=filter,
+                query=query,
+                active=active,
+                enable_notifications=enable_notifications,
+                interval_millis=interval_millis,
+                calendar_id=calendar_id,
+                auth=auth,
+            )
+
+        async def queue_get_autoaction_runs(
+            self, queue_id: str, autoaction_id: int, *, auth: YandexAuth | None = None
+        ) -> list[QueueAutoactionRun]:
+            return await self._original.queue_get_autoaction_runs(
+                queue_id, autoaction_id, auth=auth
+            )
+
+        async def queue_get_autoaction_run(
+            self,
+            queue_id: str,
+            autoaction_id: int,
+            run_id: str,
+            *,
+            auth: YandexAuth | None = None,
+        ) -> list[QueueAutoactionRunIssue]:
+            return await self._original.queue_get_autoaction_run(
+                queue_id, autoaction_id, run_id, auth=auth
+            )
+
+        @cached(**cache_config)
+        async def queues_get_macros(
+            self, queue_id: str, *, auth: YandexAuth | None = None
+        ) -> list[QueueMacro]:
+            return await self._original.queues_get_macros(queue_id, auth=auth)
+
+        async def queue_get_macro(
+            self, queue_id: str, macro_id: int, *, auth: YandexAuth | None = None
+        ) -> QueueMacro:
+            return await self._original.queue_get_macro(queue_id, macro_id, auth=auth)
+
+        async def queue_create_macro(
+            self,
+            queue_id: str,
+            *,
+            name: str,
+            body: str | None = None,
+            issue_update: dict[str, Any] | None = None,
+            auth: YandexAuth | None = None,
+        ) -> QueueMacro:
+            return await self._original.queue_create_macro(
+                queue_id, name=name, body=body, issue_update=issue_update, auth=auth
+            )
+
+        async def queue_update_macro(
+            self,
+            queue_id: str,
+            macro_id: int,
+            *,
+            name: str,
+            body: str | None = None,
+            issue_update: dict[str, Any] | None = None,
+            clear_body: bool = False,
+            auth: YandexAuth | None = None,
+        ) -> QueueMacro:
+            return await self._original.queue_update_macro(
+                queue_id,
+                macro_id,
+                name=name,
+                body=body,
+                issue_update=issue_update,
+                clear_body=clear_body,
+                auth=auth,
+            )
+
+        async def queue_delete_macro(
+            self, queue_id: str, macro_id: int, *, auth: YandexAuth | None = None
+        ) -> None:
+            return await self._original.queue_delete_macro(
+                queue_id, macro_id, auth=auth
+            )
+
+        async def queue_create(
+            self,
+            *,
+            key: str,
+            name: str,
+            lead: str,
+            default_type: str,
+            default_priority: str,
+            issue_types_config: list[QueueIssueTypeConfigInput],
+            auth: YandexAuth | None = None,
+        ) -> Queue:
+            return await self._original.queue_create(
+                key=key,
+                name=name,
+                lead=lead,
+                default_type=default_type,
+                default_priority=default_priority,
+                issue_types_config=issue_types_config,
+                auth=auth,
+            )
+
+        async def queue_delete(
+            self, queue_id: str, *, auth: YandexAuth | None = None
+        ) -> None:
+            return await self._original.queue_delete(queue_id, auth=auth)
+
+        async def queue_restore(
+            self, queue_id: str, *, auth: YandexAuth | None = None
+        ) -> Queue:
+            return await self._original.queue_restore(queue_id, auth=auth)
+
+        # Not cached: the whole list is written back, so a stale read would undo
+        # whatever changed in between.
+        async def queue_get_fresh(
+            self,
+            queue_id: str,
+            *,
+            expand: list[QueueExpandOption] | None = None,
+            auth: YandexAuth | None = None,
+        ) -> Queue:
+            return await self._original.queue_get_fresh(
+                queue_id, expand=expand, auth=auth
+            )
+
+        async def queue_update_issue_types_config(
+            self,
+            queue_id: str,
+            *,
+            issue_types_config: list[QueueIssueTypeConfigInput],
+            default_type: str | None = None,
+            auth: YandexAuth | None = None,
+        ) -> Queue:
+            return await self._original.queue_update_issue_types_config(
+                queue_id,
+                issue_types_config=issue_types_config,
+                default_type=default_type,
+                auth=auth,
+            )
 
     class CachingIssuesProtocol(IssueProtocolWrap):
         @cached(**cache_config)
@@ -815,6 +1081,161 @@ def make_cached_protocols(
             self, *, auth: YandexAuth | None = None
         ) -> list[Resolution]:
             return await self._original.get_resolutions(auth=auth)
+
+        # The single reads are not cached, for the reason component reads are
+        # not: the update tools read the current `version` through them.
+        async def status_get(
+            self, status_id: str, *, auth: YandexAuth | None = None
+        ) -> Status:
+            return await self._original.status_get(status_id, auth=auth)
+
+        async def status_create(
+            self,
+            *,
+            key: str,
+            name: LocalizedText,
+            type: StatusType,
+            description: str | None = None,
+            order: int | None = None,
+            auth: YandexAuth | None = None,
+        ) -> Status:
+            return await self._original.status_create(
+                key=key,
+                name=name,
+                type=type,
+                description=description,
+                order=order,
+                auth=auth,
+            )
+
+        async def status_update(
+            self,
+            status_id: str,
+            *,
+            version: int,
+            name: LocalizedText | None = None,
+            description: str | None = None,
+            order: int | None = None,
+            type: StatusType | None = None,
+            auth: YandexAuth | None = None,
+        ) -> Status:
+            return await self._original.status_update(
+                status_id,
+                version=version,
+                name=name,
+                description=description,
+                order=order,
+                type=type,
+                auth=auth,
+            )
+
+        async def resolution_get(
+            self, resolution_id: str, *, auth: YandexAuth | None = None
+        ) -> Resolution:
+            return await self._original.resolution_get(resolution_id, auth=auth)
+
+        async def resolution_create(
+            self,
+            *,
+            key: str,
+            name: LocalizedText,
+            description: str | None = None,
+            order: int | None = None,
+            auth: YandexAuth | None = None,
+        ) -> Resolution:
+            return await self._original.resolution_create(
+                key=key, name=name, description=description, order=order, auth=auth
+            )
+
+        async def resolution_update(
+            self,
+            resolution_id: str,
+            *,
+            version: int,
+            name: LocalizedText | None = None,
+            description: str | None = None,
+            order: int | None = None,
+            auth: YandexAuth | None = None,
+        ) -> Resolution:
+            return await self._original.resolution_update(
+                resolution_id,
+                version=version,
+                name=name,
+                description=description,
+                order=order,
+                auth=auth,
+            )
+
+        async def issue_type_get(
+            self, issue_type_id: str, *, auth: YandexAuth | None = None
+        ) -> IssueType:
+            return await self._original.issue_type_get(issue_type_id, auth=auth)
+
+        async def issue_type_create(
+            self,
+            *,
+            key: str,
+            name: LocalizedText,
+            description: str | None = None,
+            auth: YandexAuth | None = None,
+        ) -> IssueType:
+            return await self._original.issue_type_create(
+                key=key, name=name, description=description, auth=auth
+            )
+
+        async def issue_type_update(
+            self,
+            issue_type_id: str,
+            *,
+            version: int,
+            name: LocalizedText | None = None,
+            description: str | None = None,
+            auth: YandexAuth | None = None,
+        ) -> IssueType:
+            return await self._original.issue_type_update(
+                issue_type_id,
+                version=version,
+                name=name,
+                description=description,
+                auth=auth,
+            )
+
+        async def priority_get(
+            self, priority_id: str, *, auth: YandexAuth | None = None
+        ) -> Priority:
+            return await self._original.priority_get(priority_id, auth=auth)
+
+        async def priority_create(
+            self,
+            *,
+            key: str,
+            name: LocalizedText,
+            description: str | None = None,
+            order: int | None = None,
+            auth: YandexAuth | None = None,
+        ) -> Priority:
+            return await self._original.priority_create(
+                key=key, name=name, description=description, order=order, auth=auth
+            )
+
+        async def priority_update(
+            self,
+            priority_id: str,
+            *,
+            version: int,
+            name: LocalizedText | None = None,
+            description: str | None = None,
+            order: int | None = None,
+            auth: YandexAuth | None = None,
+        ) -> Priority:
+            return await self._original.priority_update(
+                priority_id,
+                version=version,
+                name=name,
+                description=description,
+                order=order,
+                auth=auth,
+            )
 
     class CachingTemplatesProtocol(TemplatesProtocolWrap):
         @cached(**cache_config)
@@ -1802,6 +2223,111 @@ def make_cached_protocols(
         ) -> None:
             return await self._original.component_delete(component_id, auth=auth)
 
+    class CachingWorkflowsProtocol(WorkflowsProtocolWrap):
+        # Workflow reads are not cached, for the reason component reads are
+        # not: the write tools read the current `version` (required, 412 when
+        # stale) and the current transitions to rewrite them, and a cached
+        # read would hand them a stale workflow for the rest of the TTL.
+        async def workflows_get_all(
+            self, *, auth: YandexAuth | None = None
+        ) -> list[Workflow]:
+            return await self._original.workflows_get_all(auth=auth)
+
+        async def workflow_get(
+            self, workflow_id: str, *, auth: YandexAuth | None = None
+        ) -> Workflow:
+            return await self._original.workflow_get(workflow_id, auth=auth)
+
+        async def queues_get_workflows(
+            self, queue_id: str, *, auth: YandexAuth | None = None
+        ) -> dict[str, list[IssueTypeReference]]:
+            return await self._original.queues_get_workflows(queue_id, auth=auth)
+
+        async def screen_get(
+            self, screen_id: int, *, auth: YandexAuth | None = None
+        ) -> Screen:
+            return await self._original.screen_get(screen_id, auth=auth)
+
+        async def workflow_get_draft(
+            self, workflow_id: str, *, auth: YandexAuth | None = None
+        ) -> WorkflowDraft:
+            return await self._original.workflow_get_draft(workflow_id, auth=auth)
+
+        async def workflow_create(
+            self,
+            *,
+            name: str,
+            initial_action: WorkflowActionDraft,
+            steps: list[WorkflowStepDraft],
+            queue: str | None = None,
+            auth: YandexAuth | None = None,
+        ) -> Workflow:
+            return await self._original.workflow_create(
+                name=name,
+                initial_action=initial_action,
+                steps=steps,
+                queue=queue,
+                auth=auth,
+            )
+
+        async def workflow_update(
+            self,
+            workflow_id: str,
+            *,
+            version: int,
+            name: str | None = None,
+            initial_action: WorkflowActionDraft | None = None,
+            steps: list[WorkflowStepDraft] | None = None,
+            issue_type_resolutions: list[IssueTypeResolutionsDraft] | None = None,
+            auth: YandexAuth | None = None,
+        ) -> Workflow:
+            return await self._original.workflow_update(
+                workflow_id,
+                version=version,
+                name=name,
+                initial_action=initial_action,
+                steps=steps,
+                issue_type_resolutions=issue_type_resolutions,
+                auth=auth,
+            )
+
+        async def workflow_add_action(
+            self,
+            workflow_id: str,
+            status: str,
+            *,
+            version: int,
+            action: WorkflowActionDraft,
+            auth: YandexAuth | None = None,
+        ) -> Workflow:
+            return await self._original.workflow_add_action(
+                workflow_id, status, version=version, action=action, auth=auth
+            )
+
+        async def workflow_update_action(
+            self,
+            workflow_id: str,
+            status: str,
+            action_id: str,
+            *,
+            version: int,
+            action: WorkflowActionDraft,
+            auth: YandexAuth | None = None,
+        ) -> Workflow:
+            return await self._original.workflow_update_action(
+                workflow_id,
+                status,
+                action_id,
+                version=version,
+                action=action,
+                auth=auth,
+            )
+
+        async def workflow_delete(
+            self, workflow_id: str, *, auth: YandexAuth | None = None
+        ) -> None:
+            return await self._original.workflow_delete(workflow_id, auth=auth)
+
     return CacheCollection(
         queues=CachingQueuesProtocol,
         issues=CachingIssuesProtocol,
@@ -1811,4 +2337,5 @@ def make_cached_protocols(
         entities=CachingEntitiesProtocol,
         boards=CachingBoardsProtocol,
         components=CachingComponentsProtocol,
+        workflows=CachingWorkflowsProtocol,
     )

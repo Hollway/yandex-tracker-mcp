@@ -27,7 +27,8 @@
         "TRACKER_ENTITIES_ENABLED": "${user_config.tracker_entities_enabled}",
         "TRACKER_FILE_UPLOAD_ENABLED": "${user_config.tracker_file_upload_enabled}",
         "TRACKER_ATTACHMENT_DOWNLOAD_ENABLED": "${user_config.tracker_attachment_download_enabled}",
-        "TRACKER_BULK_ENABLED": "${user_config.tracker_bulk_enabled}"
+        "TRACKER_BULK_ENABLED": "${user_config.tracker_bulk_enabled}",
+        "TRACKER_WORKFLOWS_WRITE_ENABLED": "${user_config.tracker_workflows_write_enabled}"
       }
     }
   },
@@ -77,6 +78,82 @@
     {
       "name": "queue_get_metadata",
       "description": "Get detailed metadata about a specific queue"
+    },
+    {
+      "name": "queue_get_workflows",
+      "description": "Get the workflows of a queue, each with the issue types it applies to"
+    },
+    {
+      "name": "queue_get_trigger",
+      "description": "Get one automation trigger of a queue with its conditions, actions and version"
+    },
+    {
+      "name": "queue_create_trigger",
+      "description": "Create an automation trigger in a queue"
+    },
+    {
+      "name": "queue_update_trigger",
+      "description": "Change a queue trigger: name, actions, conditions, order, or switch it off"
+    },
+    {
+      "name": "queue_get_trigger_logs",
+      "description": "Get the run log of a queue trigger's HTTP request actions"
+    },
+    {
+      "name": "queue_get_autoactions",
+      "description": "Get the scheduled autoactions of a queue"
+    },
+    {
+      "name": "queue_get_autoaction",
+      "description": "Get one autoaction of a queue with its filter, actions and schedule"
+    },
+    {
+      "name": "queue_create_autoaction",
+      "description": "Create a scheduled autoaction in a queue"
+    },
+    {
+      "name": "queue_get_autoaction_logs",
+      "description": "Get the launches of a queue autoaction, or the issues of one launch"
+    },
+    {
+      "name": "queue_get_macros",
+      "description": "Get the macros of a queue"
+    },
+    {
+      "name": "queue_get_macro",
+      "description": "Get one macro of a queue"
+    },
+    {
+      "name": "queue_create_macro",
+      "description": "Create a macro in a queue"
+    },
+    {
+      "name": "queue_update_macro",
+      "description": "Change a macro of a queue"
+    },
+    {
+      "name": "queue_delete_macro",
+      "description": "Delete a macro of a queue"
+    },
+    {
+      "name": "queue_create",
+      "description": "Create a queue with its owner, defaults and issue types"
+    },
+    {
+      "name": "queue_delete",
+      "description": "Delete a queue with its issues"
+    },
+    {
+      "name": "queue_restore",
+      "description": "Restore a deleted queue (administrators only)"
+    },
+    {
+      "name": "queue_set_issue_type_workflow",
+      "description": "Add an issue type to a queue or change the workflow it follows"
+    },
+    {
+      "name": "queue_remove_issue_type",
+      "description": "Remove an issue type from a queue"
     },
     {
       "name": "component_get",
@@ -289,6 +366,86 @@
     {
       "name": "get_resolutions",
       "description": "Get all available issue resolutions"
+    },
+    {
+      "name": "workflows_get_all",
+      "description": "List the workflows of the organization with their queue, version and number of statuses"
+    },
+    {
+      "name": "workflow_get",
+      "description": "Get one workflow with its statuses, transitions, transition screens and post-functions"
+    },
+    {
+      "name": "screen_get",
+      "description": "Get a transition screen with its fields"
+    },
+    {
+      "name": "workflow_create",
+      "description": "Create a workflow from statuses and transitions (requires TRACKER_WORKFLOWS_WRITE_ENABLED)"
+    },
+    {
+      "name": "workflow_delete",
+      "description": "Permanently delete a workflow (requires TRACKER_WORKFLOWS_WRITE_ENABLED)"
+    },
+    {
+      "name": "workflow_add_action",
+      "description": "Add a transition out of a status of a workflow (requires TRACKER_WORKFLOWS_WRITE_ENABLED)"
+    },
+    {
+      "name": "workflow_update_action",
+      "description": "Change a transition of a workflow (requires TRACKER_WORKFLOWS_WRITE_ENABLED)"
+    },
+    {
+      "name": "workflow_delete_action",
+      "description": "Delete a transition from a workflow (requires TRACKER_WORKFLOWS_WRITE_ENABLED)"
+    },
+    {
+      "name": "workflow_add_status",
+      "description": "Add a status to a workflow together with the transitions into it (requires TRACKER_WORKFLOWS_WRITE_ENABLED)"
+    },
+    {
+      "name": "workflow_delete_status",
+      "description": "Delete a status and every transition into it from a workflow (requires TRACKER_WORKFLOWS_WRITE_ENABLED)"
+    },
+    {
+      "name": "workflow_update_status",
+      "description": "Change a workflow status's type or the functions run when an issue enters it (requires TRACKER_WORKFLOWS_WRITE_ENABLED)"
+    },
+    {
+      "name": "workflow_update",
+      "description": "Rename a workflow, change its initial status or the resolutions per issue type (requires TRACKER_WORKFLOWS_WRITE_ENABLED)"
+    },
+    {
+      "name": "status_create",
+      "description": "Create an issue status in the organization's catalogue, for workflows to use (requires TRACKER_WORKFLOWS_WRITE_ENABLED)"
+    },
+    {
+      "name": "status_update",
+      "description": "Change the name, description, order or type of an issue status (requires TRACKER_WORKFLOWS_WRITE_ENABLED)"
+    },
+    {
+      "name": "resolution_create",
+      "description": "Create a resolution in the organization's catalogue (requires TRACKER_WORKFLOWS_WRITE_ENABLED)"
+    },
+    {
+      "name": "resolution_update",
+      "description": "Change the name, description or order of a resolution (requires TRACKER_WORKFLOWS_WRITE_ENABLED)"
+    },
+    {
+      "name": "issue_type_create",
+      "description": "Create an issue type in the organization's catalogue (requires TRACKER_WORKFLOWS_WRITE_ENABLED)"
+    },
+    {
+      "name": "issue_type_update",
+      "description": "Change the name or description of an issue type (requires TRACKER_WORKFLOWS_WRITE_ENABLED)"
+    },
+    {
+      "name": "priority_create",
+      "description": "Create an issue priority in the organization's catalogue (requires TRACKER_WORKFLOWS_WRITE_ENABLED)"
+    },
+    {
+      "name": "priority_update",
+      "description": "Change the name, description or order of an issue priority (requires TRACKER_WORKFLOWS_WRITE_ENABLED)"
     },
     {
       "name": "issue_templates_get_all",
@@ -568,6 +725,14 @@
       "type": "boolean",
       "title": "Enable Attachment Download",
       "description": "Register issue_download_attachment, which saves issue attachments to a folder in your temp directory, so that files and images can be opened locally.",
+      "required": false,
+      "sensitive": false,
+      "default": false
+    },
+    "tracker_workflows_write_enabled": {
+      "type": "boolean",
+      "title": "Enable Workflow Changes",
+      "description": "Register the tools that change workflows, their transitions and statuses. A workflow is often shared by many queues and a change applies to all of them, so they are off by default.",
       "required": false,
       "sensitive": false,
       "default": false

@@ -5,7 +5,8 @@ from .types.fields import GlobalField
 from .types.issue_types import IssueType
 from .types.priorities import Priority
 from .types.resolutions import Resolution
-from .types.statuses import Status
+from .types.statuses import Status, StatusType
+from .types.workflows import LocalizedText
 
 
 @runtime_checkable
@@ -23,6 +24,100 @@ class GlobalDataProtocol(Protocol):
     async def get_resolutions(
         self, *, auth: YandexAuth | None = None
     ) -> list[Resolution]: ...
+
+    # The organization's catalogue: one object by id or key, and its writes.
+    # `version` on an update is required by the API (a query parameter).
+    async def status_get(
+        self, status_id: str, *, auth: YandexAuth | None = None
+    ) -> Status: ...
+    async def status_create(
+        self,
+        *,
+        key: str,
+        name: LocalizedText,
+        type: StatusType,
+        description: str | None = None,
+        order: int | None = None,
+        auth: YandexAuth | None = None,
+    ) -> Status: ...
+    async def status_update(
+        self,
+        status_id: str,
+        *,
+        version: int,
+        name: LocalizedText | None = None,
+        description: str | None = None,
+        order: int | None = None,
+        type: StatusType | None = None,
+        auth: YandexAuth | None = None,
+    ) -> Status: ...
+
+    async def resolution_get(
+        self, resolution_id: str, *, auth: YandexAuth | None = None
+    ) -> Resolution: ...
+    async def resolution_create(
+        self,
+        *,
+        key: str,
+        name: LocalizedText,
+        description: str | None = None,
+        order: int | None = None,
+        auth: YandexAuth | None = None,
+    ) -> Resolution: ...
+    async def resolution_update(
+        self,
+        resolution_id: str,
+        *,
+        version: int,
+        name: LocalizedText | None = None,
+        description: str | None = None,
+        order: int | None = None,
+        auth: YandexAuth | None = None,
+    ) -> Resolution: ...
+
+    async def issue_type_get(
+        self, issue_type_id: str, *, auth: YandexAuth | None = None
+    ) -> IssueType: ...
+    async def issue_type_create(
+        self,
+        *,
+        key: str,
+        name: LocalizedText,
+        description: str | None = None,
+        auth: YandexAuth | None = None,
+    ) -> IssueType: ...
+    async def issue_type_update(
+        self,
+        issue_type_id: str,
+        *,
+        version: int,
+        name: LocalizedText | None = None,
+        description: str | None = None,
+        auth: YandexAuth | None = None,
+    ) -> IssueType: ...
+
+    async def priority_get(
+        self, priority_id: str, *, auth: YandexAuth | None = None
+    ) -> Priority: ...
+    async def priority_create(
+        self,
+        *,
+        key: str,
+        name: LocalizedText,
+        description: str | None = None,
+        order: int | None = None,
+        auth: YandexAuth | None = None,
+    ) -> Priority: ...
+    async def priority_update(
+        self,
+        priority_id: str,
+        *,
+        version: int,
+        name: LocalizedText | None = None,
+        description: str | None = None,
+        order: int | None = None,
+        auth: YandexAuth | None = None,
+    ) -> Priority: ...
 
 
 class GlobalDataProtocolWrap(GlobalDataProtocol):

@@ -29,11 +29,17 @@ TOOL_NAME_ENTITIES = frozenset(
         "issue",
         "issues",
         "portfolio",
+        "priority",
         "project",
         "queue",
         "queues",
+        "resolution",
+        "screen",
+        "status",
         "user",
         "users",
+        "workflow",
+        "workflows",
         "worklogs",
     }
 )

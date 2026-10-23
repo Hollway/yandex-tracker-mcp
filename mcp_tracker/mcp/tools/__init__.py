@@ -18,6 +18,11 @@ This package organizes MCP tools by category:
   tool additionally needs tracker_file_upload_enabled
 - user.py: User-related tools (read-only)
 - worklog.py: Worklog search across issues (read-only)
+- workflow.py: Workflow and transition screen tools (read-only)
+- workflow_write.py: Workflow write tools (conditional on read-only mode and
+  tracker_workflows_write_enabled)
+- catalog_write.py: Status, resolution, issue type and priority write tools
+  (conditional on read-only mode and tracker_workflows_write_enabled)
 - project.py: Project entity tools (read-only)
 - project_write.py: Project entity write tools (conditional on read-only mode)
 - portfolio.py: Portfolio entity tools (read-only)
@@ -35,6 +40,7 @@ from mcp_tracker.mcp.tools.attachment_write import (
 )
 from mcp_tracker.mcp.tools.board import register_board_tools
 from mcp_tracker.mcp.tools.board_write import register_board_write_tools
+from mcp_tracker.mcp.tools.catalog_write import register_catalog_write_tools
 from mcp_tracker.mcp.tools.component import register_component_tools
 from mcp_tracker.mcp.tools.component_write import register_component_write_tools
 from mcp_tracker.mcp.tools.field import register_field_tools
@@ -57,6 +63,8 @@ from mcp_tracker.mcp.tools.queue import register_queue_tools
 from mcp_tracker.mcp.tools.queue_write import register_queue_write_tools
 from mcp_tracker.mcp.tools.template import register_template_tools
 from mcp_tracker.mcp.tools.user import register_user_tools
+from mcp_tracker.mcp.tools.workflow import register_workflow_tools
+from mcp_tracker.mcp.tools.workflow_write import register_workflow_write_tools
 from mcp_tracker.mcp.tools.worklog import register_worklog_tools
 from mcp_tracker.settings import Settings
 
@@ -83,6 +91,7 @@ def register_all_tools(settings: Settings, mcp: MCPServer[AppContext]) -> None:
     register_issue_read_tools(settings, mcp)
     register_user_tools(settings, mcp)
     register_worklog_tools(settings, mcp)
+    register_workflow_tools(settings, mcp)
 
     # Changes nothing in Tracker, so it does not depend on tracker_read_only.
     if settings.tracker_attachment_download_enabled:
@@ -102,6 +111,10 @@ def register_all_tools(settings: Settings, mcp: MCPServer[AppContext]) -> None:
 
         if settings.tracker_bulk_enabled:
             register_issue_bulk_tools(settings, mcp)
+
+        if settings.tracker_workflows_write_enabled:
+            register_workflow_write_tools(settings, mcp)
+            register_catalog_write_tools(settings, mcp)
 
         if settings.tracker_file_upload_enabled:
             register_issue_file_upload_tools(settings, mcp)

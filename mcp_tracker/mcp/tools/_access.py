@@ -8,6 +8,7 @@ from mcp_tracker.tracker.custom.errors import (
     ComponentNotFound,
     IssueNotFound,
     VersionNotFound,
+    WorkflowNotFound,
 )
 from mcp_tracker.tracker.proto.types.components import Component
 from mcp_tracker.tracker.proto.types.queues import QueueVersion
@@ -171,4 +172,33 @@ def check_version_access(
         )
     _check_scoped_queue(
         settings, queue_key, not_found=VersionNotFound(version.id), write=write
+    )
+
+
+def check_workflow_access(
+    settings: Settings,
+    workflow_id: str,
+    queue_key: str | None,
+    *,
+    write: bool = False,
+) -> None:
+    """Check access to a workflow through the queue it is bound to.
+
+    A no-op unless `queue_checks_needed`. One bound to a queue outside
+    ``TRACKER_LIMIT_QUEUES`` raises `WorkflowNotFound`, one bound to a
+    read-only queue is rejected for a write. A shared workflow (bound to no
+    queue) can be read - it carries no issue data - but not written under a
+    restriction: it may run queues the restriction keeps out of reach.
+    """
+    if not queue_checks_needed(settings, write=write):
+        return
+    if queue_key is None:
+        if write:
+            raise TrackerError(
+                f"Workflow `{workflow_id}` is shared - bound to no queue - and may "
+                f"run queues outside the ones this server may change; refusing."
+            )
+        return
+    _check_scoped_queue(
+        settings, queue_key, not_found=WorkflowNotFound(workflow_id), write=write
     )

@@ -1,5 +1,6 @@
 import asyncio
 import datetime
+import json
 import logging
 import mimetypes
 import random
@@ -8,9 +9,10 @@ from asyncio import CancelledError
 from collections.abc import AsyncIterator, Collection, Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
+from dataclasses import dataclass
 from email.utils import parsedate_to_datetime
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, TypeVar
 from urllib.parse import quote
 
 import jwt
@@ -25,8 +27,12 @@ from mcp_tracker.tracker.custom.errors import (
     AbsencesForbidden,
     AttachmentNotFound,
     AttachmentTooLarge,
+    AutoactionNotFound,
     BoardNotFound,
     BulkChangeNotFound,
+    CatalogEmptyUpdate,
+    CatalogObjectNotFound,
+    CatalogVersionConflict,
     ChecklistBatchPartiallyAdded,
     ChecklistItemEmptyUpdate,
     ChecklistItemNotFound,
@@ -40,8 +46,10 @@ from mcp_tracker.tracker.custom.errors import (
     IssueNotFound,
     IssueTemplateNotFound,
     IssueVersionConflict,
+    MacroNotFound,
     NoDoneTransition,
     QueueNotFound,
+    ScreenNotFound,
     SprintEmptyUpdate,
     SprintNotFound,
     SprintVersionConflict,
@@ -50,8 +58,13 @@ from mcp_tracker.tracker.custom.errors import (
     TrackerAPITimeout,
     TrackerAuthConfigError,
     TrackerRateLimited,
+    TriggerEmptyUpdate,
+    TriggerNotFound,
+    TriggerVersionConflict,
     VersionEmptyUpdate,
     VersionNotFound,
+    WorkflowNotFound,
+    WorkflowVersionConflict,
     WorklogSearchTooLarge,
     YandexTrackerError,
 )
@@ -112,27 +125,56 @@ from mcp_tracker.tracker.proto.types.issues import (
 )
 from mcp_tracker.tracker.proto.types.pagination import ItemT, PaginatedResult
 from mcp_tracker.tracker.proto.types.priorities import Priority
+from mcp_tracker.tracker.proto.types.queue_automation import (
+    QueueAutoaction,
+    QueueAutoactionRun,
+    QueueAutoactionRunIssue,
+    QueueIssueTypeConfigInput,
+    QueueMacro,
+    QueueTriggerLog,
+)
 from mcp_tracker.tracker.proto.types.queues import (
     Queue,
     QueueExpandOption,
     QueueTrigger,
     QueueVersion,
 )
+from mcp_tracker.tracker.proto.types.refs import IssueTypeReference
 from mcp_tracker.tracker.proto.types.resolutions import Resolution
-from mcp_tracker.tracker.proto.types.statuses import Status
+from mcp_tracker.tracker.proto.types.statuses import Status, StatusType
 from mcp_tracker.tracker.proto.types.templates import CommentTemplate, IssueTemplate
 from mcp_tracker.tracker.proto.types.users import (
     User,
     UserAbsences,
 )
+from mcp_tracker.tracker.proto.types.workflows import (
+    IssueTypeResolutionsDraft,
+    LocalizedText,
+    Screen,
+    ScreenDraft,
+    ScreenElementDraft,
+    Workflow,
+    WorkflowAction,
+    WorkflowActionDraft,
+    WorkflowDraft,
+    WorkflowStepDraft,
+)
 from mcp_tracker.tracker.proto.users import UsersProtocol
+from mcp_tracker.tracker.proto.workflows import WorkflowsProtocol
 
 QueueList = RootModel[list[Queue]]
 LocalFieldList = RootModel[list[LocalField]]
 QueueTagList = RootModel[list[str]]
 QueueTriggerList = RootModel[list[QueueTrigger]]
+QueueTriggerLogList = RootModel[list[QueueTriggerLog]]
+QueueAutoactionList = RootModel[list[QueueAutoaction]]
+QueueAutoactionRunList = RootModel[list[QueueAutoactionRun]]
+QueueAutoactionRunIssueList = RootModel[list[QueueAutoactionRunIssue]]
+QueueMacroList = RootModel[list[QueueMacro]]
 VersionList = RootModel[list[QueueVersion]]
 ComponentList = RootModel[list[Component]]
+WorkflowList = RootModel[list[Workflow]]
+QueueWorkflows = RootModel[dict[str, list[IssueTypeReference]]]
 IssueLinkList = RootModel[list[IssueLink]]
 IssueList = RootModel[list[Issue]]
 IssueCommentList = RootModel[list[IssueComment]]
@@ -213,6 +255,20 @@ def _ref_body(value: BaseModel | str | int) -> Any:
     if isinstance(value, BaseModel):
         return value.model_dump(exclude_none=True)
     return value
+
+
+def _issue_types_config_body(
+    config: Sequence[QueueIssueTypeConfigInput],
+) -> list[dict[str, Any]]:
+    """`issueTypesConfig` as `POST v3/queues` and `PATCH v3/queues/{key}` take it."""
+    return [
+        {
+            "issueType": item.issue_type,
+            "workflow": item.workflow,
+            "resolutions": list(item.resolutions),
+        }
+        for item in config
+    ]
 
 
 def _tracker_datetime(value: datetime.datetime) -> str:
@@ -380,6 +436,72 @@ _TRIGGERS_PER_PAGE = 100
 _MAX_WORKLOG_SEARCH_PAGES = 50
 
 
+_CatalogT = TypeVar("_CatalogT", bound=BaseModel)
+
+
+@dataclass(frozen=True)
+class _Catalog:
+    """One of the organization's catalogues: where it lives in the API, what
+    an error calls it and which tool lists it."""
+
+    path: str
+    kind: str
+    listing: str
+    update_fields: tuple[str, ...]
+
+    def not_found(self, object_id: str) -> CatalogObjectNotFound:
+        return CatalogObjectNotFound(self.kind, object_id, self.listing)
+
+    def conflict(self, object_id: str, version: int) -> CatalogVersionConflict:
+        return CatalogVersionConflict(self.kind, object_id, version, self.listing)
+
+
+_STATUSES = _Catalog(
+    "v3/statuses",
+    "status",
+    "get_statuses",
+    ("name", "name_en", "description", "order", "type"),
+)
+_RESOLUTIONS = _Catalog(
+    "v3/resolutions",
+    "resolution",
+    "get_resolutions",
+    ("name", "name_en", "description", "order"),
+)
+_ISSUE_TYPES = _Catalog(
+    "v3/issuetypes", "issue type", "get_issue_types", ("name", "name_en", "description")
+)
+_PRIORITIES = _Catalog(
+    "v3/priorities",
+    "priority",
+    "get_priorities",
+    ("name", "name_en", "description", "order"),
+)
+
+
+def _catalog_body(name: LocalizedText | None, **fields: Any) -> dict[str, Any]:
+    """The body of a catalogue write: the fields passed, the name in both
+    languages. Always an object - the documentation shows some of these
+    request bodies as a one-element array, taken here for a slip in it."""
+    body = {k: v for k, v in fields.items() if v is not None}
+    if name is not None:
+        body["name"] = name.model_dump()
+    return body
+
+
+def _one_catalog_object(model: type[_CatalogT], raw: bytes) -> _CatalogT:
+    """A catalogue object from the body of a read or a write.
+
+    The documentation shows some of these answers as an object and others
+    (status and issue type create and update) as a one-element array holding
+    it. Not checked against the live API, so both are accepted.
+    """
+    data = json.loads(raw)
+    if isinstance(data, list) and len(data) == 1:
+        data = data[0]
+    return model.model_validate(data)
+
+
 class TrackerClient(
     QueuesProtocol,
     IssueProtocol,
@@ -389,6 +511,7 @@ class TrackerClient(
     EntitiesProtocol,
     BoardsProtocol,
     ComponentsProtocol,
+    WorkflowsProtocol,
 ):
     def __init__(
         self,
@@ -829,6 +952,395 @@ class TrackerClient(
             )
         )
 
+    # Triggers, autoactions, macros and queue administration - see AGENTS.md,
+    # *Triggers, autoactions, macros*.
+
+    async def queue_get_trigger(
+        self, queue_id: str, trigger_id: int, *, auth: YandexAuth | None = None
+    ) -> QueueTrigger:
+        return QueueTrigger.model_validate_json(
+            await self._read(
+                "GET",
+                f"v3/queues/{queue_id}/triggers/{trigger_id}",
+                auth=auth,
+                not_found=TriggerNotFound(queue_id, trigger_id),
+            )
+        )
+
+    async def queue_create_trigger(
+        self,
+        queue_id: str,
+        *,
+        name: str,
+        actions: list[dict[str, Any]],
+        conditions: list[dict[str, Any]] | dict[str, Any] | None = None,
+        active: bool | None = None,
+        auth: YandexAuth | None = None,
+    ) -> QueueTrigger:
+        body: dict[str, Any] = {"name": name, "actions": actions}
+        if conditions is not None:
+            body["conditions"] = conditions
+        if active is not None:
+            body["active"] = active
+        return QueueTrigger.model_validate_json(
+            await self._read(
+                "POST",
+                f"v3/queues/{queue_id}/triggers",
+                auth=auth,
+                json=body,
+                not_found=QueueNotFound(queue_id),
+            )
+        )
+
+    async def queue_update_trigger(
+        self,
+        queue_id: str,
+        trigger_id: int,
+        *,
+        version: int,
+        name: str | None = None,
+        actions: list[dict[str, Any]] | None = None,
+        conditions: list[dict[str, Any]] | dict[str, Any] | None = None,
+        active: bool | None = None,
+        before: int | None = None,
+        auth: YandexAuth | None = None,
+    ) -> QueueTrigger:
+        """Change what is passed; `version` goes as a query parameter, and a
+        stale one answers 409 or 412."""
+        body: dict[str, Any] = {}
+        if name is not None:
+            body["name"] = name
+        if actions is not None:
+            body["actions"] = actions
+        if conditions is not None:
+            body["conditions"] = conditions
+        if active is not None:
+            body["active"] = active
+        if before is not None:
+            body["before"] = before
+        if not body:
+            raise TriggerEmptyUpdate()
+
+        return QueueTrigger.model_validate_json(
+            await self._read(
+                "PATCH",
+                f"v3/queues/{queue_id}/triggers/{trigger_id}",
+                auth=auth,
+                params={"version": version},
+                json=body,
+                not_found=TriggerNotFound(queue_id, trigger_id),
+                conflict=TriggerVersionConflict(queue_id, trigger_id, version),
+            )
+        )
+
+    async def queue_get_trigger_logs(
+        self,
+        queue_id: str,
+        trigger_id: int,
+        *,
+        issue_id: str | None = None,
+        limit: int | None = None,
+        created_from: datetime.datetime | None = None,
+        created_to: datetime.datetime | None = None,
+        auth: YandexAuth | None = None,
+    ) -> list[QueueTriggerLog]:
+        """The runs of a trigger's HTTP request actions, the latest 10 unless
+        `limit` (at most 100) says otherwise."""
+        params: dict[str, Any] = {}
+        if issue_id is not None:
+            params["issueId"] = issue_id
+        if limit is not None:
+            params["limit"] = limit
+        if created_from is not None:
+            params["from"] = _tracker_datetime(created_from)
+        if created_to is not None:
+            params["to"] = _tracker_datetime(created_to)
+        return QueueTriggerLogList.model_validate_json(
+            await self._read(
+                "GET",
+                f"v3/queues/{queue_id}/triggers/{trigger_id}/webhooks/log",
+                auth=auth,
+                params=params,
+                not_found=TriggerNotFound(queue_id, trigger_id),
+            )
+        ).root
+
+    async def queues_get_autoactions(
+        self, queue_id: str, *, auth: YandexAuth | None = None
+    ) -> list[QueueAutoaction]:
+        """Undocumented listing; the live API answers it with an array."""
+        return QueueAutoactionList.model_validate_json(
+            await self._read(
+                "GET",
+                f"v3/queues/{queue_id}/autoactions",
+                auth=auth,
+                not_found=QueueNotFound(queue_id),
+            )
+        ).root
+
+    async def queue_get_autoaction(
+        self, queue_id: str, autoaction_id: int, *, auth: YandexAuth | None = None
+    ) -> QueueAutoaction:
+        return QueueAutoaction.model_validate_json(
+            await self._read(
+                "GET",
+                f"v3/queues/{queue_id}/autoactions/{autoaction_id}",
+                auth=auth,
+                not_found=AutoactionNotFound(queue_id, autoaction_id),
+            )
+        )
+
+    async def queue_create_autoaction(
+        self,
+        queue_id: str,
+        *,
+        name: str,
+        actions: list[dict[str, Any]],
+        filter: dict[str, Any] | list[dict[str, Any]] | None = None,
+        query: str | None = None,
+        active: bool | None = None,
+        enable_notifications: bool | None = None,
+        interval_millis: int | None = None,
+        calendar_id: int | None = None,
+        auth: YandexAuth | None = None,
+    ) -> QueueAutoaction:
+        body: dict[str, Any] = {"name": name, "actions": actions}
+        if filter is not None:
+            body["filter"] = filter
+        if query is not None:
+            body["query"] = query
+        if active is not None:
+            body["active"] = active
+        if enable_notifications is not None:
+            body["enableNotifications"] = enable_notifications
+        if interval_millis is not None:
+            body["intervalMillis"] = interval_millis
+        if calendar_id is not None:
+            body["calendar"] = {"id": calendar_id}
+        return QueueAutoaction.model_validate_json(
+            await self._read(
+                "POST",
+                f"v3/queues/{queue_id}/autoactions",
+                auth=auth,
+                json=body,
+                not_found=QueueNotFound(queue_id),
+            )
+        )
+
+    async def queue_get_autoaction_runs(
+        self, queue_id: str, autoaction_id: int, *, auth: YandexAuth | None = None
+    ) -> list[QueueAutoactionRun]:
+        return QueueAutoactionRunList.model_validate_json(
+            await self._read(
+                "GET",
+                f"v3/queues/{queue_id}/autoactions/{autoaction_id}/logs",
+                auth=auth,
+                not_found=AutoactionNotFound(queue_id, autoaction_id),
+            )
+        ).root
+
+    async def queue_get_autoaction_run(
+        self,
+        queue_id: str,
+        autoaction_id: int,
+        run_id: str,
+        *,
+        auth: YandexAuth | None = None,
+    ) -> list[QueueAutoactionRunIssue]:
+        return QueueAutoactionRunIssueList.model_validate_json(
+            await self._read(
+                "GET",
+                f"v3/queues/{queue_id}/autoactions/{autoaction_id}/logs/{run_id}",
+                auth=auth,
+                not_found=AutoactionNotFound(queue_id, autoaction_id),
+            )
+        ).root
+
+    async def queues_get_macros(
+        self, queue_id: str, *, auth: YandexAuth | None = None
+    ) -> list[QueueMacro]:
+        return QueueMacroList.model_validate_json(
+            await self._read(
+                "GET",
+                f"v3/queues/{queue_id}/macros",
+                auth=auth,
+                not_found=QueueNotFound(queue_id),
+            )
+        ).root
+
+    async def queue_get_macro(
+        self, queue_id: str, macro_id: int, *, auth: YandexAuth | None = None
+    ) -> QueueMacro:
+        return QueueMacro.model_validate_json(
+            await self._read(
+                "GET",
+                f"v3/queues/{queue_id}/macros/{macro_id}",
+                auth=auth,
+                not_found=MacroNotFound(queue_id, macro_id),
+            )
+        )
+
+    async def queue_create_macro(
+        self,
+        queue_id: str,
+        *,
+        name: str,
+        body: str | None = None,
+        issue_update: dict[str, Any] | None = None,
+        auth: YandexAuth | None = None,
+    ) -> QueueMacro:
+        payload: dict[str, Any] = {"name": name}
+        if body is not None:
+            payload["body"] = body
+        if issue_update is not None:
+            payload["issueUpdate"] = issue_update
+        return QueueMacro.model_validate_json(
+            await self._read(
+                "POST",
+                f"v3/queues/{queue_id}/macros",
+                auth=auth,
+                json=payload,
+                not_found=QueueNotFound(queue_id),
+            )
+        )
+
+    async def queue_update_macro(
+        self,
+        queue_id: str,
+        macro_id: int,
+        *,
+        name: str,
+        body: str | None = None,
+        issue_update: dict[str, Any] | None = None,
+        clear_body: bool = False,
+        auth: YandexAuth | None = None,
+    ) -> QueueMacro:
+        """`name` is always sent: the reference lists it as required on `PATCH`
+        too. `{"unset": 1}` is the documented way to clear the body."""
+        if clear_body and body is not None:
+            raise FieldClearConflict("body")
+
+        payload: dict[str, Any] = {"name": name}
+        if clear_body:
+            payload["body"] = {"unset": 1}
+        elif body is not None:
+            payload["body"] = body
+        if issue_update is not None:
+            payload["issueUpdate"] = issue_update
+        return QueueMacro.model_validate_json(
+            await self._read(
+                "PATCH",
+                f"v3/queues/{queue_id}/macros/{macro_id}",
+                auth=auth,
+                json=payload,
+                not_found=MacroNotFound(queue_id, macro_id),
+            )
+        )
+
+    async def queue_delete_macro(
+        self, queue_id: str, macro_id: int, *, auth: YandexAuth | None = None
+    ) -> None:
+        await self._read(
+            "DELETE",
+            f"v3/queues/{queue_id}/macros/{macro_id}",
+            auth=auth,
+            not_found=MacroNotFound(queue_id, macro_id),
+        )
+
+    async def queue_create(
+        self,
+        *,
+        key: str,
+        name: str,
+        lead: str,
+        default_type: str,
+        default_priority: str,
+        issue_types_config: list[QueueIssueTypeConfigInput],
+        auth: YandexAuth | None = None,
+    ) -> Queue:
+        body: dict[str, Any] = {
+            "key": key,
+            "name": name,
+            "lead": lead,
+            "defaultType": default_type,
+            "defaultPriority": default_priority,
+            "issueTypesConfig": _issue_types_config_body(issue_types_config),
+        }
+        return Queue.model_validate_json(
+            await self._read("POST", "v3/queues", auth=auth, json=body)
+        )
+
+    async def queue_delete(
+        self, queue_id: str, *, auth: YandexAuth | None = None
+    ) -> None:
+        """Delete a queue. Right after the queue changes Tracker now and then
+        refuses this with 412 "не удалось сохранить изменения, попробуйте ещё
+        раз" (seen on the live API 2026-10-23, as with sprints) - a request
+        that takes no version, so the 412 is only ever that, and it is sent
+        again after `_QUEUE_DELETE_RETRY_WAITS`."""
+        for wait in (*_QUEUE_DELETE_RETRY_WAITS, None):
+            try:
+                await self._read(
+                    "DELETE",
+                    f"v3/queues/{queue_id}",
+                    auth=auth,
+                    not_found=QueueNotFound(queue_id),
+                )
+                return
+            except TrackerAPIError as e:
+                if e.status != 412 or wait is None:
+                    raise
+            await asyncio.sleep(wait)
+
+    async def queue_restore(
+        self, queue_id: str, *, auth: YandexAuth | None = None
+    ) -> Queue:
+        return Queue.model_validate_json(
+            await self._read(
+                "POST",
+                f"v3/queues/{queue_id}/_restore",
+                auth=auth,
+                not_found=QueueNotFound(queue_id),
+            )
+        )
+
+    async def queue_get_fresh(
+        self,
+        queue_id: str,
+        *,
+        expand: list[QueueExpandOption] | None = None,
+        auth: YandexAuth | None = None,
+    ) -> Queue:
+        """`queue_get`, which the caching layer passes through uncached: a write
+        that sends back the whole `issueTypesConfig` must start from the
+        current one."""
+        return await self.queue_get(queue_id, expand=expand, auth=auth)
+
+    async def queue_update_issue_types_config(
+        self,
+        queue_id: str,
+        *,
+        issue_types_config: list[QueueIssueTypeConfigInput],
+        default_type: str | None = None,
+        auth: YandexAuth | None = None,
+    ) -> Queue:
+        """Replace the queue's whole `issueTypesConfig` through the undocumented
+        `PATCH v3/queues/{key}`; it takes no `version` (a stale one is ignored)."""
+        body: dict[str, Any] = {
+            "issueTypesConfig": _issue_types_config_body(issue_types_config)
+        }
+        if default_type is not None:
+            body["defaultType"] = default_type
+        return Queue.model_validate_json(
+            await self._read(
+                "PATCH",
+                f"v3/queues/{queue_id}",
+                auth=auth,
+                json=body,
+                not_found=QueueNotFound(queue_id),
+            )
+        )
+
     async def get_global_fields(
         self, *, auth: YandexAuth | None = None
     ) -> list[GlobalField]:
@@ -859,6 +1371,200 @@ class TrackerClient(
         return ResolutionList.model_validate_json(
             await self._read("GET", "v3/resolutions", auth=auth)
         ).root
+
+    # The organization's catalogue - statuses, resolutions, issue types and
+    # priorities. A write wants the name as `{"ru": ..., "en": ...}` and an
+    # update its `version` as a query parameter; `_one_catalog_object` says
+    # what comes back. None of them can be deleted through the API.
+
+    async def _catalog_get(
+        self,
+        catalog: "_Catalog",
+        model: type[_CatalogT],
+        object_id: str,
+        *,
+        auth: YandexAuth | None,
+    ) -> _CatalogT:
+        return _one_catalog_object(
+            model,
+            await self._read(
+                "GET",
+                f"{catalog.path}/{quote(object_id, safe='')}",
+                auth=auth,
+                not_found=catalog.not_found(object_id),
+            ),
+        )
+
+    async def _catalog_create(
+        self,
+        catalog: "_Catalog",
+        model: type[_CatalogT],
+        body: dict[str, Any],
+        *,
+        auth: YandexAuth | None,
+    ) -> _CatalogT:
+        return _one_catalog_object(
+            model, await self._read("POST", catalog.path, auth=auth, json=body)
+        )
+
+    async def _catalog_update(
+        self,
+        catalog: "_Catalog",
+        model: type[_CatalogT],
+        object_id: str,
+        version: int,
+        body: dict[str, Any],
+        *,
+        auth: YandexAuth | None,
+    ) -> _CatalogT:
+        if not body:
+            raise CatalogEmptyUpdate(catalog.kind, catalog.update_fields)
+        return _one_catalog_object(
+            model,
+            await self._read(
+                "PATCH",
+                f"{catalog.path}/{quote(object_id, safe='')}",
+                auth=auth,
+                params={"version": version},
+                json=body,
+                not_found=catalog.not_found(object_id),
+                conflict=catalog.conflict(object_id, version),
+            ),
+        )
+
+    async def status_get(
+        self, status_id: str, *, auth: YandexAuth | None = None
+    ) -> Status:
+        return await self._catalog_get(_STATUSES, Status, status_id, auth=auth)
+
+    async def status_create(
+        self,
+        *,
+        key: str,
+        name: LocalizedText,
+        type: StatusType,
+        description: str | None = None,
+        order: int | None = None,
+        auth: YandexAuth | None = None,
+    ) -> Status:
+        body = _catalog_body(
+            name, key=key, type=type, description=description, order=order
+        )
+        return await self._catalog_create(_STATUSES, Status, body, auth=auth)
+
+    async def status_update(
+        self,
+        status_id: str,
+        *,
+        version: int,
+        name: LocalizedText | None = None,
+        description: str | None = None,
+        order: int | None = None,
+        type: StatusType | None = None,
+        auth: YandexAuth | None = None,
+    ) -> Status:
+        body = _catalog_body(name, description=description, order=order, type=type)
+        return await self._catalog_update(
+            _STATUSES, Status, status_id, version, body, auth=auth
+        )
+
+    async def resolution_get(
+        self, resolution_id: str, *, auth: YandexAuth | None = None
+    ) -> Resolution:
+        return await self._catalog_get(
+            _RESOLUTIONS, Resolution, resolution_id, auth=auth
+        )
+
+    async def resolution_create(
+        self,
+        *,
+        key: str,
+        name: LocalizedText,
+        description: str | None = None,
+        order: int | None = None,
+        auth: YandexAuth | None = None,
+    ) -> Resolution:
+        body = _catalog_body(name, key=key, description=description, order=order)
+        return await self._catalog_create(_RESOLUTIONS, Resolution, body, auth=auth)
+
+    async def resolution_update(
+        self,
+        resolution_id: str,
+        *,
+        version: int,
+        name: LocalizedText | None = None,
+        description: str | None = None,
+        order: int | None = None,
+        auth: YandexAuth | None = None,
+    ) -> Resolution:
+        body = _catalog_body(name, description=description, order=order)
+        return await self._catalog_update(
+            _RESOLUTIONS, Resolution, resolution_id, version, body, auth=auth
+        )
+
+    async def issue_type_get(
+        self, issue_type_id: str, *, auth: YandexAuth | None = None
+    ) -> IssueType:
+        return await self._catalog_get(
+            _ISSUE_TYPES, IssueType, issue_type_id, auth=auth
+        )
+
+    async def issue_type_create(
+        self,
+        *,
+        key: str,
+        name: LocalizedText,
+        description: str | None = None,
+        auth: YandexAuth | None = None,
+    ) -> IssueType:
+        body = _catalog_body(name, key=key, description=description)
+        return await self._catalog_create(_ISSUE_TYPES, IssueType, body, auth=auth)
+
+    async def issue_type_update(
+        self,
+        issue_type_id: str,
+        *,
+        version: int,
+        name: LocalizedText | None = None,
+        description: str | None = None,
+        auth: YandexAuth | None = None,
+    ) -> IssueType:
+        body = _catalog_body(name, description=description)
+        return await self._catalog_update(
+            _ISSUE_TYPES, IssueType, issue_type_id, version, body, auth=auth
+        )
+
+    async def priority_get(
+        self, priority_id: str, *, auth: YandexAuth | None = None
+    ) -> Priority:
+        return await self._catalog_get(_PRIORITIES, Priority, priority_id, auth=auth)
+
+    async def priority_create(
+        self,
+        *,
+        key: str,
+        name: LocalizedText,
+        description: str | None = None,
+        order: int | None = None,
+        auth: YandexAuth | None = None,
+    ) -> Priority:
+        body = _catalog_body(name, key=key, description=description, order=order)
+        return await self._catalog_create(_PRIORITIES, Priority, body, auth=auth)
+
+    async def priority_update(
+        self,
+        priority_id: str,
+        *,
+        version: int,
+        name: LocalizedText | None = None,
+        description: str | None = None,
+        order: int | None = None,
+        auth: YandexAuth | None = None,
+    ) -> Priority:
+        body = _catalog_body(name, description=description, order=order)
+        return await self._catalog_update(
+            _PRIORITIES, Priority, priority_id, version, body, auth=auth
+        )
 
     async def get_issue_templates(
         self,
@@ -3739,3 +4445,347 @@ class TrackerClient(
             auth=auth,
             not_found=ComponentNotFound(component_id),
         )
+
+    async def workflows_get_all(
+        self, *, auth: YandexAuth | None = None
+    ) -> list[Workflow]:
+        return WorkflowList.model_validate_json(
+            await self._read("GET", "v3/workflows", auth=auth)
+        ).root
+
+    async def workflow_get(
+        self, workflow_id: str, *, auth: YandexAuth | None = None
+    ) -> Workflow:
+        return await self._workflow_read(workflow_id, auth=auth)
+
+    async def _workflow_read(
+        self, workflow_id: str, *, auth: YandexAuth | None, lang: str | None = None
+    ) -> Workflow:
+        return Workflow.model_validate_json(
+            await self._read(
+                "GET",
+                f"v3/workflows/{quote(workflow_id, safe='')}",
+                auth=auth,
+                not_found=WorkflowNotFound(workflow_id),
+                extra_headers={"Accept-Language": lang} if lang else None,
+            )
+        )
+
+    async def queues_get_workflows(
+        self, queue_id: str, *, auth: YandexAuth | None = None
+    ) -> dict[str, list[IssueTypeReference]]:
+        """Workflow id -> the issue types of the queue that run on it."""
+        return QueueWorkflows.model_validate_json(
+            await self._read(
+                "GET",
+                f"v3/queues/{queue_id}/workflows",
+                auth=auth,
+                not_found=QueueNotFound(queue_id),
+            )
+        ).root
+
+    async def screen_get(
+        self, screen_id: int, *, auth: YandexAuth | None = None
+    ) -> Screen:
+        """A transition screen; undocumented - see AGENTS.md, *Workflows*."""
+        return await self._screen_read(screen_id, auth=auth)
+
+    async def _screen_read(
+        self, screen_id: int, *, auth: YandexAuth | None, lang: str | None = None
+    ) -> Screen:
+        return Screen.model_validate_json(
+            await self._read(
+                "GET",
+                f"v3/screens/{screen_id}",
+                auth=auth,
+                not_found=ScreenNotFound(screen_id),
+                extra_headers={"Accept-Language": lang} if lang else None,
+            )
+        )
+
+    async def workflow_get_draft(
+        self, workflow_id: str, *, auth: YandexAuth | None = None
+    ) -> WorkflowDraft:
+        """The workflow in the shape a write takes, for read-modify-write.
+
+        A read names things in one language and a write wants both, so the
+        workflow is read in Russian and in English, and every screen its
+        transitions use is read too: a write cannot refer to a screen, only
+        restate its fields. Writing the draft back unchanged leaves the
+        workflow as it was (verified on the live API 2026-10-23), except that
+        each screen comes back as a new copy with a new id.
+        """
+        for _ in range(_WORKFLOW_DRAFT_ATTEMPTS):
+            ru, en = await asyncio.gather(
+                self._workflow_read(workflow_id, auth=auth, lang="ru"),
+                self._workflow_read(workflow_id, auth=auth, lang="en"),
+            )
+            # Changed between the two reads: read again rather than mix them.
+            if ru.version == en.version:
+                break
+        else:
+            raise WorkflowVersionConflict(workflow_id, ru.version)
+
+        actions = [ru.initial_action] if ru.initial_action else []
+        for step in ru.steps:
+            actions.extend(step.actions or [])
+            if step.meta_action:
+                actions.append(step.meta_action)
+        screen_ids = sorted(
+            {int(a.screen.id) for a in actions if a.screen and a.screen.id is not None}
+        )
+        screens: dict[int, ScreenDraft | None] = {}
+        for screen_id in screen_ids:
+            screen_ru, screen_en = await asyncio.gather(
+                self._screen_read(screen_id, auth=auth, lang="ru"),
+                self._screen_read(screen_id, auth=auth, lang="en"),
+            )
+            screens[screen_id] = _screen_draft(screen_ru, screen_en)
+
+        en_steps = {s.status.key: s for s in en.steps}
+
+        def in_english(
+            status: str, action: WorkflowAction, meta: bool = False
+        ) -> WorkflowAction | None:
+            step = en_steps.get(status)
+            if step is None:
+                return None
+            if meta:
+                return step.meta_action
+            return next((a for a in step.actions or [] if a.id == action.id), None)
+
+        steps = []
+        for step in ru.steps:
+            key = step.status.key or ""
+            steps.append(
+                WorkflowStepDraft(
+                    status=key,
+                    status_type=step.status_type,
+                    step_coords=step.step_coords,
+                    meta_action=_action_draft(
+                        step.meta_action,
+                        in_english(key, step.meta_action, meta=True),
+                        screens,
+                    )
+                    if step.meta_action
+                    else None,
+                    actions=[
+                        _action_draft(a, in_english(key, a), screens)
+                        for a in step.actions or []
+                    ],
+                )
+            )
+        if ru.initial_action is None:  # pragma: no cover - every workflow has one
+            raise TrackerAPIError(
+                status=200,
+                method="GET",
+                url=f"v3/workflows/{workflow_id}",
+                body="the workflow has no initialAction",
+            )
+        return WorkflowDraft(
+            id=ru.id,
+            version=ru.version,
+            name=ru.name,
+            queue=ru.queue.key if ru.queue else None,
+            initial_action=_action_draft(ru.initial_action, en.initial_action, screens),
+            steps=steps,
+        )
+
+    async def workflow_create(
+        self,
+        *,
+        name: str,
+        initial_action: WorkflowActionDraft,
+        steps: list[WorkflowStepDraft],
+        queue: str | None = None,
+        auth: YandexAuth | None = None,
+    ) -> Workflow:
+        body: dict[str, Any] = {
+            "name": name,
+            "type": "VISUAL",
+            "initialAction": initial_action.model_dump(by_alias=True),
+            "steps": [s.model_dump(by_alias=True) for s in steps],
+        }
+        if queue is not None:
+            body["queue"] = queue
+        return Workflow.model_validate_json(
+            await self._read("POST", "v3/workflows", auth=auth, json=body)
+        )
+
+    async def workflow_update(
+        self,
+        workflow_id: str,
+        *,
+        version: int,
+        name: str | None = None,
+        initial_action: WorkflowActionDraft | None = None,
+        steps: list[WorkflowStepDraft] | None = None,
+        issue_type_resolutions: list[IssueTypeResolutionsDraft] | None = None,
+        auth: YandexAuth | None = None,
+    ) -> Workflow:
+        """`steps` replaces every step and transition of the workflow."""
+        body: dict[str, Any] = {}
+        if name is not None:
+            body["name"] = name
+        if initial_action is not None:
+            body["initialAction"] = initial_action.model_dump(by_alias=True)
+        if steps is not None:
+            body["steps"] = [s.model_dump(by_alias=True) for s in steps]
+        if issue_type_resolutions is not None:
+            body["issueTypeResolutions"] = [
+                r.model_dump(by_alias=True) for r in issue_type_resolutions
+            ]
+        return Workflow.model_validate_json(
+            await self._read(
+                "PATCH",
+                f"v3/workflows/{quote(workflow_id, safe='')}",
+                auth=auth,
+                params={"version": version},
+                json=body,
+                not_found=WorkflowNotFound(workflow_id),
+                conflict=WorkflowVersionConflict(workflow_id, version),
+            )
+        )
+
+    async def workflow_add_action(
+        self,
+        workflow_id: str,
+        status: str,
+        *,
+        version: int,
+        action: WorkflowActionDraft,
+        auth: YandexAuth | None = None,
+    ) -> Workflow:
+        """Add one transition; undocumented (`POST .../steps/{status}/actions`).
+
+        A 404 is passed through with Tracker's own text: it answers an unknown
+        workflow and an unknown status ("Статус не существует") alike.
+        """
+        return Workflow.model_validate_json(
+            await self._read(
+                "POST",
+                f"v3/workflows/{quote(workflow_id, safe='')}/steps/"
+                f"{quote(status, safe='')}/actions",
+                auth=auth,
+                params={"version": version},
+                json=action.model_dump(by_alias=True),
+                conflict=WorkflowVersionConflict(workflow_id, version),
+            )
+        )
+
+    async def workflow_update_action(
+        self,
+        workflow_id: str,
+        status: str,
+        action_id: str,
+        *,
+        version: int,
+        action: WorkflowActionDraft,
+        auth: YandexAuth | None = None,
+    ) -> Workflow:
+        """Replace one transition with `action`. The API replaces it whole -
+        what `action` leaves out is removed - and answers an unknown one with
+        a 404 whose text is passed through ("Переход не существует")."""
+        return Workflow.model_validate_json(
+            await self._read(
+                "PATCH",
+                f"v3/workflows/{quote(workflow_id, safe='')}/steps/"
+                f"{quote(status, safe='')}/actions/{quote(action_id, safe='')}",
+                auth=auth,
+                params={"version": version},
+                json=action.model_dump(by_alias=True),
+                conflict=WorkflowVersionConflict(workflow_id, version),
+            )
+        )
+
+    async def workflow_delete(
+        self, workflow_id: str, *, auth: YandexAuth | None = None
+    ) -> None:
+        await self._read(
+            "DELETE",
+            f"v3/workflows/{quote(workflow_id, safe='')}",
+            auth=auth,
+            not_found=WorkflowNotFound(workflow_id),
+        )
+
+
+_WORKFLOW_DRAFT_ATTEMPTS = 3
+
+# Waits before deleting a queue again after Tracker's passing 412.
+_QUEUE_DELETE_RETRY_WAITS = (2.0, 5.0, 10.0)
+
+
+# Condition types a read names differently from what a write takes (verified on
+# the live API 2026-10-23): the linked-queue condition reads back as
+# `HasLinksConditionProto` and a write of that name answers 400.
+_CONDITION_WRITE_TYPES = {"HasLinksConditionProto": "HasLinksCondition"}
+
+
+def _condition_drafts(
+    conditions: list[dict[str, Any]] | None,
+) -> list[dict[str, Any]] | None:
+    """Read conditions in the shape a write takes, nested ones included."""
+    if conditions is None:
+        return None
+    result = []
+    for condition in _ref_value(conditions):
+        condition = dict(condition)
+        kind = condition.get("type")
+        if kind in _CONDITION_WRITE_TYPES:
+            condition["type"] = _CONDITION_WRITE_TYPES[kind]
+        if isinstance(condition.get("conditions"), list):
+            condition["conditions"] = _condition_drafts(condition["conditions"])
+        result.append(condition)
+    return result
+
+
+def _ref_value(value: Any) -> Any:
+    """A read's reference objects (`{"self": ..., "id": ..., "key": ...}`) as
+    the key or id a write takes, recursively."""
+    if isinstance(value, dict):
+        if "self" in value:
+            return value.get("key") or value.get("id")
+        return {k: _ref_value(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_ref_value(v) for v in value]
+    return value
+
+
+def _localized(ru: str | None, en: str | None) -> LocalizedText | None:
+    if ru is None and en is None:
+        return None
+    return LocalizedText(ru=ru or en or "", en=en or ru or "")
+
+
+def _screen_draft(ru: Screen, en: Screen) -> ScreenDraft | None:
+    # A screen with no fields (there are such, e.g. screen 3) asks for nothing:
+    # writing it back as no screen keeps the transition as it behaves.
+    if not ru.elements:
+        return None
+    return ScreenDraft(
+        title=_localized(ru.title, en.title),
+        elements=[
+            ScreenElementDraft(field=str(e.field.id), required=e.required)
+            for e in ru.elements
+        ],
+    )
+
+
+def _action_draft(
+    ru: WorkflowAction,
+    en: WorkflowAction | None,
+    screens: dict[int, ScreenDraft | None],
+) -> WorkflowActionDraft:
+    return WorkflowActionDraft(
+        id=ru.id,
+        name=_localized(ru.name, en.name if en else None)
+        or LocalizedText(ru=ru.id, en=ru.id),
+        target=(ru.target.key if ru.target else None) or "",
+        description=_localized(ru.description, en.description if en else None),
+        screen=screens[int(ru.screen.id)]
+        if ru.screen and ru.screen.id is not None
+        else None,
+        post_functions=_ref_value(ru.post_functions),
+        conditions=_condition_drafts(ru.conditions),
+        action_coords=ru.action_coords,
+    )

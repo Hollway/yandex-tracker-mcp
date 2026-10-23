@@ -1,10 +1,13 @@
 from unittest.mock import AsyncMock
 
 from mcp import Client
+from mcp.types import TextContent
 
+from mcp_tracker.tracker.custom.errors import QueueNotFound
 from mcp_tracker.tracker.proto.types.components import Component
 from mcp_tracker.tracker.proto.types.fields import GlobalField, LocalField
 from mcp_tracker.tracker.proto.types.queues import Queue, QueueTrigger, QueueVersion
+from mcp_tracker.tracker.proto.types.refs import IssueTypeReference
 from tests.mcp.conftest import get_tool_result_content, page
 
 
@@ -175,6 +178,87 @@ class TestQueueGetComponents:
 
         assert result.is_error
         mock_queues_protocol.queues_get_components.assert_not_called()
+
+
+class TestQueueGetWorkflows:
+    async def test_returns_workflows_by_issue_type(
+        self,
+        client_session: Client,
+        mock_workflows_protocol: AsyncMock,
+    ) -> None:
+        mock_workflows_protocol.queues_get_workflows.return_value = {
+            "quickStartV2PresetWorkflow": [
+                IssueTypeReference.model_construct(
+                    id="2", key="task", display="Задача"
+                ),
+                IssueTypeReference.model_construct(
+                    id="21", key="milestone", display="Веха"
+                ),
+            ],
+            "W9": [
+                IssueTypeReference.model_construct(id="1", key="bug", display="Баг")
+            ],
+        }
+
+        result = await client_session.call_tool(
+            "queue_get_workflows", {"queue_id": "TEST"}
+        )
+
+        assert not result.is_error
+        mock_workflows_protocol.queues_get_workflows.assert_called_once()
+        call_args = mock_workflows_protocol.queues_get_workflows.call_args
+        assert call_args.args[0] == "TEST"
+        assert "auth" in call_args.kwargs
+
+        content = get_tool_result_content(result)
+        assert set(content) == {"quickStartV2PresetWorkflow", "W9"}
+        assert [t["key"] for t in content["quickStartV2PresetWorkflow"]] == [
+            "task",
+            "milestone",
+        ]
+        assert content["W9"][0]["display"] == "Баг"
+
+    async def test_restricted_queue_raises_error(
+        self,
+        client_session_with_limits: Client,
+        mock_workflows_protocol: AsyncMock,
+    ) -> None:
+        result = await client_session_with_limits.call_tool(
+            "queue_get_workflows", {"queue_id": "RESTRICTED"}
+        )
+
+        assert result.is_error
+        mock_workflows_protocol.queues_get_workflows.assert_not_called()
+
+    async def test_allowed_queue_passes(
+        self,
+        client_session_with_limits: Client,
+        mock_workflows_protocol: AsyncMock,
+    ) -> None:
+        mock_workflows_protocol.queues_get_workflows.return_value = {}
+
+        result = await client_session_with_limits.call_tool(
+            "queue_get_workflows", {"queue_id": "ALLOWED"}
+        )
+
+        assert not result.is_error
+        mock_workflows_protocol.queues_get_workflows.assert_called_once()
+
+    async def test_unknown_queue_error_is_passed_through(
+        self,
+        client_session: Client,
+        mock_workflows_protocol: AsyncMock,
+    ) -> None:
+        mock_workflows_protocol.queues_get_workflows.side_effect = QueueNotFound("NOPE")
+
+        result = await client_session.call_tool(
+            "queue_get_workflows", {"queue_id": "NOPE"}
+        )
+
+        assert result.is_error
+        error = result.content[0]
+        assert isinstance(error, TextContent)
+        assert "NOPE" in error.text
 
 
 class TestQueueGetFields:

@@ -13,6 +13,7 @@ Documentation in Russian is available [here](README_ru.md) / Документа�
 - **User Management**: Retrieve user account information, including login details, email addresses, license status, and organizational data
 - **Full Issue Lifecycle**: Create, read, update, and manage issues with support for custom fields, attachments, and workflow transitions
 - **Status Workflow Management**: Execute status transitions, close issues with resolutions, and navigate complex workflows
+- **Workflow Configuration**: Read workflows with their statuses, transitions and transition screens, and change them (writes opt-in via `TRACKER_WORKFLOWS_WRITE_ENABLED`)
 - **Field Management**: Access global fields, queue-specific local fields, statuses, issue types, priorities, and resolutions
 - **Boards and Sprints**: List agile boards and their sprints to find sprint IDs for issue planning
 - **Advanced Query Language**: Full Yandex Tracker Query Language support with complex filtering, sorting, and date functions
@@ -470,10 +471,54 @@ The server exposes the following tools through the MCP protocol:
 | `queue_delete_version` | Delete a version - it cannot be restored | `version_id` |
 | `queue_get_fields` | The fields configured on the queue, local ones included; `schema.required` marks the mandatory ones | `queue_id`, `include_local_fields` |
 | `queue_get_metadata` | Name, description, default type and priority, plus whatever `expand` asks for | `queue_id`, `expand` (`all`, `projects`, `components`, `versions`, `types`, `team`, `workflows`, `fields`, `issueTypesConfig`) |
+| `queue_get_workflows` | The workflows the queue runs, each with the issue types it applies to | `queue_id` |
 
 - Read `queue_get_fields` before `issue_create`, but it is not the whole registry: system fields such as `parent` or `estimation` are settable without appearing there, and `get_global_fields` lists every field the organization has.
 - `queue_get_metadata` with `expand: ["issueTypesConfig"]` is where the resolutions valid for each issue type come from - `issue_close` needs one of them.
 - All of these respect `TRACKER_LIMIT_QUEUES`. `hits` / `pages` from `queues_get_all` are reported only for an explicit single page on a server without the allow-list, since the totals count queues the allow-list then hides.
+
+</details>
+
+<details>
+<summary><strong>Queue Automation</strong></summary>
+
+Triggers react to issue events, autoactions run on a schedule over the issues a filter selects, and macros are applied by hand. Actions and conditions are passed as Tracker's own objects, keyed by `type`.
+
+| Tool | What it does | Key arguments |
+| --- | --- | --- |
+| `queue_get_trigger` | One trigger with conditions, actions and current `version` | `queue_id`, `trigger_id` |
+| `queue_create_trigger` | Create a trigger | `queue_id`, `name`, `actions`, `conditions`, `active` |
+| `queue_update_trigger` | Rename, replace actions or conditions, reorder (`before`), or switch off with `active: false` | `queue_id`, `trigger_id`, `version` (omit to use the current one) |
+| `queue_get_trigger_logs` | Runs of the trigger's HTTP request actions: issue, request sent, status code back | `queue_id`, `trigger_id`, `issue_id`, `limit` (10 by default, at most 100), `created_from`, `created_to` |
+| `queue_get_autoactions` | The queue's autoactions | `queue_id` |
+| `queue_get_autoaction` | One autoaction with filter or query, actions, interval and last launch | `queue_id`, `autoaction_id` |
+| `queue_create_autoaction` | Create an autoaction | `queue_id`, `name`, `actions`, `filter` or `query`, `interval_millis`, `calendar_id` |
+| `queue_get_autoaction_logs` | Launches of an autoaction; with `run_id`, the issues of one launch | `queue_id`, `autoaction_id`, `run_id` |
+| `queue_get_macros` | The queue's macros: the comment each posts and the fields it changes | `queue_id` |
+| `queue_get_macro` | One macro | `queue_id`, `macro_id` |
+| `queue_create_macro` | Create a macro | `queue_id`, `name`, `body`, `issue_update` |
+| `queue_update_macro` | Change a macro; `issue_update` replaces all its field changes, `clear_body` removes the comment | `queue_id`, `macro_id` |
+| `queue_delete_macro` | Delete a macro | `queue_id`, `macro_id` |
+
+- The API has no trigger delete and no autoaction update or delete: `queue_update_trigger` with `active: false` switches a trigger off, an autoaction is changed in the Tracker UI.
+- Webhook credentials and headers are left out of what comes back; in a queue that forbids AI tools access, the log tools leave out the request body and the issue summaries.
+- Reads respect `TRACKER_LIMIT_QUEUES`, writes `TRACKER_READ_ONLY_QUEUES` as well.
+
+</details>
+
+<details>
+<summary><strong>Queue Administration</strong></summary>
+
+| Tool | What it does | Key arguments |
+| --- | --- | --- |
+| `queue_create` | Create a queue with its owner, default type and priority, and issue types | `key`, `name`, `lead`, `default_type`, `default_priority`, `issue_types_config` (`[{issue_type, workflow, resolutions}]`) |
+| `queue_delete` | Delete a queue with its issues | `queue_id` |
+| `queue_restore` | Restore a deleted queue (administrators only) | `queue_id` |
+| `queue_set_issue_type_workflow` | Add an issue type to the queue, or change the workflow it follows | `queue_id`, `issue_type`, `workflow_id`, `resolutions`, `make_default` |
+| `queue_remove_issue_type` | Remove an issue type from the queue | `queue_id`, `issue_type`, `new_default_type` (required for the default type) |
+
+- `queue_set_issue_type_workflow` moves the existing issues of the type to the new workflow; one in a status the new workflow lacks is a case the API was not tried with (the UI asks for a status mapping). Tracker refuses a `resolutions` list missing one the workflow's transitions set.
+- `queue_create` under `TRACKER_LIMIT_QUEUES` takes only a key on the allow-list.
 
 </details>
 
@@ -565,6 +610,40 @@ Queue-local fields are not here - `queue_get_fields` returns them together with 
 | `get_resolutions` | Every resolution, for the `resolution_id` of `issue_close` | - |
 
 These four are organization-wide. A queue may accept only some of the values they list, and Tracker answers 422 for one it does not accept - `queue_get_metadata` with `expand: ["issueTypesConfig"]` says which resolutions each issue type takes.
+
+</details>
+
+<details>
+<summary><strong>Workflows</strong></summary>
+
+A workflow ('рабочий процесс') is the set of statuses an issue type moves through and the transitions between them; a transition may open a screen ('экран перехода') that asks for fields.
+
+| Tool | What it does | Key arguments |
+| --- | --- | --- |
+| `workflows_get_all` | Every workflow as a compact row: id, name, queue, `version` and the number of statuses | - |
+| `workflow_get` | One workflow in full: its statuses with their outgoing transitions, screens, conditions and post-functions | `workflow_id` (from `workflows_get_all` or `queue_get_workflows`) |
+| `screen_get` | A transition screen with its fields and which of them are required | `screen_id` (a transition's `screen.id` from `workflow_get`) |
+| `workflow_create` | Create a workflow from statuses and transitions, optionally bound to a queue | `name`, `steps`, `initial_status`, `queue` |
+| `workflow_delete` | Delete a workflow | `workflow_id` |
+| `workflow_add_action` | Add a transition out of a status, optionally with a screen and conditions on who may run it | `workflow_id`, `status`, `name`, `target` (status keys), `screen_fields`, `post_functions`, `conditions` |
+| `workflow_update_action` | Change a transition; what you omit keeps its value, `remove_screen` drops the screen | `workflow_id`, `status`, `action_id`, `name`, `target`, `screen_fields`, `remove_screen`, `post_functions`, `conditions` |
+| `workflow_delete_action` | Remove a transition | `workflow_id`, `status`, `action_id` |
+| `workflow_add_status` | Add a status with at least one transition into it from a status already reachable | `workflow_id`, `status`, `incoming`, `actions` |
+| `workflow_delete_status` | Remove a status and every transition into it; the initial status cannot be removed | `workflow_id`, `status` |
+| `workflow_update_status` | Change a status's type or the functions Tracker runs whenever an issue enters it | `workflow_id`, `status`, `status_type`, `on_enter_functions`, `remove_on_enter` |
+| `workflow_update` | Rename a workflow, change the status new issues start in, or set the resolutions each issue type may be closed with | `workflow_id`, `name`, `initial_status`, `issue_type_resolutions` |
+| `status_create` | Create an issue status for workflows to use; `type` is `new`, `inProgress`, `paused`, `done` or `cancelled` | `key`, `name`, `type` |
+| `status_update` | Change a status's name, description, order or type | `status_id` (key or id from `get_statuses`) |
+| `resolution_create` | Create a resolution | `key`, `name` |
+| `resolution_update` | Change a resolution's name, description or order | `resolution_id` (key or id from `get_resolutions`) |
+| `issue_type_create` | Create an issue type | `key`, `name` |
+| `issue_type_update` | Change an issue type's name or description | `issue_type_id` (key or id from `get_issue_types`) |
+| `priority_create` | Create a priority; its icon cannot be set through the API | `key`, `name`, `order` |
+| `priority_update` | Change a priority's name, description or order | `priority_id` (key or id from `get_priorities`) |
+
+- **The write tools are opt-in**: registered only with `TRACKER_WORKFLOWS_WRITE_ENABLED=true` on a writable server. A workflow is often shared by many queues - a preset one by every queue that runs it - and a change applies to all of them at once. So does a change to a status, resolution, issue type or priority, which belong to the whole organization and cannot be deleted through the API. Names and descriptions are written in Russian, with `*_en` arguments for the English text (the Russian one by default); `version` is optional, the current one is read when it is left out.
+- **Screens are re-created on every write.** Tracker cannot point a transition at an existing screen, so a write sends the screen's fields and gets a new screen with a new id, deleting the old one. `workflow_delete_action`, `workflow_add_status`, `workflow_delete_status` and `workflow_update_status` rewrite the whole workflow, so they re-create every screen in it and report any other transition or status that came back different.
+- Workflows are checked through the queue they are bound to: one bound to a queue outside `TRACKER_LIMIT_QUEUES` is reported as not found and left out of `workflows_get_all`, one bound to a queue in `TRACKER_READ_ONLY_QUEUES` cannot be changed, and a shared workflow (bound to no queue) can be read but not changed while either restriction is set. Nor can a status, resolution, issue type or priority be updated then; creating one is allowed.
 
 </details>
 
@@ -1046,6 +1125,7 @@ TRACKER_ENTITIES_ENABLED=true             # Default: false - Register project/po
 TRACKER_AI_ACCESS_IGNORED_QUEUES=SAP      # Queues whose 'AI tools access' setting is ignored (by default a queue that forbids AI tools gets only issue keys)
 TRACKER_FILE_UPLOAD_ENABLED=true          # Default: false - Register issue_add_attachment and attachment_create, which upload local files (stdio only: refused with a network transport or OAUTH_ENABLED)
 TRACKER_BULK_ENABLED=true                 # Default: false - Register the bulk-change tools (up to 10 000 issues at once, irreversible)
+TRACKER_WORKFLOWS_WRITE_ENABLED=true      # Default: false - Register the workflow write tools (a change applies to every queue sharing the workflow; screens get new ids on each write)
 TRACKER_ATTACHMENT_DOWNLOAD_ENABLED=true  # Default: false - Register issue_download_attachment, which saves attachments to this machine (stdio only, like the flag above)
 TRACKER_ATTACHMENTS_DIR=/path/to/dir      # Default: <system temp>/yandex-tracker-mcp/attachments - Where downloaded attachments are saved
 TRACKER_MAX_ATTACHMENT_BYTES=52428800     # Default: 52428800 (50 MiB) - Larger attachments are not downloaded

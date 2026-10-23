@@ -23,6 +23,7 @@ from mcp_tracker.tracker.proto.queues import QueuesProtocol
 from mcp_tracker.tracker.proto.templates import TemplatesProtocol
 from mcp_tracker.tracker.proto.types.pagination import PaginatedResult
 from mcp_tracker.tracker.proto.users import UsersProtocol
+from mcp_tracker.tracker.proto.workflows import WorkflowsProtocol
 
 
 @asynccontextmanager
@@ -105,11 +106,13 @@ def create_test_settings(
     file_upload_enabled: bool = True,
     attachment_download_enabled: bool = True,
     bulk_enabled: bool = True,
+    workflows_write_enabled: bool = True,
     attachments_dir: str | None = None,
 ) -> Settings:
     """Create Settings for testing with minimal required configuration.
 
-    The opt-in groups (entity tools, file upload, attachment download, bulk) default
+    The opt-in groups (entity tools, file upload, attachment download, bulk,
+    workflow writes) default
     to on, so the default server exposes the whole tool surface the docs have
     to cover.
 
@@ -128,6 +131,7 @@ def create_test_settings(
         tracker_file_upload_enabled=file_upload_enabled,
         tracker_attachment_download_enabled=attachment_download_enabled,
         tracker_bulk_enabled=bulk_enabled,
+        tracker_workflows_write_enabled=workflows_write_enabled,
         tracker_attachments_dir=attachments_dir,
         tracker_max_attachment_bytes=50 * 1024 * 1024,
         tools_cache_enabled=False,
@@ -204,6 +208,12 @@ def mock_components_protocol() -> AsyncMock:
 
 
 @pytest.fixture
+def mock_workflows_protocol() -> AsyncMock:
+    """Create a mock WorkflowsProtocol."""
+    return AsyncMock(spec=WorkflowsProtocol)
+
+
+@pytest.fixture
 def mock_app_context(
     mock_queues_protocol: AsyncMock,
     mock_issues_protocol: AsyncMock,
@@ -213,6 +223,7 @@ def mock_app_context(
     mock_entities_protocol: AsyncMock,
     mock_boards_protocol: AsyncMock,
     mock_components_protocol: AsyncMock,
+    mock_workflows_protocol: AsyncMock,
 ) -> AppContext:
     """Create AppContext with mock protocols."""
     return AppContext(
@@ -224,6 +235,7 @@ def mock_app_context(
         entities=mock_entities_protocol,
         boards=mock_boards_protocol,
         components=mock_components_protocol,
+        workflows=mock_workflows_protocol,
     )
 
 
