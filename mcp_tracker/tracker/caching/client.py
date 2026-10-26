@@ -945,10 +945,16 @@ def make_cached_protocols(
             file_name: str,
             destination: Path,
             *,
+            thumbnail: bool = False,
             auth: YandexAuth | None = None,
         ) -> int:
             return await self._original.issue_download_attachment(
-                issue_id, attachment_id, file_name, destination, auth=auth
+                issue_id,
+                attachment_id,
+                file_name,
+                destination,
+                thumbnail=thumbnail,
+                auth=auth,
             )
 
         @cached(**cache_config)
@@ -1013,6 +1019,11 @@ def make_cached_protocols(
                 checklist_item_id,
                 auth=auth,
             )
+
+        async def issue_delete_checklist(
+            self, issue_id: str, *, auth: YandexAuth | None = None
+        ) -> None:
+            await self._original.issue_delete_checklist(issue_id, auth=auth)
 
         async def issue_create(
             self,

@@ -1,5 +1,6 @@
 """Issue read-only MCP tools."""
 
+from pathlib import Path
 from typing import Annotated
 
 from mcp.server.mcpserver import Context, MCPServer
@@ -447,6 +448,13 @@ def register_issue_attachment_download_tools(
             str,
             Field(description="Attachment `id` from issue_get_attachments."),
         ],
+        thumbnail: Annotated[
+            bool,
+            Field(
+                description="Save Tracker's 140x140 PNG preview instead of the file; "
+                "images only."
+            ),
+        ] = False,
     ) -> DownloadedIssueAttachment:
         check_issue_access(settings, issue_id)
         await check_ai_access(ctx, settings, issue_id)
@@ -459,6 +467,36 @@ def register_issue_attachment_download_tools(
         attachment = await issues.issue_get_attachment(
             issue_id, attachment_id, auth=auth
         )
+
+        if thumbnail:
+            # A preview is small and never changes, so one already on disk is
+            # taken as it is.
+            destination = (
+                settings.attachments_dir
+                / safe_file_name(issue_id)
+                / safe_file_name(
+                    f"{attachment.id}-thumbnail-{Path(attachment.name).stem}.png"
+                )
+            )
+            if destination.is_file():
+                size = destination.stat().st_size
+            else:
+                size = await issues.issue_download_attachment(
+                    issue_id,
+                    attachment.id,
+                    attachment.name,
+                    destination,
+                    thumbnail=True,
+                    auth=auth,
+                )
+            return DownloadedIssueAttachment(
+                issue_id=issue_id,
+                attachment_id=attachment.id,
+                name=attachment.name,
+                path=str(destination),
+                mime_type="image/png",
+                size=size,
+            )
 
         limit = settings.tracker_max_attachment_bytes
         if attachment.size is not None and attachment.size > limit:

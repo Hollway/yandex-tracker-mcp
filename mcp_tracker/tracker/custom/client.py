@@ -26,6 +26,7 @@ from yarl import URL
 from mcp_tracker.tracker.custom.errors import (
     AbsencesForbidden,
     AttachmentNotFound,
+    AttachmentThumbnailNotFound,
     AttachmentTooLarge,
     AutoactionNotFound,
     BoardNotFound,
@@ -2608,9 +2609,14 @@ class TrackerClient(
         file_name: str,
         destination: Path,
         *,
+        thumbnail: bool = False,
         auth: YandexAuth | None = None,
     ) -> int:
         """Stream an attachment into `destination`; returns the bytes written.
+
+        With `thumbnail` it is Tracker's preview instead,
+        `GET v3/issues/{id}/thumbnails/{attachmentId}` - a 140x140 PNG whatever
+        the image's own format, and a 404 for anything but an image.
 
         The URL needs the attachment's name as its last segment; it and the id
         are quoted whole: a name is free text, and a `/` or `..` left in either
@@ -2622,12 +2628,24 @@ class TrackerClient(
         actually received are held to `max_attachment_bytes`.
         """
         limit = self._max_attachment_bytes
+        attachment = quote(attachment_id, safe="")
+        url, not_found = (
+            (
+                f"v3/issues/{issue_id}/thumbnails/{attachment}",
+                AttachmentThumbnailNotFound(issue_id, attachment_id),
+            )
+            if thumbnail
+            else (
+                f"v3/issues/{issue_id}/attachments/{attachment}/"
+                f"{quote(file_name, safe='')}",
+                AttachmentNotFound(issue_id, attachment_id),
+            )
+        )
         async with self._request(
             "GET",
-            f"v3/issues/{issue_id}/attachments/{quote(attachment_id, safe='')}/"
-            f"{quote(file_name, safe='')}",
+            url,
             auth=auth,
-            not_found=AttachmentNotFound(issue_id, attachment_id),
+            not_found=not_found,
             timeout=self._attachment_timeout,
             timeout_setting="TRACKER_ATTACHMENT_TIMEOUT",
         ) as response:
@@ -2931,6 +2949,21 @@ class TrackerClient(
             return _IssueChecklist.model_validate_json(
                 await response.read()
             ).checklistItems
+
+    async def issue_delete_checklist(
+        self, issue_id: str, *, auth: YandexAuth | None = None
+    ) -> None:
+        """Delete every item of the checklist, `DELETE v3/issues/{id}/checklistItems`.
+
+        Answers 200 with the whole issue, an empty checklist included, and bumps
+        the issue's version either way (verified 2026-10-26).
+        """
+        await self._read(
+            "DELETE",
+            f"v3/issues/{issue_id}/checklistItems",
+            auth=auth,
+            not_found=IssueNotFound(issue_id),
+        )
 
     async def issues_count(self, query: str, *, auth: YandexAuth | None = None) -> int:
         body: dict[str, Any] = {

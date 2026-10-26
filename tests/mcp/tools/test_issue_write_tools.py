@@ -1551,6 +1551,59 @@ class TestIssueDeleteChecklistItem:
         mock_issues_protocol.issue_delete_checklist_item.assert_not_called()
 
 
+class TestIssueDeleteChecklist:
+    async def test_deletes_checklist(
+        self,
+        client_session: Client,
+        mock_issues_protocol: AsyncMock,
+    ) -> None:
+        mock_issues_protocol.issue_delete_checklist.return_value = None
+
+        result = await client_session.call_tool(
+            "issue_delete_checklist", {"issue_id": "TEST-123"}
+        )
+
+        assert not result.is_error
+        call_args = mock_issues_protocol.issue_delete_checklist.call_args
+        assert call_args.args == ("TEST-123",)
+
+    async def test_restricted_queue_raises_error(
+        self,
+        client_session_with_limits: Client,
+        mock_issues_protocol: AsyncMock,
+    ) -> None:
+        result = await client_session_with_limits.call_tool(
+            "issue_delete_checklist", {"issue_id": "RESTRICTED-123"}
+        )
+
+        assert result.is_error
+        mock_issues_protocol.issue_delete_checklist.assert_not_called()
+
+    async def test_read_only_queue_raises_error(
+        self,
+        client_session_with_read_only_queues: Client,
+        mock_issues_protocol: AsyncMock,
+    ) -> None:
+        result = await client_session_with_read_only_queues.call_tool(
+            "issue_delete_checklist", {"issue_id": "READONLY-1"}
+        )
+
+        assert result.is_error
+        mock_issues_protocol.issue_delete_checklist.assert_not_called()
+
+    async def test_read_only_mode_tool_not_registered(
+        self,
+        client_session_read_only: Client,
+        mock_issues_protocol: AsyncMock,
+    ) -> None:
+        result = await client_session_read_only.call_tool(
+            "issue_delete_checklist", {"issue_id": "TEST-123"}
+        )
+
+        assert result.is_error
+        mock_issues_protocol.issue_delete_checklist.assert_not_called()
+
+
 def _refuse_to_read(self: Path) -> bytes:
     raise AssertionError(f"{self} was read, but the call should fail before that")
 

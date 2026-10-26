@@ -696,6 +696,10 @@
       "description": "Delete a single item from the checklist of a Yandex Tracker issue"
     },
     {
+      "name": "issue_delete_checklist",
+      "description": "Delete the whole checklist of a Yandex Tracker issue"
+    },
+    {
       "name": "issue_get_checklist",
       "description": "Get checklist items of a Yandex Tracker issue by its id"
     },

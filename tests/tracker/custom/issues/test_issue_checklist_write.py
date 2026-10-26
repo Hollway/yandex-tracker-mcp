@@ -424,3 +424,26 @@ class TestIssueDeleteChecklistItem:
                 await tracker_client.issue_delete_checklist_item("TEST-123", "item-1")
 
         assert exc_info.value.checklist_item_id == "item-1"
+
+
+class TestIssueDeleteChecklist:
+    async def test_deletes_the_whole_checklist(
+        self, tracker_client: TrackerClient
+    ) -> None:
+        capture = RequestCapture(payload={"key": "TEST-123", "checklistTotal": 2})
+
+        with aioresponses() as m:
+            m.delete(CHECKLIST_ITEMS_URL, callback=capture.callback)
+
+            await tracker_client.issue_delete_checklist("TEST-123")
+
+        capture.assert_request_count(1)
+
+    async def test_unknown_issue_raises_issue_not_found(
+        self, tracker_client: TrackerClient
+    ) -> None:
+        with aioresponses() as m:
+            m.delete(CHECKLIST_ITEMS_URL, status=404)
+
+            with pytest.raises(IssueNotFound):
+                await tracker_client.issue_delete_checklist("TEST-123")

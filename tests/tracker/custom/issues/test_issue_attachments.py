@@ -9,6 +9,7 @@ from pytest_mock import MockerFixture
 from mcp_tracker.tracker.custom.client import TrackerClient
 from mcp_tracker.tracker.custom.errors import (
     AttachmentNotFound,
+    AttachmentThumbnailNotFound,
     AttachmentTooLarge,
     IssueNotFound,
     TrackerAPITimeout,
@@ -18,6 +19,7 @@ from tests.aioresponses_utils import RequestCapture
 
 UPLOAD_URL = "https://api.tracker.yandex.net/v3/issues/TEST-123/attachments/"
 DOWNLOAD_URL = "https://api.tracker.yandex.net/v3/issues/TEST-123/attachments/7946"
+THUMBNAIL_URL = "https://api.tracker.yandex.net/v3/issues/TEST-123/thumbnails/7946"
 
 # Not valid UTF-8, with the bytes a text-mode round trip would mangle.
 FILE_CONTENT = b"\x89PNG\r\n\x1a\n\x00\xff binary\nbody"
@@ -315,6 +317,34 @@ class TestAttachmentCreate:
 
 
 class TestIssueDownloadAttachment:
+    async def test_a_thumbnail_comes_from_the_thumbnails_path(
+        self, tracker_client: TrackerClient, tmp_path: Path
+    ) -> None:
+        destination = tmp_path / "7946-thumbnail-image.png"
+
+        with aioresponses() as m:
+            m.get(THUMBNAIL_URL, body=FILE_CONTENT)
+
+            written = await tracker_client.issue_download_attachment(
+                "TEST-123", "7946", "image.jpg", destination, thumbnail=True
+            )
+
+        assert written == len(FILE_CONTENT)
+        assert destination.read_bytes() == FILE_CONTENT
+
+    async def test_no_thumbnail_raises_thumbnail_not_found(
+        self, tracker_client: TrackerClient, tmp_path: Path
+    ) -> None:
+        with aioresponses() as m:
+            m.get(THUMBNAIL_URL, status=404)
+
+            with pytest.raises(AttachmentThumbnailNotFound):
+                await tracker_client.issue_download_attachment(
+                    "TEST-123", "7946", "notes.txt", tmp_path / "t.png", thumbnail=True
+                )
+
+        assert list(tmp_path.iterdir()) == []
+
     async def test_streams_the_body_into_the_destination(
         self, tracker_client: TrackerClient, tmp_path: Path
     ) -> None:

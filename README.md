@@ -733,7 +733,7 @@ A workflow ('рабочий процесс') is the set of statuses an issue typ
 | `issue_update_worklog` | Edit a worklog entry | `issue_id`, `worklog_id`, `duration`, `comment`, `start` |
 | `issue_delete_worklog` | Delete a worklog entry | `issue_id`, `worklog_id` |
 | `issue_get_attachments` | Attachment metadata | `issue_id`, `fields` |
-| `issue_download_attachment` | Save an attachment to the machine the server runs on, returning its absolute path, MIME type and size | `issue_id`, `attachment_id` from `issue_get_attachments` |
+| `issue_download_attachment` | Save an attachment to the machine the server runs on, returning its absolute path, MIME type and size; with `thumbnail`, Tracker's 140x140 PNG preview of an image instead | `issue_id`, `attachment_id` from `issue_get_attachments`, `thumbnail` |
 | `issue_add_attachment` | Upload a file from the machine the server runs on, returning the attachment; an image shows inline in a description only when embedded as `![name](/ajax/v2/attachments/<id>?inline=true)` | `issue_id`, `file_path`, `filename` |
 | `issue_delete_attachment` | Delete a file attached to an issue - it cannot be restored | `issue_id`, `attachment_id` |
 | `attachment_create` | Upload a file from the machine the server runs on as a temporary attachment, returning the `id` that `attachment_ids` of `issue_add_comment` takes | `file_path`, `filename` |
@@ -741,6 +741,7 @@ A workflow ('рабочий процесс') is the set of statuses an issue typ
 | `issue_add_checklist_items` | Append items in order, creating the checklist if there is none | `issue_id`, `items` (`text`, `checked`, `assignee`, `deadline`) |
 | `issue_update_checklist_item` | Change one item; the fields you omit keep their value | `issue_id`, `checklist_item_id`, `text`, `checked`, `assignee`, `deadline`, `clear_assignee`, `clear_deadline` |
 | `issue_delete_checklist_item` | Delete one item | `issue_id`, `checklist_item_id` |
+| `issue_delete_checklist` | Delete the whole checklist | `issue_id` |
 | `issue_get_transitions` | The status transitions available right now, with their ids | `issue_id` |
 | `issue_execute_transition` | Run a transition, returning the transitions available afterwards | `issue_id`, `transition_id`, `comment`, `fields` |
 | `issue_close` | Find a transition to a done status and run it with a resolution | `issue_id`, `resolution_id`, `comment`, `fields` |

@@ -385,6 +385,23 @@ class AttachmentNotFound(YandexTrackerError):
         self.attachment_id = attachment_id
 
 
+class AttachmentThumbnailNotFound(YandexTrackerError):
+    """Raised for a 404 from `v3/issues/{id}/thumbnails/{attachmentId}`.
+
+    The download tool reads the attachment first, so by then the attachment
+    exists and the 404 means Tracker made no thumbnail - it makes them for images
+    only ("Миниатюра не существует.", verified 2026-10-26).
+    """
+
+    def __init__(self, issue_id: str, attachment_id: str):
+        super().__init__(
+            f"Attachment '{attachment_id}' of issue '{issue_id}' has no thumbnail: "
+            f"Yandex Tracker makes them for images only. Download the file itself."
+        )
+        self.issue_id = issue_id
+        self.attachment_id = attachment_id
+
+
 class AttachmentTooLarge(YandexTrackerError):
     """Raised for a download over `TRACKER_MAX_ATTACHMENT_BYTES`."""
 
