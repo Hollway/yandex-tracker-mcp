@@ -30,6 +30,12 @@ READ_ONLY_TOOL_NAMES = [
     "queue_get_macro",
     # Component tools (1)
     "component_get",
+    "component_get_user_permissions",
+    "component_get_group_permissions",
+    "queue_get_permissions",
+    "queue_get_user_permissions",
+    "queue_get_group_permissions",
+    "groups_get_all",
     # Field tools (10)
     "get_global_fields",
     "field_get",
@@ -113,6 +119,7 @@ WRITE_TOOL_NAMES = [
     "queue_create",
     "queue_delete",
     "queue_restore",
+    "queue_update_permissions",
     "queue_set_issue_type_workflow",
     "queue_remove_issue_type",
     "component_create",

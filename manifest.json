@@ -172,6 +172,22 @@
       "description": "Remove an issue type from a queue"
     },
     {
+      "name": "queue_get_permissions",
+      "description": "Get who may create, read and change issues of a queue, change its settings or is denied access"
+    },
+    {
+      "name": "queue_get_user_permissions",
+      "description": "Get the permissions one user has in a queue and what they come through"
+    },
+    {
+      "name": "queue_get_group_permissions",
+      "description": "Get the permissions one user group has in a queue and what they come through"
+    },
+    {
+      "name": "queue_update_permissions",
+      "description": "Grant or revoke queue permissions for users, groups and roles, confirmed by the user where the client can ask"
+    },
+    {
       "name": "component_get",
       "description": "Get one queue component by its numeric id"
     },
@@ -186,6 +202,14 @@
     {
       "name": "component_delete",
       "description": "Permanently delete a component"
+    },
+    {
+      "name": "component_get_user_permissions",
+      "description": "Get the permissions one user has on a queue component"
+    },
+    {
+      "name": "component_get_group_permissions",
+      "description": "Get the permissions one user group has on a queue component"
     },
     {
       "name": "project_get",
@@ -362,6 +386,10 @@
     {
       "name": "users_get_absences",
       "description": "Vacations, sick leave and other absences of users over a period (needs organization admin rights)"
+    },
+    {
+      "name": "groups_get_all",
+      "description": "List the organization's user groups with their numeric ids"
     },
     {
       "name": "get_global_fields",

@@ -15,6 +15,8 @@ from mcp_tracker.mcp.params import (
     LocalFieldKey,
     MacroIDParam,
     PageOrAllParam,
+    PermissionGroupParam,
+    PermissionUserParam,
     PerPageParam,
     QueueID,
     TriggerIDParam,
@@ -27,6 +29,10 @@ from mcp_tracker.settings import Settings
 from mcp_tracker.tracker.proto.types.components import Component
 from mcp_tracker.tracker.proto.types.fields import GlobalField, LocalField
 from mcp_tracker.tracker.proto.types.pagination import PaginatedResult
+from mcp_tracker.tracker.proto.types.permissions import (
+    QueuePermissions,
+    SubjectPermissions,
+)
 from mcp_tracker.tracker.proto.types.queue_automation import (
     QueueAutoaction,
     QueueAutoactionRun,
@@ -113,6 +119,57 @@ def register_queue_tools(settings: Settings, mcp: MCPServer[AppContext]) -> None
         check_queue_access(settings, queue_id)
         return await ctx.request_context.lifespan_context.queues.queue_get_local_field(
             queue_id, field_key, auth=get_yandex_auth(ctx)
+        )
+
+    @mcp.tool(
+        title="Get Queue Permissions",
+        description="Get who may create, read and change issues of a Yandex Tracker "
+        "queue, who may change its settings and who is denied access ('права "
+        "доступа к очереди'): users, groups and roles for each.",
+        annotations=ToolAnnotations(read_only_hint=True),
+    )
+    async def queue_get_permissions(
+        ctx: Context[AppContext],
+        queue_id: QueueID,
+    ) -> QueuePermissions:
+        check_queue_access(settings, queue_id)
+        return await ctx.request_context.lifespan_context.queues.queue_get_permissions(
+            queue_id, auth=get_yandex_auth(ctx)
+        )
+
+    @mcp.tool(
+        title="Get Queue User Permissions",
+        description="Get the permissions one user has in a Yandex Tracker queue "
+        "('права пользователя в очереди'), each with the group, role or direct "
+        "grant it comes through.",
+        annotations=ToolAnnotations(read_only_hint=True),
+    )
+    async def queue_get_user_permissions(
+        ctx: Context[AppContext],
+        queue_id: QueueID,
+        user: PermissionUserParam,
+    ) -> SubjectPermissions:
+        check_queue_access(settings, queue_id)
+        queues = ctx.request_context.lifespan_context.queues
+        return await queues.queue_get_user_permissions(
+            queue_id, user, auth=get_yandex_auth(ctx)
+        )
+
+    @mcp.tool(
+        title="Get Queue Group Permissions",
+        description="Get the permissions one user group has in a Yandex Tracker "
+        "queue ('права группы в очереди'), each with the grant it comes through.",
+        annotations=ToolAnnotations(read_only_hint=True),
+    )
+    async def queue_get_group_permissions(
+        ctx: Context[AppContext],
+        queue_id: QueueID,
+        group_id: PermissionGroupParam,
+    ) -> SubjectPermissions:
+        check_queue_access(settings, queue_id)
+        queues = ctx.request_context.lifespan_context.queues
+        return await queues.queue_get_group_permissions(
+            queue_id, group_id, auth=get_yandex_auth(ctx)
         )
 
     @mcp.tool(

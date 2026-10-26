@@ -521,7 +521,12 @@ Triggers react to issue events, autoactions run on a schedule over the issues a 
 | `queue_restore` | Restore a deleted queue (administrators only) | `queue_id` |
 | `queue_set_issue_type_workflow` | Add an issue type to the queue, or change the workflow it follows | `queue_id`, `issue_type`, `workflow_id`, `resolutions`, `make_default` |
 | `queue_remove_issue_type` | Remove an issue type from the queue | `queue_id`, `issue_type`, `new_default_type` (required for the default type) |
+| `queue_get_permissions` | Who may create, read and change issues, who may change the queue's settings and who is denied: users, groups and roles for each | `queue_id` |
+| `queue_get_user_permissions` | The permissions one user has in the queue, each with the group, role or grant it comes through | `queue_id`, `user` (login or uid) |
+| `queue_get_group_permissions` | The same for a user group | `queue_id`, `group_id` (from `groups_get_all`) |
+| `queue_update_permissions` | Grant or revoke permissions: per permission, `add` / `remove` users, groups and roles, or `set` the whole list | `queue_id`, `create`, `read`, `write`, `grant`, `deny` |
 
+- `queue_update_permissions` can lock people out of a queue, so the user confirms the change where the client supports elicitation; a client that cannot be asked goes ahead. Roles are `author`, `assignee`, `follower`, `access` (anyone the issue was shared with) and `queue-lead`; an unknown user or group is refused by Tracker.
 - `queue_set_issue_type_workflow` moves the existing issues of the type to the new workflow; one in a status the new workflow lacks is a case the API was not tried with (the UI asks for a status mapping). Tracker refuses a `resolutions` list missing one the workflow's transitions set.
 - `queue_create` under `TRACKER_LIMIT_QUEUES` takes only a key on the allow-list.
 
@@ -538,6 +543,8 @@ A component is a label grouping a queue's issues by product, process or owner. I
 | `component_create` | Create a component in a queue | `queue_id`, `name`, `description`, `lead` (a login or uid), `assign_auto` |
 | `component_update` | Change name, description, lead or auto-assign flag; omitted fields keep their value, `clear_lead` removes the lead | `component_id`, `name`, `description`, `lead`, `assign_auto`, `clear_lead`, `version` |
 | `component_delete` | Delete a component | `component_id` |
+| `component_get_user_permissions` | The permissions one user has on a component | `component_id`, `user` |
+| `component_get_group_permissions` | The permissions one user group has on a component | `component_id`, `group_id` |
 
 - `TRACKER_LIMIT_QUEUES` and `TRACKER_READ_ONLY_QUEUES` apply through the component's queue: `component_update` and `component_delete` read the component first to learn it, and a component in a queue outside `TRACKER_LIMIT_QUEUES` is reported as not found.
 
@@ -587,6 +594,7 @@ tool does, the columns which name to call:
 | `user_get_current` | The user the current token belongs to | - |
 | `users_search` | Find users by login, email or real name | `login_or_email_or_name` |
 | `users_get_absences` | Vacations, sick leave, trips and other absences overlapping a period; needs organization administrator rights | `users` (up to 100), `date_from`, `date_to` |
+| `groups_get_all` | The organization's user groups with the numeric ids queue permissions take; returns `{values, hits, pages}` | `page`, `per_page` |
 
 - `users_search` matches login and email exactly first and falls back to fuzzy name matching (80% similarity, at most the three best matches).
 - The page from `users_get_all` is the last one when `page` equals `pages`.

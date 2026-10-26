@@ -3,9 +3,16 @@
 import datetime
 from typing import Annotated, Any
 
-from mcp.server.mcpserver import Context, MCPServer
+from mcp.server.mcpserver import (
+    AcceptedElicitation,
+    Context,
+    Elicit,
+    ElicitationResult,
+    MCPServer,
+    Resolve,
+)
 from mcp.types import ToolAnnotations
-from pydantic import Field
+from pydantic import BaseModel, Field
 
 from mcp_tracker.mcp.context import AppContext
 from mcp_tracker.mcp.errors import TrackerError
@@ -49,14 +56,22 @@ from mcp_tracker.mcp.tools.catalog_write import (
     _require_change,
 )
 from mcp_tracker.mcp.tools.field_write import has_user_options
+from mcp_tracker.mcp.tools.issue_write import _can_ask
 from mcp_tracker.mcp.utils import get_yandex_auth
 from mcp_tracker.settings import Settings
 from mcp_tracker.tracker.custom.errors import (
     FieldClearConflict,
     MacroEmptyUpdate,
+    PermissionsEmptyUpdate,
     TriggerEmptyUpdate,
 )
 from mcp_tracker.tracker.proto.types.fields import LocalField
+from mcp_tracker.tracker.proto.types.permissions import (
+    GranteeChange,
+    PermissionAction,
+    PermissionChange,
+    QueuePermissions,
+)
 from mcp_tracker.tracker.proto.types.queue_automation import (
     QueueAutoaction,
     QueueIssueTypeConfigInput,
@@ -69,6 +84,49 @@ from mcp_tracker.tracker.proto.types.queues import (
     QueueVersion,
 )
 from mcp_tracker.tracker.proto.types.workflows import Workflow, WorkflowAction
+
+
+class PermissionsConfirmation(BaseModel):
+    """The user's answer to a change of queue permissions."""
+
+    confirm: bool = Field(
+        default=False, description="Yes - change the queue's permissions."
+    )
+
+
+def _permission_changes(
+    create: PermissionChange | None,
+    read: PermissionChange | None,
+    write: PermissionChange | None,
+    grant: PermissionChange | None,
+    deny: PermissionChange | None,
+) -> dict[PermissionAction, PermissionChange]:
+    actions: dict[PermissionAction, PermissionChange | None] = {
+        "create": create,
+        "read": read,
+        "write": write,
+        "grant": grant,
+        "deny": deny,
+    }
+    changes = {k: v for k, v in actions.items() if v is not None}
+    if not changes:
+        raise PermissionsEmptyUpdate()
+    return changes
+
+
+def _describe_change(action: str, change: PermissionChange) -> str:
+    parts = []
+    for kind in ("users", "groups", "roles"):
+        grantees: GranteeChange | None = getattr(change, kind)
+        if grantees is None:
+            continue
+        if grantees.set is not None:
+            parts.append(f"{kind} = {grantees.set}")
+        if grantees.add:
+            parts.append(f"+{kind} {grantees.add}")
+        if grantees.remove:
+            parts.append(f"-{kind} {grantees.remove}")
+    return f"{action}: " + ", ".join(parts)
 
 
 def register_queue_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -> None:
@@ -409,6 +467,28 @@ def register_queue_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -
             queue_id, macro_id, auth=get_yandex_auth(ctx)
         )
 
+    async def confirm_permissions(
+        ctx: Context,
+        queue_id: str,
+        create: PermissionChange | None = None,
+        read: PermissionChange | None = None,
+        write: PermissionChange | None = None,
+        grant: PermissionChange | None = None,
+        deny: PermissionChange | None = None,
+    ) -> PermissionsConfirmation | Elicit[PermissionsConfirmation]:
+        """Ask the user to confirm a permissions change, where the client can
+        be asked; one that cannot goes ahead. The checks run first, so the
+        user is not asked about a change the tool would refuse anyway."""
+        check_queue_access(settings, queue_id, write=True)
+        changes = _permission_changes(create, read, write, grant, deny)
+        if not _can_ask(ctx):
+            return PermissionsConfirmation(confirm=True)
+        summary = "; ".join(_describe_change(a, c) for a, c in changes.items())
+        return Elicit(
+            f"Change the permissions of queue {queue_id}: {summary}. Proceed?",
+            PermissionsConfirmation,
+        )
+
     @mcp.tool(
         title="Create Queue Local Field",
         description="Create a local field ('локальное поле') that only this Yandex "
@@ -528,6 +608,56 @@ def register_queue_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -
         check_queue_access(settings, queue_id, write=True)
         await ctx.request_context.lifespan_context.queues.queue_delete_tag(
             queue_id, tag, auth=get_yandex_auth(ctx)
+        )
+
+    @mcp.tool(
+        title="Update Queue Permissions",
+        description="Grant or revoke Yandex Tracker queue permissions ('права "
+        "доступа к очереди') for users, groups and roles, and return them all. A "
+        "mistake can lock people out of the queue; the user confirms the change "
+        "where the client can ask.",
+        annotations=ToolAnnotations(read_only_hint=False, destructive_hint=True),
+    )
+    async def queue_update_permissions(
+        ctx: Context[AppContext],
+        queue_id: QueueID,
+        confirmation: Annotated[
+            ElicitationResult[PermissionsConfirmation],
+            Resolve(confirm_permissions),
+        ],
+        create: Annotated[
+            PermissionChange | None,
+            Field(description="Who may create issues; omit to keep it."),
+        ] = None,
+        read: Annotated[
+            PermissionChange | None,
+            Field(description="Who may read issues; omit to keep it."),
+        ] = None,
+        write: Annotated[
+            PermissionChange | None,
+            Field(description="Who may change issues; omit to keep it."),
+        ] = None,
+        grant: Annotated[
+            PermissionChange | None,
+            Field(description="Who may change the queue's settings; omit to keep it."),
+        ] = None,
+        deny: Annotated[
+            PermissionChange | None,
+            Field(
+                description="Who is denied any access, over every grant; omit to "
+                "keep it."
+            ),
+        ] = None,
+    ) -> QueuePermissions:
+        check_queue_access(settings, queue_id, write=True)
+        changes = _permission_changes(create, read, write, grant, deny)
+        if not (
+            isinstance(confirmation, AcceptedElicitation) and confirmation.data.confirm
+        ):
+            raise TrackerError("The permissions change was cancelled by the user.")
+        queues = ctx.request_context.lifespan_context.queues
+        return await queues.queue_update_permissions(
+            queue_id, changes, auth=get_yandex_auth(ctx)
         )
 
     @mcp.tool(

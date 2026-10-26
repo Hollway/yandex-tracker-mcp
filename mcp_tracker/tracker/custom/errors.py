@@ -647,6 +647,17 @@ class LocalFieldNotFound(YandexTrackerError):
         self.field_key = field_key
 
 
+class PermissionsEmptyUpdate(YandexTrackerError):
+    """Raised for a permissions change that changes nothing - Tracker answers
+    an empty one 200 and does nothing."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            "A permissions change must change something: pass at least one of "
+            "`create`, `read`, `write`, `grant` or `deny`."
+        )
+
+
 class MacroNotFound(YandexTrackerError):
     """Raised for a 404 from a macro-scoped path, which Tracker answers alike
     for an unknown queue and an unknown macro."""

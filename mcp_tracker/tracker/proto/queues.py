@@ -5,6 +5,12 @@ from .common import YandexAuth
 from .types.components import Component
 from .types.fields import FieldType, GlobalField, LocalField
 from .types.pagination import PaginatedResult
+from .types.permissions import (
+    PermissionAction,
+    PermissionChange,
+    QueuePermissions,
+    SubjectPermissions,
+)
 from .types.queue_automation import (
     QueueAutoaction,
     QueueAutoactionRun,
@@ -87,6 +93,27 @@ class QueuesProtocol(Protocol):
     async def queue_delete_tag(
         self, queue_id: str, tag: str, *, auth: YandexAuth | None = None
     ) -> None: ...
+
+    # Access permissions. `user` is a login or a uid.
+    async def queue_get_permissions(
+        self, queue_id: str, *, auth: YandexAuth | None = None
+    ) -> QueuePermissions: ...
+
+    async def queue_get_user_permissions(
+        self, queue_id: str, user: str, *, auth: YandexAuth | None = None
+    ) -> SubjectPermissions: ...
+
+    async def queue_get_group_permissions(
+        self, queue_id: str, group_id: int, *, auth: YandexAuth | None = None
+    ) -> SubjectPermissions: ...
+
+    async def queue_update_permissions(
+        self,
+        queue_id: str,
+        changes: dict[PermissionAction, PermissionChange],
+        *,
+        auth: YandexAuth | None = None,
+    ) -> QueuePermissions: ...
 
     async def queues_get_triggers(
         self, queue_id: str, *, auth: YandexAuth | None = None

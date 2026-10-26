@@ -49,6 +49,7 @@ from mcp_tracker.tracker.custom.errors import (
     LocalFieldNotFound,
     MacroNotFound,
     NoDoneTransition,
+    PermissionsEmptyUpdate,
     QueueNotFound,
     ScreenNotFound,
     SprintEmptyUpdate,
@@ -131,6 +132,13 @@ from mcp_tracker.tracker.proto.types.issues import (
     Worklog,
 )
 from mcp_tracker.tracker.proto.types.pagination import ItemT, PaginatedResult
+from mcp_tracker.tracker.proto.types.permissions import (
+    Group,
+    PermissionAction,
+    PermissionChange,
+    QueuePermissions,
+    SubjectPermissions,
+)
 from mcp_tracker.tracker.proto.types.priorities import Priority
 from mcp_tracker.tracker.proto.types.queue_automation import (
     QueueAutoaction,
@@ -236,6 +244,7 @@ class _IssueChecklist(_ChecklistSnapshotFields):
 
 GlobalFieldList = RootModel[list[GlobalField]]
 FieldCategoryList = RootModel[list[FieldCategory]]
+GroupList = RootModel[list[Group]]
 StatusList = RootModel[list[Status]]
 IssueTypeList = RootModel[list[IssueType]]
 PriorityList = RootModel[list[Priority]]
@@ -930,6 +939,69 @@ class TrackerClient(
                 auth=auth,
                 json=body,
                 not_found=LocalFieldNotFound(queue_id, field_key),
+            )
+        )
+
+    # Queue permissions (verified 2026-10-26 on the temporary queue MCPTMS).
+    # The whole object is read with the undocumented GET of the path the
+    # reference documents a PATCH for. A PATCH ignores `version` (a stale one
+    # is accepted), answers an empty body with no change, and takes a role in
+    # `deny` although the reference says roles cannot be denied; an unknown
+    # user or group answers 422.
+
+    async def queue_get_permissions(
+        self, queue_id: str, *, auth: YandexAuth | None = None
+    ) -> QueuePermissions:
+        return QueuePermissions.model_validate_json(
+            await self._read(
+                "GET",
+                f"v3/queues/{queue_id}/permissions",
+                auth=auth,
+                not_found=QueueNotFound(queue_id),
+            )
+        )
+
+    async def queue_get_user_permissions(
+        self, queue_id: str, user: str, *, auth: YandexAuth | None = None
+    ) -> SubjectPermissions:
+        return SubjectPermissions.model_validate_json(
+            await self._read(
+                "GET",
+                f"v3/queues/{queue_id}/permissions/users/{quote(user, safe='')}",
+                auth=auth,
+                not_found=QueueNotFound(queue_id),
+            )
+        )
+
+    async def queue_get_group_permissions(
+        self, queue_id: str, group_id: int, *, auth: YandexAuth | None = None
+    ) -> SubjectPermissions:
+        return SubjectPermissions.model_validate_json(
+            await self._read(
+                "GET",
+                f"v3/queues/{queue_id}/permissions/groups/{group_id}",
+                auth=auth,
+                not_found=QueueNotFound(queue_id),
+            )
+        )
+
+    async def queue_update_permissions(
+        self,
+        queue_id: str,
+        changes: dict[PermissionAction, PermissionChange],
+        *,
+        auth: YandexAuth | None = None,
+    ) -> QueuePermissions:
+        if not changes:
+            raise PermissionsEmptyUpdate()
+        body = {action: change.to_api() for action, change in changes.items()}
+        return QueuePermissions.model_validate_json(
+            await self._read(
+                "PATCH",
+                f"v3/queues/{queue_id}/permissions",
+                auth=auth,
+                json=body,
+                not_found=QueueNotFound(queue_id),
             )
         )
 
@@ -2627,6 +2699,17 @@ class TrackerClient(
         ) as response:
             return self._paginated(
                 response, UserList.model_validate_json(await response.read()).root
+            )
+
+    async def groups_list(
+        self, per_page: int = 50, page: int = 1, *, auth: YandexAuth | None = None
+    ) -> PaginatedResult[Group]:
+        params: dict[str, str | int] = {"perPage": per_page, "page": page}
+        async with self._request(
+            "GET", "v3/groups", auth=auth, params=params
+        ) as response:
+            return self._paginated(
+                response, GroupList.model_validate_json(await response.read()).root
             )
 
     async def user_get(
@@ -4614,6 +4697,31 @@ class TrackerClient(
             f"v3/sprints/{sprint_id}",
             auth=auth,
             not_found=SprintNotFound(sprint_id),
+        )
+
+    async def component_get_user_permissions(
+        self, component_id: int, user: str, *, auth: YandexAuth | None = None
+    ) -> SubjectPermissions:
+        return SubjectPermissions.model_validate_json(
+            await self._read(
+                "GET",
+                f"v3/components/{component_id}/permissions/users/"
+                f"{quote(user, safe='')}",
+                auth=auth,
+                not_found=ComponentNotFound(component_id),
+            )
+        )
+
+    async def component_get_group_permissions(
+        self, component_id: int, group_id: int, *, auth: YandexAuth | None = None
+    ) -> SubjectPermissions:
+        return SubjectPermissions.model_validate_json(
+            await self._read(
+                "GET",
+                f"v3/components/{component_id}/permissions/groups/{group_id}",
+                auth=auth,
+                not_found=ComponentNotFound(component_id),
+            )
         )
 
     async def component_get(

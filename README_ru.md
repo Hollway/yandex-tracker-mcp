@@ -518,7 +518,12 @@ claude mcp add yandex-tracker docker "run --rm -i -e TRACKER_TOKEN=ваш_ток
 | `queue_restore` | Восстановить удалённую очередь (только администратор) | `queue_id` |
 | `queue_set_issue_type_workflow` | Добавить тип задачи в очередь или сменить его рабочий процесс | `queue_id`, `issue_type`, `workflow_id`, `resolutions`, `make_default` |
 | `queue_remove_issue_type` | Убрать тип задачи из очереди | `queue_id`, `issue_type`, `new_default_type` (обязателен для типа по умолчанию) |
+| `queue_get_permissions` | Кто может создавать, читать и менять задачи, кто может менять настройки очереди и кому доступ запрещён: пользователи, группы и роли для каждого права | `queue_id` |
+| `queue_get_user_permissions` | Права одного пользователя в очереди, у каждого - через какую группу, роль или выдачу оно есть | `queue_id`, `user` (логин или uid) |
+| `queue_get_group_permissions` | То же для группы пользователей | `queue_id`, `group_id` (из `groups_get_all`) |
+| `queue_update_permissions` | Выдать или отозвать права: для каждого права `add` / `remove` пользователей, групп и ролей или `set` - заменить список целиком | `queue_id`, `create`, `read`, `write`, `grant`, `deny` |
 
+- `queue_update_permissions` может закрыть людям доступ к очереди, поэтому пользователь подтверждает изменение, если клиент поддерживает elicitation; клиент, которого нельзя спросить, применяет изменение сразу. Роли: `author`, `assignee`, `follower`, `access` (все, кому выдан доступ к задаче) и `queue-lead`; неизвестного пользователя или группу Трекер отклоняет.
 - `queue_set_issue_type_workflow` переводит существующие задачи этого типа на новый рабочий процесс; задачу в статусе, которого в новом процессе нет, через API не пробовали (интерфейс просит сопоставить статусы). Трекер отклоняет список `resolutions`, в котором нет резолюции, выставляемой переходами процесса.
 - `queue_create` при `TRACKER_LIMIT_QUEUES` принимает только ключ из allow-list.
 
@@ -535,6 +540,8 @@ claude mcp add yandex-tracker docker "run --rm -i -e TRACKER_TOKEN=ваш_ток
 | `component_create` | Создать компонент в очереди | `queue_id`, `name`, `description`, `lead` (логин или uid), `assign_auto` |
 | `component_update` | Изменить название, описание, ответственного или флаг автоназначения; не переданные поля сохраняют значение, `clear_lead` снимает ответственного | `component_id`, `name`, `description`, `lead`, `assign_auto`, `clear_lead`, `version` |
 | `component_delete` | Удалить компонент | `component_id` |
+| `component_get_user_permissions` | Права одного пользователя на компонент | `component_id`, `user` |
+| `component_get_group_permissions` | Права одной группы пользователей на компонент | `component_id`, `group_id` |
 
 - `TRACKER_LIMIT_QUEUES` и `TRACKER_READ_ONLY_QUEUES` применяются через очередь компонента: `component_update` и `component_delete` сначала читают компонент, чтобы её узнать, а компонент из очереди вне `TRACKER_LIMIT_QUEUES` считается не найденным.
 
@@ -584,6 +591,7 @@ claude mcp add yandex-tracker docker "run --rm -i -e TRACKER_TOKEN=ваш_ток
 | `user_get_current` | Пользователь, которому принадлежит текущий токен | - |
 | `users_search` | Поиск пользователей по логину, email или имени | `login_or_email_or_name` |
 | `users_get_absences` | Отпуска, больничные, командировки и другие отсутствия, пересекающие период; нужны права администратора организации | `users` (до 100), `date_from`, `date_to` |
+| `groups_get_all` | Группы пользователей организации с числовыми id, которые принимают права очереди; возвращает `{values, hits, pages}` | `page`, `per_page` |
 
 - `users_search` сначала ищет точное совпадение по логину и email, затем — нечёткое по имени (порог схожести 80%, не более трёх лучших совпадений).
 - Страница `users_get_all` — последняя, когда `page` равен `pages`.

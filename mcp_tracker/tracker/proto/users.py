@@ -3,6 +3,7 @@ from typing import Protocol, runtime_checkable
 
 from .common import YandexAuth
 from .types.pagination import PaginatedResult
+from .types.permissions import Group
 from .types.users import User, UserAbsences
 
 
@@ -17,6 +18,10 @@ class UsersProtocol(Protocol):
     ) -> User | None: ...
 
     async def user_get_current(self, *, auth: YandexAuth | None = None) -> User: ...
+
+    async def groups_list(
+        self, per_page: int = 50, page: int = 1, *, auth: YandexAuth | None = None
+    ) -> PaginatedResult[Group]: ...
 
     async def users_get_absences(
         self,

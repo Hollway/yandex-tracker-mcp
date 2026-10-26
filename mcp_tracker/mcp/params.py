@@ -84,6 +84,13 @@ FieldID = Annotated[
     ),
 ]
 
+PermissionUserParam = Annotated[
+    str, Field(description="User login or uid, e.g. 'i.ivanov'.")
+]
+PermissionGroupParam = Annotated[
+    int, Field(description="Numeric group id - groups_get_all lists them.")
+]
+
 LocalFieldKey = Annotated[
     str,
     Field(

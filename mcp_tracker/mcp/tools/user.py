@@ -20,6 +20,7 @@ from mcp_tracker.mcp.utils import (
 )
 from mcp_tracker.settings import Settings
 from mcp_tracker.tracker.proto.types.pagination import PaginatedResult
+from mcp_tracker.tracker.proto.types.permissions import Group
 from mcp_tracker.tracker.proto.types.users import User, UserAbsences, UserFieldsEnum
 
 
@@ -165,4 +166,19 @@ def register_user_tools(_settings: Settings, mcp: MCPServer[AppContext]) -> None
             date_from=local_day_start(date_from) if date_from else None,
             date_to=local_day_end(date_to) if date_to else None,
             auth=get_yandex_auth(ctx),
+        )
+
+    @mcp.tool(
+        title="Get All Groups",
+        description="List the user groups of the Yandex Tracker organization "
+        "('группы') with their numeric ids, which queue permissions take.",
+        annotations=ToolAnnotations(read_only_hint=True),
+    )
+    async def groups_get_all(
+        ctx: Context[AppContext],
+        page: PageParam = 1,
+        per_page: PerPageParam = 50,
+    ) -> PaginatedResult[Group]:
+        return await ctx.request_context.lifespan_context.users.groups_list(
+            per_page=per_page, page=page, auth=get_yandex_auth(ctx)
         )

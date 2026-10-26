@@ -65,6 +65,13 @@ from mcp_tracker.tracker.proto.types.issues import (
     Worklog,
 )
 from mcp_tracker.tracker.proto.types.pagination import PaginatedResult
+from mcp_tracker.tracker.proto.types.permissions import (
+    Group,
+    PermissionAction,
+    PermissionChange,
+    QueuePermissions,
+    SubjectPermissions,
+)
 from mcp_tracker.tracker.proto.types.priorities import Priority
 from mcp_tracker.tracker.proto.types.queue_automation import (
     QueueAutoaction,
@@ -210,6 +217,37 @@ def make_cached_protocols(
             self, queue_id: str, tag: str, *, auth: YandexAuth | None = None
         ) -> None:
             return await self._original.queue_delete_tag(queue_id, tag, auth=auth)
+
+        # Permissions are not cached: they are read to be checked or changed.
+        async def queue_get_permissions(
+            self, queue_id: str, *, auth: YandexAuth | None = None
+        ) -> QueuePermissions:
+            return await self._original.queue_get_permissions(queue_id, auth=auth)
+
+        async def queue_get_user_permissions(
+            self, queue_id: str, user: str, *, auth: YandexAuth | None = None
+        ) -> SubjectPermissions:
+            return await self._original.queue_get_user_permissions(
+                queue_id, user, auth=auth
+            )
+
+        async def queue_get_group_permissions(
+            self, queue_id: str, group_id: int, *, auth: YandexAuth | None = None
+        ) -> SubjectPermissions:
+            return await self._original.queue_get_group_permissions(
+                queue_id, group_id, auth=auth
+            )
+
+        async def queue_update_permissions(
+            self,
+            queue_id: str,
+            changes: dict[PermissionAction, PermissionChange],
+            *,
+            auth: YandexAuth | None = None,
+        ) -> QueuePermissions:
+            return await self._original.queue_update_permissions(
+                queue_id, changes, auth=auth
+            )
 
         @cached(**cache_config)
         async def queues_get_triggers(
@@ -1468,6 +1506,14 @@ def make_cached_protocols(
 
     class CachingUsersProtocol(UsersProtocolWrap):
         @cached(**cache_config)
+        async def groups_list(
+            self, per_page: int = 50, page: int = 1, *, auth: YandexAuth | None = None
+        ) -> PaginatedResult[Group]:
+            return await self._original.groups_list(
+                per_page=per_page, page=page, auth=auth
+            )
+
+        @cached(**cache_config)
         async def users_get_absences(
             self,
             users: list[str],
@@ -2354,6 +2400,20 @@ def make_cached_protocols(
             return await self._original.sprint_delete(sprint_id, auth=auth)
 
     class CachingComponentsProtocol(ComponentsProtocolWrap):
+        async def component_get_user_permissions(
+            self, component_id: int, user: str, *, auth: YandexAuth | None = None
+        ) -> SubjectPermissions:
+            return await self._original.component_get_user_permissions(
+                component_id, user, auth=auth
+            )
+
+        async def component_get_group_permissions(
+            self, component_id: int, group_id: int, *, auth: YandexAuth | None = None
+        ) -> SubjectPermissions:
+            return await self._original.component_get_group_permissions(
+                component_id, group_id, auth=auth
+            )
+
         # Component reads are not cached. The `component_update` /
         # `component_delete` tools read through this protocol to get the
         # `version` the API demands (428 without one) and to learn the queue,

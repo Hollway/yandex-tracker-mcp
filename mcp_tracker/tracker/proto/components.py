@@ -2,10 +2,19 @@ from typing import Protocol, runtime_checkable
 
 from .common import YandexAuth
 from .types.components import Component
+from .types.permissions import SubjectPermissions
 
 
 @runtime_checkable
 class ComponentsProtocol(Protocol):
+    async def component_get_user_permissions(
+        self, component_id: int, user: str, *, auth: YandexAuth | None = None
+    ) -> SubjectPermissions: ...
+
+    async def component_get_group_permissions(
+        self, component_id: int, group_id: int, *, auth: YandexAuth | None = None
+    ) -> SubjectPermissions: ...
+
     async def component_get(
         self, component_id: int, *, auth: YandexAuth | None = None
     ) -> Component: ...
