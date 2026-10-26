@@ -141,6 +141,8 @@ WRITE_TOOL_NAMES = [
     "issue_add_checklist_items",
     "issue_update_checklist_item",
     "issue_delete_checklist_item",
+    "users_create_absences",
+    "users_delete_absences",
 ]
 
 # Entity write tools - require both write mode and TRACKER_ENTITIES_ENABLED

@@ -91,7 +91,12 @@ from mcp_tracker.tracker.proto.types.refs import IssueTypeReference
 from mcp_tracker.tracker.proto.types.resolutions import Resolution
 from mcp_tracker.tracker.proto.types.statuses import Status, StatusType
 from mcp_tracker.tracker.proto.types.templates import CommentTemplate, IssueTemplate
-from mcp_tracker.tracker.proto.types.users import User, UserAbsences
+from mcp_tracker.tracker.proto.types.users import (
+    AbsenceInput,
+    CreatedAbsence,
+    User,
+    UserAbsences,
+)
 from mcp_tracker.tracker.proto.types.workflows import (
     IssueTypeResolutionsDraft,
     LocalizedText,
@@ -1525,6 +1530,16 @@ def make_cached_protocols(
             return await self._original.users_get_absences(
                 users, date_from=date_from, date_to=date_to, auth=auth
             )
+
+        async def users_create_absences(
+            self, absences: list[AbsenceInput], *, auth: YandexAuth | None = None
+        ) -> list[CreatedAbsence]:
+            return await self._original.users_create_absences(absences, auth=auth)
+
+        async def users_delete_absences(
+            self, absence_ids: list[str], *, auth: YandexAuth | None = None
+        ) -> None:
+            await self._original.users_delete_absences(absence_ids, auth=auth)
 
         @cached(**cache_config)
         async def users_list(

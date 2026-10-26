@@ -594,10 +594,13 @@ tool does, the columns which name to call:
 | `user_get_current` | The user the current token belongs to | - |
 | `users_search` | Find users by login, email or real name | `login_or_email_or_name` |
 | `users_get_absences` | Vacations, sick leave, trips and other absences overlapping a period; needs organization administrator rights | `users` (up to 100), `date_from`, `date_to` |
+| `users_create_absences` | Record absences and get their ids; needs organization administrator rights | `absences` (up to 100: `user`, `workflow`, `date_from`, `date_to`, `full_day`, `work_in_absence`) |
+| `users_delete_absences` | Delete absences by id; needs organization administrator rights | `absence_ids` (up to 100) |
 | `groups_get_all` | The organization's user groups with the numeric ids queue permissions take; returns `{values, hits, pages}` | `page`, `per_page` |
 
 - `users_search` matches login and email exactly first and falls back to fuzzy name matching (80% similarity, at most the three best matches).
 - The page from `users_get_all` is the last one when `page` equals `pages`.
+- An absence cannot be edited: delete it and create it again. `users_delete_absences` succeeds for an unknown or already deleted id too. Both write tools are not registered in read-only mode and are not covered by the queue restrictions.
 
 </details>
 

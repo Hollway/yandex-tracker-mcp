@@ -388,6 +388,14 @@
       "description": "Vacations, sick leave and other absences of users over a period (needs organization admin rights)"
     },
     {
+      "name": "users_create_absences",
+      "description": "Record vacations, trips, duty and other absences of users (needs organization admin rights)"
+    },
+    {
+      "name": "users_delete_absences",
+      "description": "Delete user absences by id (needs organization admin rights)"
+    },
+    {
       "name": "groups_get_all",
       "description": "List the organization's user groups with their numeric ids"
     },

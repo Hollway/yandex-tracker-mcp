@@ -411,13 +411,14 @@ class WorklogSearchTooLarge(YandexTrackerError):
 
 
 class AbsencesForbidden(YandexTrackerError):
-    """Raised for a 403 from the absence search, which only admins may call."""
+    """Raised for a 403 from the absence endpoints, which only admins may call."""
 
-    def __init__(self) -> None:
+    def __init__(self, action: str = "search") -> None:
         super().__init__(
-            "Yandex Tracker refused the absence search: it needs the rights of an "
-            "organization administrator, which the token's owner does not have."
+            f"Yandex Tracker refused to {action} absences: it needs the rights of "
+            "an organization administrator, which the token's owner does not have."
         )
+        self.action = action
 
 
 class CommentNotFound(YandexTrackerError):

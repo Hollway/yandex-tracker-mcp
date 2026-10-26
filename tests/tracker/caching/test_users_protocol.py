@@ -6,7 +6,7 @@ import pytest
 
 from mcp_tracker.tracker.caching.client import make_cached_protocols
 from mcp_tracker.tracker.proto.common import YandexAuth
-from mcp_tracker.tracker.proto.types.users import User
+from mcp_tracker.tracker.proto.types.users import AbsenceInput, User
 
 
 class TestCachingUsersProtocol:
@@ -80,3 +80,39 @@ class TestCachingUsersProtocol:
             ["i.ivanov"], date_from=start, date_to=None, auth=yandex_auth
         )
         assert result == mock_original.users_get_absences.return_value
+
+    async def test_users_create_absences_calls_original(
+        self,
+        caching_users_protocol: Any,
+        mock_original: AsyncMock,
+        yandex_auth: YandexAuth,
+    ) -> None:
+        absences = [
+            AbsenceInput(
+                user="i.ivanov",
+                workflow="trip",
+                date_from=datetime.datetime(2026, 7, 1),
+                date_to=datetime.datetime(2026, 7, 2),
+            )
+        ]
+
+        result = await caching_users_protocol.users_create_absences(
+            absences, auth=yandex_auth
+        )
+
+        mock_original.users_create_absences.assert_called_once_with(
+            absences, auth=yandex_auth
+        )
+        assert result == mock_original.users_create_absences.return_value
+
+    async def test_users_delete_absences_calls_original(
+        self,
+        caching_users_protocol: Any,
+        mock_original: AsyncMock,
+        yandex_auth: YandexAuth,
+    ) -> None:
+        await caching_users_protocol.users_delete_absences(["a1"], auth=yandex_auth)
+
+        mock_original.users_delete_absences.assert_called_once_with(
+            ["a1"], auth=yandex_auth
+        )

@@ -36,7 +36,7 @@ uv run yandex-tracker-mcp # Run the server
   - `board.py`: Board and sprint tools (read-only); `board_write.py`: sprint write tools, not covered by the queue restrictions (a board belongs to no queue)
   - `component.py` / `component_write.py`: Queue component read-only / write tools (`queue_get_components` itself lives with the queue tools)
   - `issue_read.py` / `issue_write.py`: Issue read-only / write tools
-  - `user.py`: User tools (read-only)
+  - `user.py`: User tools (read-only); `user_write.py`: absence create / delete, not covered by the queue restrictions
   - `worklog.py`: Worklog search across issues (read-only)
   - `workflow.py` / `workflow_write.py`: Workflow and transition screen read-only / write tools (`queue_get_workflows` itself lives with the queue tools); `workflow_write.py` is only registered when writes are on and `settings.tracker_workflows_write_enabled=True`
   - `catalog_write.py`: Status, resolution, issue type and priority write tools (`status_*`, `resolution_*`, `issue_type_*`, `priority_*`), registered under the same flag as `workflow_write.py`; the reads are the legacy `get_statuses` etc. in `field.py`
@@ -76,7 +76,7 @@ uv run yandex-tracker-mcp # Run the server
 - **Local fields and queue tags** (verified 2026-10-26 on the temporary queue MCPTMR): `v3/queues/{q}/localFields/{key}` is addressed by the field's **key**; the `id` that comes back is `<hash>--<key>` (the full id as a path answers 404), and that `id` is what an issue write takes - `{"locTest": ...}` on `POST v3/issues` answers 400 "Field [locTest] was not found". A create answers 200; an update needs no `version` and ignores a stale one; there is no DELETE (405). `POST v3/queues/{q}/tags/_remove` with `{"tag"}` answers 204, also for an unknown tag; a tag still on an issue answers 422 "Тег ещё используется", and kept answering so for 10-15 minutes after the tag was taken off the issue (then 204).
 - **Queue permissions** (verified 2026-10-26 on the temporary queue MCPTMS): `GET v3/queues/{q}/permissions` is undocumented but answers the whole object (`create` / `read` / `write` / `grant` / `deny`, each with `users`, `groups`, `roles`, plus `version`). `PATCH` takes, per permission and per kind, either a list (replaces it) or `{"add": [...], "remove": [...]}`; it ignores `version` (a stale one is accepted), answers an empty body 200 without a change, and **does take a role in `deny`** although the reference says roles cannot be denied. An unknown user or group answers 422 ("пользователи [...] не существуют", "группы [...] не существуют"). `.../permissions/users/{login}` and `.../groups/{id}` give one subject's permissions with what each comes through (upper-case keys). Components have the same reads under `v3/components/{id}/permissions...`; their `PATCH` wants `version` (428 without it) and is not used here. Group ids come from `GET v3/groups` (paginated). `queue_update_permissions` asks the user to confirm by elicitation, the way the bulk tools do.
 - **Worklog search** (`POST v3/worklog/_search`) filters only by `createdBy` and by `createdAt` - when a record was *entered*, not the `start` of the work it records - and the documentation says nothing of paging, so the client follows a `Link: rel="next"` if one comes back (guarded by `_MAX_WORKLOG_SEARCH_PAGES`). `worklogs_find` turns `start_from` into the entry window `createdAt >= start_from` and checks `start` itself, which misses only time logged in advance; days are the server's local days (`local_day_start` / `local_day_end` in `mcp/utils.py`). Results from queues outside `TRACKER_LIMIT_QUEUES` are dropped by the issue key.
-- **Absences** (`POST v3/gaps/_search`, since 07.2026) need organization-administrator rights - a 403 becomes `AbsencesForbidden` - take at most 100 users and page by user; the user object of each row is cut down to `login` / `display` (`AbsenceUser`).
+- **Absences** (`POST v3/gaps/_search`, since 07.2026) need organization-administrator rights - a 403 becomes `AbsencesForbidden` - take at most 100 users and page by user; the user object of each row is cut down to `login` / `display` (`AbsenceUser`). Writes (verified on the live API 2026-10-26): `POST v3/gaps` with `{"gaps": [...]}` answers 200 with the saved rows and full user objects (`user` by login works, an unknown one answers 422 "пользователи [...] не существуют", an unknown `workflow` or `to` not after `from` 422 with a readable text); an `id` that already exists answers **500** "Внутренняя ошибка" instead of updating the absence, so the create tool sends no `id` and an absence is changed by deleting and creating it. `DELETE v3/gaps?gapIds=a,b` answers 204, also for unknown or already deleted ids; without `gapIds` 400. `GET v3/gaps/workflows` lists the ten kinds (`AbsenceKind`). The write tools (`user_write.py`) are not covered by the queue restrictions - an absence belongs to no queue.
 - **Templates are not applied on write** (decided 2026-08-17, not yet implemented): `POST /v3/issues` has no `templateId` parameter, so `issue_create` cannot take one without expanding the template client-side. Callers read `issue_template_get` and fill the arguments themselves. Adding a `template_id` parameter later means merging `fieldTemplates` under the explicit arguments (which win) and mapping its reference values onto the `Issue*Ref` models - the template returns them as objects like `{"id": "1", "key": "bug"}`, and `components` in particular need the id-or-name form (see the reference-fields note above). `checklistItems` / `metricItems` cannot be sent at creation at all and would need a follow-up request.
 
 ## Testing
@@ -151,7 +151,7 @@ For paginated methods, use `side_effect` for sequential returns: `mock.method.si
    - Issue read-only tools → `issue_read.py`
    - Issue write tools → `issue_write.py`
    - Temporary attachment tools → `attachment_write.py`
-   - User tools → `user.py`
+   - User tools → `user.py`; absence write tools → `user_write.py`
    - Worklog search tools → `worklog.py`
    - Workflow/screen read-only tools → `workflow.py`; write tools → `workflow_write.py`
    - Status/resolution/issue type/priority write tools → `catalog_write.py`
@@ -179,6 +179,7 @@ For paginated methods, use `side_effect` for sequential returns: `mock.method.si
 | Issue Write     | `issue_write.py`     | No        |
 | Attachment Write | `attachment_write.py` | No       |
 | User            | `user.py`            | Yes       |
+| User Write      | `user_write.py`      | No        |
 | Worklog         | `worklog.py`         | Yes       |
 | Workflow        | `workflow.py`        | Yes       |
 | Workflow Write  | `workflow_write.py`  | No        |

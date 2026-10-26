@@ -17,6 +17,7 @@ This package organizes MCP tools by category:
 - issue_write.py: Issue write tools (conditional on read-only mode); the file upload
   tool additionally needs tracker_file_upload_enabled
 - user.py: User-related tools (read-only)
+- user_write.py: User absence write tools (conditional on read-only mode)
 - worklog.py: Worklog search across issues (read-only)
 - workflow.py: Workflow and transition screen tools (read-only)
 - workflow_write.py: Workflow write tools (conditional on read-only mode and
@@ -66,6 +67,7 @@ from mcp_tracker.mcp.tools.queue import register_queue_tools
 from mcp_tracker.mcp.tools.queue_write import register_queue_write_tools
 from mcp_tracker.mcp.tools.template import register_template_tools
 from mcp_tracker.mcp.tools.user import register_user_tools
+from mcp_tracker.mcp.tools.user_write import register_user_write_tools
 from mcp_tracker.mcp.tools.workflow import register_workflow_tools
 from mcp_tracker.mcp.tools.workflow_write import register_workflow_write_tools
 from mcp_tracker.mcp.tools.worklog import register_worklog_tools
@@ -111,6 +113,7 @@ def register_all_tools(settings: Settings, mcp: MCPServer[AppContext]) -> None:
         register_board_write_tools(settings, mcp)
         register_component_write_tools(settings, mcp)
         register_issue_write_tools(settings, mcp)
+        register_user_write_tools(settings, mcp)
 
         if settings.tracker_bulk_enabled:
             register_issue_bulk_tools(settings, mcp)

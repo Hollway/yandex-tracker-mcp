@@ -6,6 +6,7 @@ from aioresponses import aioresponses
 
 from mcp_tracker.tracker.custom.client import TrackerClient
 from mcp_tracker.tracker.custom.errors import AbsencesForbidden, TrackerAPIError
+from mcp_tracker.tracker.proto.types.users import AbsenceInput
 from tests.aioresponses_utils import RequestCapture
 
 SEARCH_URL = "https://api.tracker.yandex.net/v3/gaps/_search"
@@ -142,3 +143,112 @@ class TestUsersGetAbsences:
                 await tracker_client.users_get_absences(["nobody"])
 
         assert "Пользователь не найден" in str(exc_info.value)
+
+
+GAPS_URL = "https://api.tracker.yandex.net/v3/gaps"
+
+
+class TestUsersCreateAbsences:
+    async def test_sends_the_absences_in_trackers_spelling(
+        self, tracker_client: TrackerClient
+    ) -> None:
+        created = {**VACATION, "user": user_gaps("username1", [])["user"]}
+        capture = RequestCapture(payload={"gaps": [created]})
+
+        with aioresponses() as m:
+            m.post(GAPS_URL, callback=capture.callback)
+
+            result = await tracker_client.users_create_absences(
+                [
+                    AbsenceInput(
+                        user="username1",
+                        workflow="vacation",
+                        date_from=datetime.datetime(2026, 7, 1, tzinfo=datetime.UTC),
+                        date_to=datetime.datetime(2026, 7, 15, tzinfo=datetime.UTC),
+                        full_day=True,
+                    ),
+                    AbsenceInput(
+                        user="username2",
+                        workflow="duty",
+                        date_from=datetime.datetime(2026, 7, 2, 9),
+                        date_to=datetime.datetime(2026, 7, 2, 12),
+                        work_in_absence=True,
+                    ),
+                ]
+            )
+
+        capture.last_request.assert_json_body(
+            {
+                "gaps": [
+                    {
+                        "user": "username1",
+                        "workflow": "vacation",
+                        "from": "2026-07-01T00:00:00.000000+0000",
+                        "to": "2026-07-15T00:00:00.000000+0000",
+                        "fullDay": True,
+                    },
+                    {
+                        "user": "username2",
+                        "workflow": "duty",
+                        "from": "2026-07-02T09:00:00.000000+0000",
+                        "to": "2026-07-02T12:00:00.000000+0000",
+                        "workInAbsence": True,
+                    },
+                ]
+            }
+        )
+        assert [gap.id for gap in result] == [VACATION["id"]]
+        assert result[0].user.login == "username1"
+        assert result[0].model_dump(mode="json", by_alias=True)["user"] == {
+            "login": "username1",
+            "display": "Иван Иванов",
+        }
+
+    @pytest.mark.parametrize(
+        ("status", "error"), [(403, AbsencesForbidden), (422, TrackerAPIError)]
+    )
+    async def test_errors(
+        self, tracker_client: TrackerClient, status: int, error: type[Exception]
+    ) -> None:
+        with aioresponses() as m:
+            m.post(
+                GAPS_URL,
+                status=status,
+                payload={"errorMessages": ["пользователи [x] не существуют"]},
+            )
+
+            with pytest.raises(error) as exc_info:
+                await tracker_client.users_create_absences(
+                    [
+                        AbsenceInput(
+                            user="x",
+                            workflow="trip",
+                            date_from=datetime.datetime(2026, 7, 1),
+                            date_to=datetime.datetime(2026, 7, 2),
+                        )
+                    ]
+                )
+
+        expected = "create absences" if status == 403 else "не существуют"
+        assert expected in str(exc_info.value)
+
+
+class TestUsersDeleteAbsences:
+    async def test_sends_the_ids_comma_separated(
+        self, tracker_client: TrackerClient
+    ) -> None:
+        with aioresponses() as m:
+            m.delete(f"{GAPS_URL}?gapIds=a1%2Cb2", status=204)
+
+            await tracker_client.users_delete_absences(["a1", "b2"])
+
+    async def test_forbidden_says_admin_rights_are_needed(
+        self, tracker_client: TrackerClient
+    ) -> None:
+        with aioresponses() as m:
+            m.delete(f"{GAPS_URL}?gapIds=a1", status=403, payload={})
+
+            with pytest.raises(AbsencesForbidden) as exc_info:
+                await tracker_client.users_delete_absences(["a1"])
+
+        assert "delete absences" in str(exc_info.value)

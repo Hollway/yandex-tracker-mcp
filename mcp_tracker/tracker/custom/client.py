@@ -159,6 +159,8 @@ from mcp_tracker.tracker.proto.types.resolutions import Resolution
 from mcp_tracker.tracker.proto.types.statuses import Status, StatusType
 from mcp_tracker.tracker.proto.types.templates import CommentTemplate, IssueTemplate
 from mcp_tracker.tracker.proto.types.users import (
+    AbsenceInput,
+    CreatedAbsence,
     User,
     UserAbsences,
 )
@@ -203,6 +205,10 @@ RemoteLinkList = RootModel[list[RemoteLink]]
 class AbsenceSearchPage(BaseModel):
     user_gaps: list[UserAbsences] = Field(default_factory=list, alias="userGaps")
     has_more: bool = Field(False, alias="hasMore")
+
+
+class CreatedAbsences(BaseModel):
+    gaps: list[CreatedAbsence] = Field(default_factory=list)
 
 
 ChecklistItemList = RootModel[list[ChecklistItem]]
@@ -2686,6 +2692,51 @@ class TrackerClient(
             if not found.has_more or not found.user_gaps:
                 return result
             page += 1
+
+    async def users_create_absences(
+        self, absences: list[AbsenceInput], *, auth: YandexAuth | None = None
+    ) -> list[CreatedAbsence]:
+        """Create absences, `POST v3/gaps` (at most 100, admins only).
+
+        No `id` is sent: Tracker answers 500 to one that already exists rather
+        than updating that absence (verified 2026-10-26).
+        """
+        gaps: list[dict[str, Any]] = []
+        for absence in absences:
+            gap: dict[str, Any] = {
+                "user": absence.user,
+                "workflow": absence.workflow,
+                "from": _tracker_datetime(absence.date_from),
+                "to": _tracker_datetime(absence.date_to),
+            }
+            if absence.full_day is not None:
+                gap["fullDay"] = absence.full_day
+            if absence.work_in_absence is not None:
+                gap["workInAbsence"] = absence.work_in_absence
+            gaps.append(gap)
+        try:
+            raw = await self._read("POST", "v3/gaps", auth=auth, json={"gaps": gaps})
+        except TrackerAPIError as exc:
+            if exc.status == 403:
+                raise AbsencesForbidden("create") from exc
+            raise
+        return CreatedAbsences.model_validate_json(raw).gaps
+
+    async def users_delete_absences(
+        self, absence_ids: list[str], *, auth: YandexAuth | None = None
+    ) -> None:
+        """Delete absences, `DELETE v3/gaps?gapIds=a,b` (at most 100, admins only).
+
+        Tracker answers 204 for an unknown or already deleted id as well.
+        """
+        try:
+            await self._read(
+                "DELETE", "v3/gaps", auth=auth, params={"gapIds": ",".join(absence_ids)}
+            )
+        except TrackerAPIError as exc:
+            if exc.status == 403:
+                raise AbsencesForbidden("delete") from exc
+            raise
 
     async def users_list(
         self, per_page: int = 50, page: int = 1, *, auth: YandexAuth | None = None
