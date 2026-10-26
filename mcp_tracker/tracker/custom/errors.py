@@ -633,6 +633,20 @@ class AutoactionNotFound(YandexTrackerError):
         self.autoaction_id = autoaction_id
 
 
+class LocalFieldNotFound(YandexTrackerError):
+    """Raised for a 404 from a local-field path, which Tracker answers alike
+    for an unknown queue and an unknown field."""
+
+    def __init__(self, queue_id: str, field_key: str):
+        super().__init__(
+            f"Local field '{field_key}' was not found in queue '{queue_id}', or the "
+            f"queue itself does not exist - queue_get_fields lists the fields of a "
+            f"queue; a local field is addressed by its `key`, not its `id`."
+        )
+        self.queue_id = queue_id
+        self.field_key = field_key
+
+
 class MacroNotFound(YandexTrackerError):
     """Raised for a 404 from a macro-scoped path, which Tracker answers alike
     for an unknown queue and an unknown macro."""

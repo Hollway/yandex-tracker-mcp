@@ -26,7 +26,12 @@ from mcp_tracker.tracker.proto.types.entities import (
     ProjectPortfolioStatus,
     ProjectSearchResult,
 )
-from mcp_tracker.tracker.proto.types.fields import GlobalField, LocalField
+from mcp_tracker.tracker.proto.types.fields import (
+    FieldCategory,
+    FieldType,
+    GlobalField,
+    LocalField,
+)
 from mcp_tracker.tracker.proto.types.inputs import (
     ChecklistItemDeadlineInput,
     ChecklistItemInput,
@@ -129,6 +134,82 @@ def make_cached_protocols(
             self, queue_id: str, *, auth: YandexAuth | None = None
         ) -> list[str]:
             return await self._original.queues_get_tags(queue_id, auth=auth)
+
+        async def queue_get_local_field(
+            self, queue_id: str, field_key: str, *, auth: YandexAuth | None = None
+        ) -> LocalField:
+            return await self._original.queue_get_local_field(
+                queue_id, field_key, auth=auth
+            )
+
+        async def queue_create_local_field(
+            self,
+            queue_id: str,
+            *,
+            field_key: str,
+            name: LocalizedText,
+            category: str,
+            type: FieldType,
+            description: str | None = None,
+            order: int | None = None,
+            readonly: bool | None = None,
+            visible: bool | None = None,
+            hidden: bool | None = None,
+            container: bool | None = None,
+            options: list[str | int | float] | None = None,
+            auth: YandexAuth | None = None,
+        ) -> LocalField:
+            return await self._original.queue_create_local_field(
+                queue_id,
+                field_key=field_key,
+                name=name,
+                category=category,
+                type=type,
+                description=description,
+                order=order,
+                readonly=readonly,
+                visible=visible,
+                hidden=hidden,
+                container=container,
+                options=options,
+                auth=auth,
+            )
+
+        async def queue_update_local_field(
+            self,
+            queue_id: str,
+            field_key: str,
+            *,
+            name: LocalizedText | None = None,
+            description: str | None = None,
+            category: str | None = None,
+            order: int | None = None,
+            readonly: bool | None = None,
+            visible: bool | None = None,
+            hidden: bool | None = None,
+            options: list[str | int | float] | None = None,
+            user_options: bool = False,
+            auth: YandexAuth | None = None,
+        ) -> LocalField:
+            return await self._original.queue_update_local_field(
+                queue_id,
+                field_key,
+                name=name,
+                description=description,
+                category=category,
+                order=order,
+                readonly=readonly,
+                visible=visible,
+                hidden=hidden,
+                options=options,
+                user_options=user_options,
+                auth=auth,
+            )
+
+        async def queue_delete_tag(
+            self, queue_id: str, tag: str, *, auth: YandexAuth | None = None
+        ) -> None:
+            return await self._original.queue_delete_tag(queue_id, tag, auth=auth)
 
         @cached(**cache_config)
         async def queues_get_triggers(
@@ -1230,6 +1311,115 @@ def make_cached_protocols(
         ) -> Priority:
             return await self._original.priority_update(
                 priority_id,
+                version=version,
+                name=name,
+                description=description,
+                order=order,
+                auth=auth,
+            )
+
+        async def field_get(
+            self, field_id: str, *, auth: YandexAuth | None = None
+        ) -> GlobalField:
+            return await self._original.field_get(field_id, auth=auth)
+
+        async def field_create(
+            self,
+            *,
+            field_id: str,
+            name: LocalizedText,
+            category: str,
+            type: FieldType,
+            description: str | None = None,
+            order: int | None = None,
+            readonly: bool | None = None,
+            visible: bool | None = None,
+            hidden: bool | None = None,
+            container: bool | None = None,
+            options: list[str | int | float] | None = None,
+            auth: YandexAuth | None = None,
+        ) -> GlobalField:
+            return await self._original.field_create(
+                field_id=field_id,
+                name=name,
+                category=category,
+                type=type,
+                description=description,
+                order=order,
+                readonly=readonly,
+                visible=visible,
+                hidden=hidden,
+                container=container,
+                options=options,
+                auth=auth,
+            )
+
+        async def field_update(
+            self,
+            field_id: str,
+            *,
+            version: int,
+            name: LocalizedText | None = None,
+            description: str | None = None,
+            category: str | None = None,
+            order: int | None = None,
+            readonly: bool | None = None,
+            visible: bool | None = None,
+            hidden: bool | None = None,
+            options: list[str | int | float] | None = None,
+            user_options: bool = False,
+            auth: YandexAuth | None = None,
+        ) -> GlobalField:
+            return await self._original.field_update(
+                field_id,
+                version=version,
+                name=name,
+                description=description,
+                category=category,
+                order=order,
+                readonly=readonly,
+                visible=visible,
+                hidden=hidden,
+                options=options,
+                user_options=user_options,
+                auth=auth,
+            )
+
+        @cached(**cache_config)
+        async def fields_get_categories(
+            self, *, auth: YandexAuth | None = None
+        ) -> list[FieldCategory]:
+            return await self._original.fields_get_categories(auth=auth)
+
+        async def field_category_get(
+            self, category_id: str, *, auth: YandexAuth | None = None
+        ) -> FieldCategory:
+            return await self._original.field_category_get(category_id, auth=auth)
+
+        async def field_category_create(
+            self,
+            *,
+            name: LocalizedText,
+            order: int,
+            description: str | None = None,
+            auth: YandexAuth | None = None,
+        ) -> FieldCategory:
+            return await self._original.field_category_create(
+                name=name, order=order, description=description, auth=auth
+            )
+
+        async def field_category_update(
+            self,
+            category_id: str,
+            *,
+            version: int,
+            name: LocalizedText | None = None,
+            description: str | None = None,
+            order: int | None = None,
+            auth: YandexAuth | None = None,
+        ) -> FieldCategory:
+            return await self._original.field_category_update(
+                category_id,
                 version=version,
                 name=name,
                 description=description,

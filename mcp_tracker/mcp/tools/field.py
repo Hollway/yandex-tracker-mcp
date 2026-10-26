@@ -4,10 +4,10 @@ from mcp.server.mcpserver import Context, MCPServer
 from mcp.types import ToolAnnotations
 
 from mcp_tracker.mcp.context import AppContext
-from mcp_tracker.mcp.params import IssueID
+from mcp_tracker.mcp.params import FieldID, IssueID
 from mcp_tracker.mcp.utils import get_yandex_auth
 from mcp_tracker.settings import Settings
-from mcp_tracker.tracker.proto.types.fields import GlobalField
+from mcp_tracker.tracker.proto.types.fields import FieldCategory, GlobalField
 from mcp_tracker.tracker.proto.types.issue_types import IssueType
 from mcp_tracker.tracker.proto.types.priorities import Priority
 from mcp_tracker.tracker.proto.types.resolutions import Resolution
@@ -27,6 +27,34 @@ def register_field_tools(_settings: Settings, mcp: MCPServer[AppContext]) -> Non
     ) -> list[GlobalField]:
         return await ctx.request_context.lifespan_context.fields.get_global_fields(
             auth=get_yandex_auth(ctx),
+        )
+
+    @mcp.tool(
+        title="Get Field",
+        description="Get one issue field ('поле задачи') of the Yandex Tracker "
+        "organization by its id: name, type, category, drop-down values and the "
+        "current `version`. A queue's local field is read with queue_get_fields.",
+        annotations=ToolAnnotations(read_only_hint=True),
+    )
+    async def field_get(
+        ctx: Context[AppContext],
+        field_id: FieldID,
+    ) -> GlobalField:
+        return await ctx.request_context.lifespan_context.fields.field_get(
+            field_id, auth=get_yandex_auth(ctx)
+        )
+
+    @mcp.tool(
+        title="Get Field Categories",
+        description="List the categories ('категории полей') that group the issue "
+        "fields of the Yandex Tracker organization, with their ids and versions.",
+        annotations=ToolAnnotations(read_only_hint=True),
+    )
+    async def fields_get_categories(
+        ctx: Context[AppContext],
+    ) -> list[FieldCategory]:
+        return await ctx.request_context.lifespan_context.fields.fields_get_categories(
+            auth=get_yandex_auth(ctx)
         )
 
     @mcp.tool(

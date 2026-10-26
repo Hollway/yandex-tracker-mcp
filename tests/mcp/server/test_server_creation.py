@@ -14,6 +14,7 @@ READ_ONLY_TOOL_NAMES = [
     # Queue tools (6)
     "queues_get_all",
     "queue_get_tags",
+    "queue_get_local_field",
     "queue_get_versions",
     "queue_get_triggers",
     "queue_get_components",
@@ -31,6 +32,8 @@ READ_ONLY_TOOL_NAMES = [
     "component_get",
     # Field tools (10)
     "get_global_fields",
+    "field_get",
+    "fields_get_categories",
     "get_statuses",
     "get_issue_types",
     "get_priorities",
@@ -104,6 +107,9 @@ WRITE_TOOL_NAMES = [
     "queue_create_macro",
     "queue_update_macro",
     "queue_delete_macro",
+    "queue_create_local_field",
+    "queue_update_local_field",
+    "queue_delete_tag",
     "queue_create",
     "queue_delete",
     "queue_restore",
@@ -203,6 +209,10 @@ WORKFLOW_WRITE_TOOL_NAMES = [
     "issue_type_update",
     "priority_create",
     "priority_update",
+    "field_create",
+    "field_update",
+    "field_create_category",
+    "field_update_category",
 ]
 
 ALL_READ_ONLY_TOOL_NAMES = READ_ONLY_TOOL_NAMES + ENTITY_READ_ONLY_TOOL_NAMES

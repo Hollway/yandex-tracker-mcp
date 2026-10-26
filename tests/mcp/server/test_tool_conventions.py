@@ -25,6 +25,8 @@ TOOL_NAME_ENTITIES = frozenset(
         "boards",
         "comment",
         "component",
+        "field",
+        "fields",
         "goal",
         "issue",
         "issues",

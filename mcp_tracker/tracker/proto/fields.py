@@ -1,7 +1,7 @@
 from typing import Protocol, runtime_checkable
 
 from .common import YandexAuth
-from .types.fields import GlobalField
+from .types.fields import FieldCategory, FieldType, GlobalField
 from .types.issue_types import IssueType
 from .types.priorities import Priority
 from .types.resolutions import Resolution
@@ -118,6 +118,67 @@ class GlobalDataProtocol(Protocol):
         order: int | None = None,
         auth: YandexAuth | None = None,
     ) -> Priority: ...
+
+    # Issue fields and their categories. Neither can be deleted.
+    async def field_get(
+        self, field_id: str, *, auth: YandexAuth | None = None
+    ) -> GlobalField: ...
+    async def field_create(
+        self,
+        *,
+        field_id: str,
+        name: LocalizedText,
+        category: str,
+        type: FieldType,
+        description: str | None = None,
+        order: int | None = None,
+        readonly: bool | None = None,
+        visible: bool | None = None,
+        hidden: bool | None = None,
+        container: bool | None = None,
+        options: list[str | int | float] | None = None,
+        auth: YandexAuth | None = None,
+    ) -> GlobalField: ...
+    async def field_update(
+        self,
+        field_id: str,
+        *,
+        version: int,
+        name: LocalizedText | None = None,
+        description: str | None = None,
+        category: str | None = None,
+        order: int | None = None,
+        readonly: bool | None = None,
+        visible: bool | None = None,
+        hidden: bool | None = None,
+        options: list[str | int | float] | None = None,
+        user_options: bool = False,
+        auth: YandexAuth | None = None,
+    ) -> GlobalField: ...
+    async def fields_get_categories(
+        self, *, auth: YandexAuth | None = None
+    ) -> list[FieldCategory]: ...
+    async def field_category_get(
+        self, category_id: str, *, auth: YandexAuth | None = None
+    ) -> FieldCategory: ...
+    async def field_category_create(
+        self,
+        *,
+        name: LocalizedText,
+        order: int,
+        description: str | None = None,
+        auth: YandexAuth | None = None,
+    ) -> FieldCategory: ...
+    async def field_category_update(
+        self,
+        category_id: str,
+        *,
+        version: int,
+        name: LocalizedText | None = None,
+        description: str | None = None,
+        order: int | None = None,
+        auth: YandexAuth | None = None,
+    ) -> FieldCategory: ...
 
 
 class GlobalDataProtocolWrap(GlobalDataProtocol):

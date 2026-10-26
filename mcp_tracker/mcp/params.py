@@ -13,6 +13,7 @@ from mcp_tracker.tracker.proto.types.entities import (
     ProjectPortfolioLinkRelationship,
     ProjectPortfolioStatus,
 )
+from mcp_tracker.tracker.proto.types.fields import FieldType
 from mcp_tracker.tracker.proto.types.inputs import (
     ChecklistItemDeadlineInput,
     ChecklistItemInput,
@@ -72,6 +73,72 @@ QueueID = Annotated[
     str,
     Field(
         description="Queue (Project ID) to search in, like 'SOMEPROJECT'",
+    ),
+]
+
+FieldID = Annotated[
+    str,
+    Field(
+        description="Field id, e.g. 'storyPoints' - the `id` get_global_fields "
+        "or queue_get_fields shows."
+    ),
+]
+
+LocalFieldKey = Annotated[
+    str,
+    Field(
+        description="Key of the queue's local field, e.g. 'locTest' - its "
+        "`key`, not its `id`."
+    ),
+]
+
+# The settings of a new or changed field - global or local alike.
+CategoryID = Annotated[
+    str,
+    Field(description="Field category id - fields_get_categories lists them."),
+]
+CategoryUpdateID = Annotated[
+    str | None,
+    Field(
+        description="Field category id to move the field to - "
+        "fields_get_categories lists them. Omit to keep it."
+    ),
+]
+FieldTypeParam = Annotated[
+    FieldType,
+    Field(
+        description="Value type. A drop-down list is a `string`, `integer` or "
+        "`user` field with `options`. It cannot be changed later."
+    ),
+]
+FieldOrderParam = Annotated[
+    int | None,
+    Field(description="Position in the list of fields."),
+]
+ReadonlyParam = Annotated[
+    bool | None, Field(description="True forbids changing the value in issues.")
+]
+VisibleParam = Annotated[
+    bool | None,
+    Field(description="True shows the field in an issue even when it is empty."),
+]
+HiddenParam = Annotated[
+    bool | None,
+    Field(description="True hides the field in an issue even when it is set."),
+]
+ContainerParam = Annotated[
+    bool | None,
+    Field(
+        description="True lets the field hold several values, like tags. Only "
+        "for `string` and `user` fields and drop-down lists."
+    ),
+]
+OptionsParam = Annotated[
+    list[str | int | float] | None,
+    Field(
+        description="Values of the drop-down list (up to 3000): strings or "
+        "numbers, user logins for a `user` field. On an update the list "
+        "replaces the current one whole. Omit for a free-value field."
     ),
 ]
 

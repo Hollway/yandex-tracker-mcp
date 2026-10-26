@@ -463,6 +463,7 @@ The server exposes the following tools through the MCP protocol:
 | --- | --- | --- |
 | `queues_get_all` | Every queue the token may see; returns `{values, hits, pages}` | `fields`, `page` (omit to walk every page), `per_page` |
 | `queue_get_tags` | The tags defined in the queue | `queue_id` (a key like `"SOMEPROJECT"`) |
+| `queue_delete_tag` | Remove a tag from the queue's list; Tracker refuses a tag still set on an issue | `queue_id`, `tag` |
 | `queue_get_triggers` | Automation triggers: conditions and actions, webhook credentials left out | `queue_id`, `active_only` |
 | `queue_get_versions` | The queue's versions, with dates and status | `queue_id` |
 | `queue_get_components` | The queue's components as full objects, with lead, auto-assign flag and `version`; `queue_get_metadata` with `expand: ["components"]` gives ids and names only | `queue_id` |
@@ -470,10 +471,14 @@ The server exposes the following tools through the MCP protocol:
 | `queue_update_version` | Rename a version or change its description or dates | `version_id`, `name`, `description`, `start_date`, `due_date` |
 | `queue_delete_version` | Delete a version - it cannot be restored | `version_id` |
 | `queue_get_fields` | The fields configured on the queue, local ones included; `schema.required` marks the mandatory ones | `queue_id`, `include_local_fields` |
+| `queue_get_local_field` | One local field of the queue | `queue_id`, `field_key` |
+| `queue_create_local_field` | Create a field only this queue's issues have; the same settings as `field_create` | `queue_id`, `field_key`, `name`, `category`, `type`, `options` |
+| `queue_update_local_field` | Change a local field's name, description, category, drop-down values or display flags | `queue_id`, `field_key` |
 | `queue_get_metadata` | Name, description, default type and priority, plus whatever `expand` asks for | `queue_id`, `expand` (`all`, `projects`, `components`, `versions`, `types`, `team`, `workflows`, `fields`, `issueTypesConfig`) |
 | `queue_get_workflows` | The workflows the queue runs, each with the issue types it applies to | `queue_id` |
 
 - Read `queue_get_fields` before `issue_create`, but it is not the whole registry: system fields such as `parent` or `estimation` are settable without appearing there, and `get_global_fields` lists every field the organization has.
+- A local field is read and changed by its `key`, but an issue write names it by its `id`, which looks like `6adf5b36c2dc6e1bb442dffa--locTest`; the key alone answers 400 "Field [locTest] was not found". A local field cannot be deleted through the API.
 - `queue_get_metadata` with `expand: ["issueTypesConfig"]` is where the resolutions valid for each issue type come from - `issue_close` needs one of them.
 - All of these respect `TRACKER_LIMIT_QUEUES`. `hits` / `pages` from `queues_get_all` are reported only for an explicit single page on a server without the allow-list, since the totals count queues the allow-list then hides.
 
@@ -594,8 +599,16 @@ tool does, the columns which name to call:
 | Tool | What it does | Key arguments |
 | --- | --- | --- |
 | `get_global_fields` | Every global field of the organization, with its schema and type | - |
+| `field_get` | One field of the organization: type, category, drop-down values and its current `version` | `field_id` |
+| `fields_get_categories` | The categories that group the organization's fields | - |
+| `field_create` | Create a field for every queue; a drop-down list is a `string`, `integer` or `user` field with `options` | `field_id`, `name`, `category`, `type`, `options` |
+| `field_update` | Change a field's name, description, category, drop-down values or display flags; `options` replaces the whole list | `field_id` |
+| `field_create_category` | Create a field category | `name`, `order` |
+| `field_update_category` | Change a category's name, description or order | `category_id` |
 
 Queue-local fields are not here - `queue_get_fields` returns them together with the global ones.
+
+The four write tools need `TRACKER_WORKFLOWS_WRITE_ENABLED=true` on a writable server, like the status and resolution catalogue: a field belongs to the whole organization, so an update is refused while `TRACKER_LIMIT_QUEUES` or `TRACKER_READ_ONLY_QUEUES` is set (a create is not). Neither a field nor a category can be deleted through the API.
 
 </details>
 

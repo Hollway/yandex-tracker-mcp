@@ -12,6 +12,7 @@ from starlette.requests import Request
 from mcp_tracker.mcp.context import AppContext
 from mcp_tracker.mcp.params import (
     AutoactionIDParam,
+    LocalFieldKey,
     MacroIDParam,
     PageOrAllParam,
     PerPageParam,
@@ -24,7 +25,7 @@ from mcp_tracker.mcp.tools._pagination import collect_pages
 from mcp_tracker.mcp.utils import get_yandex_auth, set_non_needed_fields_null
 from mcp_tracker.settings import Settings
 from mcp_tracker.tracker.proto.types.components import Component
-from mcp_tracker.tracker.proto.types.fields import GlobalField
+from mcp_tracker.tracker.proto.types.fields import GlobalField, LocalField
 from mcp_tracker.tracker.proto.types.pagination import PaginatedResult
 from mcp_tracker.tracker.proto.types.queue_automation import (
     QueueAutoaction,
@@ -96,6 +97,23 @@ def register_queue_tools(settings: Settings, mcp: MCPServer[AppContext]) -> None
             set_non_needed_fields_null(result.values, {f.name for f in fields})
 
         return result
+
+    @mcp.tool(
+        title="Get Queue Local Field",
+        description="Get one local field ('локальное поле') of a Yandex Tracker "
+        "queue by its key. An issue write names the field by the `id` this "
+        "returns ('<hash>--<key>'), not by the key.",
+        annotations=ToolAnnotations(read_only_hint=True),
+    )
+    async def queue_get_local_field(
+        ctx: Context[AppContext],
+        queue_id: QueueID,
+        field_key: LocalFieldKey,
+    ) -> LocalField:
+        check_queue_access(settings, queue_id)
+        return await ctx.request_context.lifespan_context.queues.queue_get_local_field(
+            queue_id, field_key, auth=get_yandex_auth(ctx)
+        )
 
     @mcp.tool(
         title="Get Queue Tags",

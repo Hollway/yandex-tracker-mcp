@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -59,9 +59,51 @@ class GlobalField(BaseTrackerEntity):
     optionsProvider: OptionsProvider | None = None
     queryProvider: QueryProvider | None = None
     category: CategoryRef | None = None
+    description: str | None = None
+    hidden: bool | None = None
+    visible: bool | None = None
 
 
 class LocalField(GlobalField):
     """Queue-specific local field"""
 
+
+class FieldCategory(BaseTrackerEntity):
+    """A category that groups the organization's issue fields."""
+
+    id: str
+    name: str | None = None
     description: str | None = None
+    order: int | None = None
+    version: int | None = None
+
+
+# The value type of a new field, as the API spells it after
+# `ru.yandex.startrek.core.fields.` - the short name is what a tool takes.
+FIELD_TYPES: dict[str, str] = {
+    "date": "DateFieldType",
+    "datetime": "DateTimeFieldType",
+    "string": "StringFieldType",
+    "text": "TextFieldType",
+    "float": "FloatFieldType",
+    "integer": "IntegerFieldType",
+    "user": "UserFieldType",
+    "uri": "UriFieldType",
+    "money": "MoneyFieldType",
+    "money_with_rate": "MoneyWithRateFieldType",
+    "duration": "TimeTrackingDurationFieldType",
+}
+
+FieldType = Literal[
+    "date",
+    "datetime",
+    "string",
+    "text",
+    "float",
+    "integer",
+    "user",
+    "uri",
+    "money",
+    "money_with_rate",
+    "duration",
+]

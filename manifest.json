@@ -48,6 +48,10 @@
       "description": "Get all tags for a specific queue"
     },
     {
+      "name": "queue_get_local_field",
+      "description": "Get one local field of a queue by its key"
+    },
+    {
       "name": "queue_get_triggers",
       "description": "Get the automation triggers of a queue: their conditions and actions"
     },
@@ -134,6 +138,18 @@
     {
       "name": "queue_delete_macro",
       "description": "Delete a macro of a queue"
+    },
+    {
+      "name": "queue_create_local_field",
+      "description": "Create a local field that only one queue's issues have"
+    },
+    {
+      "name": "queue_update_local_field",
+      "description": "Change the name, description, category, drop-down values or display flags of a queue's local field"
+    },
+    {
+      "name": "queue_delete_tag",
+      "description": "Remove a tag from a queue's list of tags"
     },
     {
       "name": "queue_create",
@@ -352,6 +368,14 @@
       "description": "Get all global fields available in Yandex Tracker"
     },
     {
+      "name": "field_get",
+      "description": "Get one issue field of the organization with its type, category, drop-down values and version"
+    },
+    {
+      "name": "fields_get_categories",
+      "description": "List the categories that group the organization's issue fields"
+    },
+    {
       "name": "get_statuses",
       "description": "Get all available issue statuses"
     },
@@ -446,6 +470,22 @@
     {
       "name": "priority_update",
       "description": "Change the name, description or order of an issue priority (requires TRACKER_WORKFLOWS_WRITE_ENABLED)"
+    },
+    {
+      "name": "field_create",
+      "description": "Create an issue field for every queue of the organization (requires TRACKER_WORKFLOWS_WRITE_ENABLED)"
+    },
+    {
+      "name": "field_update",
+      "description": "Change the name, description, category, drop-down values or display flags of an issue field (requires TRACKER_WORKFLOWS_WRITE_ENABLED)"
+    },
+    {
+      "name": "field_create_category",
+      "description": "Create a category for issue fields (requires TRACKER_WORKFLOWS_WRITE_ENABLED)"
+    },
+    {
+      "name": "field_update_category",
+      "description": "Change the name, description or order of a field category (requires TRACKER_WORKFLOWS_WRITE_ENABLED)"
     },
     {
       "name": "issue_templates_get_all",

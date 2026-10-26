@@ -23,6 +23,8 @@ This package organizes MCP tools by category:
   tracker_workflows_write_enabled)
 - catalog_write.py: Status, resolution, issue type and priority write tools
   (conditional on read-only mode and tracker_workflows_write_enabled)
+- field_write.py: Issue field and field category write tools (the same
+  conditions as catalog_write.py)
 - project.py: Project entity tools (read-only)
 - project_write.py: Project entity write tools (conditional on read-only mode)
 - portfolio.py: Portfolio entity tools (read-only)
@@ -44,6 +46,7 @@ from mcp_tracker.mcp.tools.catalog_write import register_catalog_write_tools
 from mcp_tracker.mcp.tools.component import register_component_tools
 from mcp_tracker.mcp.tools.component_write import register_component_write_tools
 from mcp_tracker.mcp.tools.field import register_field_tools
+from mcp_tracker.mcp.tools.field_write import register_field_write_tools
 from mcp_tracker.mcp.tools.goal import register_goal_tools
 from mcp_tracker.mcp.tools.goal_write import register_goal_write_tools
 from mcp_tracker.mcp.tools.issue_read import (
@@ -115,6 +118,7 @@ def register_all_tools(settings: Settings, mcp: MCPServer[AppContext]) -> None:
         if settings.tracker_workflows_write_enabled:
             register_workflow_write_tools(settings, mcp)
             register_catalog_write_tools(settings, mcp)
+            register_field_write_tools(settings, mcp)
 
         if settings.tracker_file_upload_enabled:
             register_issue_file_upload_tools(settings, mcp)

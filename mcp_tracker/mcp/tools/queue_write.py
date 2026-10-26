@@ -10,17 +10,27 @@ from pydantic import Field
 from mcp_tracker.mcp.context import AppContext
 from mcp_tracker.mcp.errors import TrackerError
 from mcp_tracker.mcp.params import (
+    CategoryID,
+    CategoryUpdateID,
+    ContainerParam,
+    FieldOrderParam,
+    FieldTypeParam,
+    HiddenParam,
+    LocalFieldKey,
     MacroBodyParam,
     MacroIDParam,
     MacroIssueUpdateParam,
+    OptionsParam,
     QueueID,
     QueueIssueTypeParam,
+    ReadonlyParam,
     TriggerActionsParam,
     TriggerActionsUpdateParam,
     TriggerActiveParam,
     TriggerConditionsParam,
     TriggerIDParam,
     TriggerNameParam,
+    VisibleParam,
     WorkflowID,
 )
 from mcp_tracker.mcp.tools._access import (
@@ -28,6 +38,17 @@ from mcp_tracker.mcp.tools._access import (
     check_version_access,
     queue_checks_needed,
 )
+from mcp_tracker.mcp.tools.catalog_write import (
+    DescriptionParam,
+    DescriptionUpdateParam,
+    NameEnParam,
+    NameOptionalParam,
+    NameParam,
+    _both,
+    _name,
+    _require_change,
+)
+from mcp_tracker.mcp.tools.field_write import has_user_options
 from mcp_tracker.mcp.utils import get_yandex_auth
 from mcp_tracker.settings import Settings
 from mcp_tracker.tracker.custom.errors import (
@@ -35,6 +56,7 @@ from mcp_tracker.tracker.custom.errors import (
     MacroEmptyUpdate,
     TriggerEmptyUpdate,
 )
+from mcp_tracker.tracker.proto.types.fields import LocalField
 from mcp_tracker.tracker.proto.types.queue_automation import (
     QueueAutoaction,
     QueueIssueTypeConfigInput,
@@ -385,6 +407,127 @@ def register_queue_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -
         check_queue_access(settings, queue_id, write=True)
         await ctx.request_context.lifespan_context.queues.queue_delete_macro(
             queue_id, macro_id, auth=get_yandex_auth(ctx)
+        )
+
+    @mcp.tool(
+        title="Create Queue Local Field",
+        description="Create a local field ('локальное поле') that only this Yandex "
+        "Tracker queue's issues have, and return it. Issue writes name it by the "
+        "returned `id` ('<hash>--<key>'); a local field cannot be deleted.",
+        annotations=ToolAnnotations(read_only_hint=False),
+    )
+    async def queue_create_local_field(
+        ctx: Context[AppContext],
+        queue_id: QueueID,
+        field_key: Annotated[
+            str,
+            Field(
+                description="Key of the new field, e.g. 'releaseNotes': Latin "
+                "letters and digits, starting with a lowercase letter. It cannot "
+                "be changed later."
+            ),
+        ],
+        name: NameParam,
+        category: CategoryID,
+        type: FieldTypeParam,
+        name_en: NameEnParam = None,
+        description: DescriptionParam = None,
+        order: FieldOrderParam = None,
+        readonly: ReadonlyParam = None,
+        visible: VisibleParam = None,
+        hidden: HiddenParam = None,
+        container: ContainerParam = None,
+        options: OptionsParam = None,
+    ) -> LocalField:
+        check_queue_access(settings, queue_id, write=True)
+        queues = ctx.request_context.lifespan_context.queues
+        return await queues.queue_create_local_field(
+            queue_id,
+            field_key=field_key,
+            name=_both(name, name_en),
+            category=category,
+            type=type,
+            description=description,
+            order=order,
+            readonly=readonly,
+            visible=visible,
+            hidden=hidden,
+            container=container,
+            options=options,
+            auth=get_yandex_auth(ctx),
+        )
+
+    @mcp.tool(
+        title="Update Queue Local Field",
+        description="Change the name, description, category, drop-down values or "
+        "display flags of a Yandex Tracker queue's local field ('локальное поле') "
+        "and return it; omitted settings keep their value.",
+        annotations=ToolAnnotations(read_only_hint=False),
+    )
+    async def queue_update_local_field(
+        ctx: Context[AppContext],
+        queue_id: QueueID,
+        field_key: LocalFieldKey,
+        name: NameOptionalParam = None,
+        name_en: NameEnParam = None,
+        description: DescriptionUpdateParam = None,
+        category: CategoryUpdateID = None,
+        order: FieldOrderParam = None,
+        readonly: ReadonlyParam = None,
+        visible: VisibleParam = None,
+        hidden: HiddenParam = None,
+        options: OptionsParam = None,
+    ) -> LocalField:
+        check_queue_access(settings, queue_id, write=True)
+        localized = _name(name, name_en)
+        _require_change(
+            "local field",
+            name=localized,
+            description=description,
+            category=category,
+            order=order,
+            readonly=readonly,
+            visible=visible,
+            hidden=hidden,
+            options=options,
+        )
+        queues = ctx.request_context.lifespan_context.queues
+        auth = get_yandex_auth(ctx)
+        user_options = False
+        if options is not None:
+            # A new drop-down list is written as the kind the field has.
+            current = await queues.queue_get_local_field(queue_id, field_key, auth=auth)
+            user_options = has_user_options(current)
+        return await queues.queue_update_local_field(
+            queue_id,
+            field_key,
+            name=localized,
+            description=description,
+            category=category,
+            order=order,
+            readonly=readonly,
+            visible=visible,
+            hidden=hidden,
+            options=options,
+            user_options=user_options,
+            auth=auth,
+        )
+
+    @mcp.tool(
+        title="Delete Queue Tag",
+        description="Remove a tag from a Yandex Tracker queue's list of tags "
+        "('теги очереди'). Tracker refuses a tag still set on an issue, and "
+        "answers an unknown tag as removed.",
+        annotations=ToolAnnotations(read_only_hint=False, destructive_hint=True),
+    )
+    async def queue_delete_tag(
+        ctx: Context[AppContext],
+        queue_id: QueueID,
+        tag: Annotated[str, Field(description="The tag, as queue_get_tags lists it.")],
+    ) -> None:
+        check_queue_access(settings, queue_id, write=True)
+        await ctx.request_context.lifespan_context.queues.queue_delete_tag(
+            queue_id, tag, auth=get_yandex_auth(ctx)
         )
 
     @mcp.tool(

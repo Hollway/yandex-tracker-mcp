@@ -46,6 +46,7 @@ from mcp_tracker.tracker.custom.errors import (
     IssueNotFound,
     IssueTemplateNotFound,
     IssueVersionConflict,
+    LocalFieldNotFound,
     MacroNotFound,
     NoDoneTransition,
     QueueNotFound,
@@ -89,7 +90,13 @@ from mcp_tracker.tracker.proto.types.entities import (
     ProjectPortfolioStatus,
     ProjectSearchResult,
 )
-from mcp_tracker.tracker.proto.types.fields import GlobalField, LocalField
+from mcp_tracker.tracker.proto.types.fields import (
+    FIELD_TYPES,
+    FieldCategory,
+    FieldType,
+    GlobalField,
+    LocalField,
+)
 from mcp_tracker.tracker.proto.types.inputs import (
     ChecklistItemDeadlineInput,
     ChecklistItemInput,
@@ -228,6 +235,7 @@ class _IssueChecklist(_ChecklistSnapshotFields):
 
 
 GlobalFieldList = RootModel[list[GlobalField]]
+FieldCategoryList = RootModel[list[FieldCategory]]
 StatusList = RootModel[list[Status]]
 IssueTypeList = RootModel[list[IssueType]]
 PriorityList = RootModel[list[Priority]]
@@ -477,6 +485,28 @@ _PRIORITIES = _Catalog(
     "get_priorities",
     ("name", "name_en", "description", "order"),
 )
+_FIELDS = _Catalog(
+    "v3/fields",
+    "field",
+    "get_global_fields",
+    (
+        "name",
+        "name_en",
+        "description",
+        "category",
+        "order",
+        "readonly",
+        "visible",
+        "hidden",
+        "options",
+    ),
+)
+_FIELD_CATEGORIES = _Catalog(
+    "v3/fields/categories",
+    "field category",
+    "fields_get_categories",
+    ("name", "name_en", "description", "order"),
+)
 
 
 def _catalog_body(name: LocalizedText | None, **fields: Any) -> dict[str, Any]:
@@ -487,6 +517,20 @@ def _catalog_body(name: LocalizedText | None, **fields: Any) -> dict[str, Any]:
     if name is not None:
         body["name"] = name.model_dump()
     return body
+
+
+_FIELD_TYPE_PREFIX = "ru.yandex.startrek.core.fields."
+
+
+def _options_provider(
+    users: bool, options: list[str | int | float] | None
+) -> dict[str, Any] | None:
+    """The drop-down list of a field, which replaces the whole list - a user
+    field takes a list of users, any other a list of values."""
+    if options is None:
+        return None
+    kind = "FixedUserListOptionsProvider" if users else "FixedListOptionsProvider"
+    return {"type": kind, "values": options}
 
 
 def _one_catalog_object(model: type[_CatalogT], raw: bytes) -> _CatalogT:
@@ -793,6 +837,114 @@ class TrackerClient(
                 not_found=QueueNotFound(queue_id),
             )
         ).root
+
+    # Local fields (verified 2026-10-26): read and changed by their key, while
+    # the `id` that comes back is `<hash>--<key>` - the name an issue write
+    # takes. An update ignores `version` (a stale one is accepted), and there
+    # is no DELETE (405).
+
+    async def queue_get_local_field(
+        self, queue_id: str, field_key: str, *, auth: YandexAuth | None = None
+    ) -> LocalField:
+        return LocalField.model_validate_json(
+            await self._read(
+                "GET",
+                f"v3/queues/{queue_id}/localFields/{quote(field_key, safe='')}",
+                auth=auth,
+                not_found=LocalFieldNotFound(queue_id, field_key),
+            )
+        )
+
+    async def queue_create_local_field(
+        self,
+        queue_id: str,
+        *,
+        field_key: str,
+        name: LocalizedText,
+        category: str,
+        type: FieldType,
+        description: str | None = None,
+        order: int | None = None,
+        readonly: bool | None = None,
+        visible: bool | None = None,
+        hidden: bool | None = None,
+        container: bool | None = None,
+        options: list[str | int | float] | None = None,
+        auth: YandexAuth | None = None,
+    ) -> LocalField:
+        body = _catalog_body(
+            name,
+            id=field_key,
+            category=category,
+            type=_FIELD_TYPE_PREFIX + FIELD_TYPES[type],
+            description=description,
+            order=order,
+            readonly=readonly,
+            visible=visible,
+            hidden=hidden,
+            container=container,
+            optionsProvider=_options_provider(type == "user", options),
+        )
+        return LocalField.model_validate_json(
+            await self._read(
+                "POST",
+                f"v3/queues/{queue_id}/localFields",
+                auth=auth,
+                json=body,
+                not_found=QueueNotFound(queue_id),
+            )
+        )
+
+    async def queue_update_local_field(
+        self,
+        queue_id: str,
+        field_key: str,
+        *,
+        name: LocalizedText | None = None,
+        description: str | None = None,
+        category: str | None = None,
+        order: int | None = None,
+        readonly: bool | None = None,
+        visible: bool | None = None,
+        hidden: bool | None = None,
+        options: list[str | int | float] | None = None,
+        user_options: bool = False,
+        auth: YandexAuth | None = None,
+    ) -> LocalField:
+        body = _catalog_body(
+            name,
+            description=description,
+            category=category,
+            order=order,
+            readonly=readonly,
+            visible=visible,
+            hidden=hidden,
+            optionsProvider=_options_provider(user_options, options),
+        )
+        if not body:
+            raise CatalogEmptyUpdate("local field", _FIELDS.update_fields)
+        return LocalField.model_validate_json(
+            await self._read(
+                "PATCH",
+                f"v3/queues/{queue_id}/localFields/{quote(field_key, safe='')}",
+                auth=auth,
+                json=body,
+                not_found=LocalFieldNotFound(queue_id, field_key),
+            )
+        )
+
+    async def queue_delete_tag(
+        self, queue_id: str, tag: str, *, auth: YandexAuth | None = None
+    ) -> None:
+        """Remove a tag from a queue's list. A tag still on an issue answers
+        422 "Тег ещё используется", an unknown one 204 like a removal."""
+        await self._read(
+            "POST",
+            f"v3/queues/{queue_id}/tags/_remove",
+            auth=auth,
+            json={"tag": tag},
+            not_found=QueueNotFound(queue_id),
+        )
 
     async def queues_get_triggers(
         self, queue_id: str, *, auth: YandexAuth | None = None
@@ -1564,6 +1716,119 @@ class TrackerClient(
         body = _catalog_body(name, description=description, order=order)
         return await self._catalog_update(
             _PRIORITIES, Priority, priority_id, version, body, auth=auth
+        )
+
+    # Issue fields and their categories go through the catalogue helpers too:
+    # the same `{"ru", "en"}` name, `?version=` on an update (428 without it,
+    # 412 for a stale one) and no DELETE (405 on both, verified 2026-10-26).
+    # A create answers 200, not the documented 201.
+
+    async def field_get(
+        self, field_id: str, *, auth: YandexAuth | None = None
+    ) -> GlobalField:
+        return await self._catalog_get(_FIELDS, GlobalField, field_id, auth=auth)
+
+    async def field_create(
+        self,
+        *,
+        field_id: str,
+        name: LocalizedText,
+        category: str,
+        type: FieldType,
+        description: str | None = None,
+        order: int | None = None,
+        readonly: bool | None = None,
+        visible: bool | None = None,
+        hidden: bool | None = None,
+        container: bool | None = None,
+        options: list[str | int | float] | None = None,
+        auth: YandexAuth | None = None,
+    ) -> GlobalField:
+        body = _catalog_body(
+            name,
+            id=field_id,
+            category=category,
+            type=_FIELD_TYPE_PREFIX + FIELD_TYPES[type],
+            description=description,
+            order=order,
+            readonly=readonly,
+            visible=visible,
+            hidden=hidden,
+            container=container,
+            optionsProvider=_options_provider(type == "user", options),
+        )
+        return await self._catalog_create(_FIELDS, GlobalField, body, auth=auth)
+
+    async def field_update(
+        self,
+        field_id: str,
+        *,
+        version: int,
+        name: LocalizedText | None = None,
+        description: str | None = None,
+        category: str | None = None,
+        order: int | None = None,
+        readonly: bool | None = None,
+        visible: bool | None = None,
+        hidden: bool | None = None,
+        options: list[str | int | float] | None = None,
+        user_options: bool = False,
+        auth: YandexAuth | None = None,
+    ) -> GlobalField:
+        body = _catalog_body(
+            name,
+            description=description,
+            category=category,
+            order=order,
+            readonly=readonly,
+            visible=visible,
+            hidden=hidden,
+            optionsProvider=_options_provider(user_options, options),
+        )
+        return await self._catalog_update(
+            _FIELDS, GlobalField, field_id, version, body, auth=auth
+        )
+
+    async def fields_get_categories(
+        self, *, auth: YandexAuth | None = None
+    ) -> list[FieldCategory]:
+        return FieldCategoryList.model_validate_json(
+            await self._read("GET", _FIELD_CATEGORIES.path, auth=auth)
+        ).root
+
+    async def field_category_get(
+        self, category_id: str, *, auth: YandexAuth | None = None
+    ) -> FieldCategory:
+        return await self._catalog_get(
+            _FIELD_CATEGORIES, FieldCategory, category_id, auth=auth
+        )
+
+    async def field_category_create(
+        self,
+        *,
+        name: LocalizedText,
+        order: int,
+        description: str | None = None,
+        auth: YandexAuth | None = None,
+    ) -> FieldCategory:
+        body = _catalog_body(name, order=order, description=description)
+        return await self._catalog_create(
+            _FIELD_CATEGORIES, FieldCategory, body, auth=auth
+        )
+
+    async def field_category_update(
+        self,
+        category_id: str,
+        *,
+        version: int,
+        name: LocalizedText | None = None,
+        description: str | None = None,
+        order: int | None = None,
+        auth: YandexAuth | None = None,
+    ) -> FieldCategory:
+        body = _catalog_body(name, description=description, order=order)
+        return await self._catalog_update(
+            _FIELD_CATEGORIES, FieldCategory, category_id, version, body, auth=auth
         )
 
     async def get_issue_templates(

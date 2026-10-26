@@ -3,7 +3,7 @@ from typing import Any, Protocol, runtime_checkable
 
 from .common import YandexAuth
 from .types.components import Component
-from .types.fields import GlobalField, LocalField
+from .types.fields import FieldType, GlobalField, LocalField
 from .types.pagination import PaginatedResult
 from .types.queue_automation import (
     QueueAutoaction,
@@ -19,6 +19,7 @@ from .types.queues import (
     QueueTrigger,
     QueueVersion,
 )
+from .types.workflows import LocalizedText
 
 
 @runtime_checkable
@@ -42,6 +43,50 @@ class QueuesProtocol(Protocol):
     async def queues_get_tags(
         self, queue_id: str, *, auth: YandexAuth | None = None
     ) -> list[str]: ...
+
+    # A local field is addressed by its key; none can be deleted.
+    async def queue_get_local_field(
+        self, queue_id: str, field_key: str, *, auth: YandexAuth | None = None
+    ) -> LocalField: ...
+
+    async def queue_create_local_field(
+        self,
+        queue_id: str,
+        *,
+        field_key: str,
+        name: LocalizedText,
+        category: str,
+        type: FieldType,
+        description: str | None = None,
+        order: int | None = None,
+        readonly: bool | None = None,
+        visible: bool | None = None,
+        hidden: bool | None = None,
+        container: bool | None = None,
+        options: list[str | int | float] | None = None,
+        auth: YandexAuth | None = None,
+    ) -> LocalField: ...
+
+    async def queue_update_local_field(
+        self,
+        queue_id: str,
+        field_key: str,
+        *,
+        name: LocalizedText | None = None,
+        description: str | None = None,
+        category: str | None = None,
+        order: int | None = None,
+        readonly: bool | None = None,
+        visible: bool | None = None,
+        hidden: bool | None = None,
+        options: list[str | int | float] | None = None,
+        user_options: bool = False,
+        auth: YandexAuth | None = None,
+    ) -> LocalField: ...
+
+    async def queue_delete_tag(
+        self, queue_id: str, tag: str, *, auth: YandexAuth | None = None
+    ) -> None: ...
 
     async def queues_get_triggers(
         self, queue_id: str, *, auth: YandexAuth | None = None

@@ -460,6 +460,7 @@ claude mcp add yandex-tracker docker "run --rm -i -e TRACKER_TOKEN=ваш_ток
 | --- | --- | --- |
 | `queues_get_all` | Все очереди, доступные токену; возвращает `{values, hits, pages}` | `fields`, `page` (не указывать — обойти все страницы), `per_page` |
 | `queue_get_tags` | Теги, заведённые в очереди | `queue_id` (ключ вида `"SOMEPROJECT"`) |
+| `queue_delete_tag` | Убрать тег из списка очереди; тег, который ещё стоит в задаче, Трекер не удаляет | `queue_id`, `tag` |
 | `queue_get_triggers` | Триггеры автоматизации: условия и действия, без учётных данных вебхуков | `queue_id`, `active_only` |
 | `queue_get_versions` | Версии очереди с датами и статусом | `queue_id` |
 | `queue_get_components` | Компоненты очереди целиком: с ответственным, флагом автоназначения и `version`; `queue_get_metadata` с `expand: ["components"]` даёт только id и названия | `queue_id` |
@@ -467,10 +468,14 @@ claude mcp add yandex-tracker docker "run --rm -i -e TRACKER_TOKEN=ваш_ток
 | `queue_update_version` | Переименовать версию или изменить её описание и даты | `version_id`, `name`, `description`, `start_date`, `due_date` |
 | `queue_delete_version` | Удалить версию - восстановить её нельзя | `version_id` |
 | `queue_get_fields` | Поля, настроенные в очереди, включая локальные; `schema.required` отмечает обязательные | `queue_id`, `include_local_fields` |
+| `queue_get_local_field` | Одно локальное поле очереди | `queue_id`, `field_key` |
+| `queue_create_local_field` | Создать поле, которое есть только у задач этой очереди; настройки те же, что у `field_create` | `queue_id`, `field_key`, `name`, `category`, `type`, `options` |
+| `queue_update_local_field` | Изменить название, описание, категорию, значения списка или признаки показа локального поля | `queue_id`, `field_key` |
 | `queue_get_metadata` | Название, описание, тип и приоритет по умолчанию плюс то, что запрошено в `expand` | `queue_id`, `expand` (`all`, `projects`, `components`, `versions`, `types`, `team`, `workflows`, `fields`, `issueTypesConfig`) |
 | `queue_get_workflows` | Рабочие процессы очереди, каждый с типами задач, к которым он применяется | `queue_id` |
 
 - Читайте `queue_get_fields` перед `issue_create`, но это не полный реестр: системные поля вроде `parent` или `estimation` можно задавать, хотя в нём их нет, а `get_global_fields` перечисляет все поля организации.
+- Локальное поле читается и меняется по `key`, а в задаче пишется под своим `id` вида `6adf5b36c2dc6e1bb442dffa--locTest`; по одному ключу Трекер отвечает 400 "Field [locTest] was not found". Удалить локальное поле через API нельзя.
 - `queue_get_metadata` с `expand: ["issueTypesConfig"]` — источник резолюций, допустимых для каждого типа задачи; одна из них нужна `issue_close`.
 - Все они учитывают `TRACKER_LIMIT_QUEUES`. `hits` / `pages` у `queues_get_all` возвращаются только для явно запрошенной страницы на сервере без allow-list: иначе итог считает и те очереди, которые allow-list затем скрывает.
 
@@ -591,8 +596,16 @@ claude mcp add yandex-tracker docker "run --rm -i -e TRACKER_TOKEN=ваш_ток
 | Инструмент | Что делает | Ключевые аргументы |
 | --- | --- | --- |
 | `get_global_fields` | Все глобальные поля организации со схемой и типом | - |
+| `field_get` | Одно поле организации: тип, категория, значения выпадающего списка и текущая `version` | `field_id` |
+| `fields_get_categories` | Категории, по которым сгруппированы поля организации | - |
+| `field_create` | Создать поле для всех очередей; выпадающий список - это поле `string`, `integer` или `user` с `options` | `field_id`, `name`, `category`, `type`, `options` |
+| `field_update` | Изменить название, описание, категорию, значения списка или признаки показа поля; `options` заменяет весь список | `field_id` |
+| `field_create_category` | Создать категорию полей | `name`, `order` |
+| `field_update_category` | Изменить название, описание или порядок категории | `category_id` |
 
 Локальных полей очереди здесь нет — `queue_get_fields` возвращает их вместе с глобальными.
+
+Четыре инструмента записи требуют `TRACKER_WORKFLOWS_WRITE_ENABLED=true` на сервере с записью, как справочник статусов и резолюций: поле принадлежит всей организации, поэтому изменение отклоняется, пока задан `TRACKER_LIMIT_QUEUES` или `TRACKER_READ_ONLY_QUEUES` (создание - нет). Ни поле, ни категорию через API удалить нельзя.
 
 </details>
 
