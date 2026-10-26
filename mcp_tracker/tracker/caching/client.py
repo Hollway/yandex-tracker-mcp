@@ -17,6 +17,8 @@ from mcp_tracker.tracker.proto.templates import TemplatesProtocolWrap
 from mcp_tracker.tracker.proto.types.boards import Board, BoardColumnDetail, Sprint
 from mcp_tracker.tracker.proto.types.components import Component
 from mcp_tracker.tracker.proto.types.entities import (
+    EntityLink,
+    EntityType,
     GoalEntity,
     GoalSearchResult,
     GoalStatus,
@@ -2302,6 +2304,32 @@ def make_cached_protocols(
         ) -> PortfolioEntity:
             return await self._original.portfolio_delete_checklist(
                 entity_id, fields=fields, auth=auth
+            )
+
+        # Not cached, like the comments: a link deleted a moment ago must not
+        # come back from the cache.
+        async def entity_get_links(
+            self,
+            entity_type: EntityType,
+            entity_id: str,
+            *,
+            fields: list[str] | None = None,
+            auth: YandexAuth | None = None,
+        ) -> list[EntityLink]:
+            return await self._original.entity_get_links(
+                entity_type, entity_id, fields=fields, auth=auth
+            )
+
+        async def entity_delete_link(
+            self,
+            entity_type: EntityType,
+            entity_id: str,
+            linked_entity_id: str,
+            *,
+            auth: YandexAuth | None = None,
+        ) -> None:
+            return await self._original.entity_delete_link(
+                entity_type, entity_id, linked_entity_id, auth=auth
             )
 
     class CachingBoardsProtocol(BoardsProtocolWrap):

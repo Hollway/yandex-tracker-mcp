@@ -1,6 +1,6 @@
 from datetime import date, datetime
 from enum import Enum
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import AliasChoices, Field
 
@@ -12,6 +12,14 @@ from mcp_tracker.tracker.proto.types.base import (
 from mcp_tracker.tracker.proto.types.mixins import CreatedUpdatedMixin
 from mcp_tracker.tracker.proto.types.pagination import PaginatedResult
 from mcp_tracker.tracker.proto.types.refs import QueueReference, UserReference
+
+# The three entity types of the entities API, as they appear in its paths.
+EntityType = Literal["project", "portfolio", "goal"]
+
+# Fields of a linked entity read when the caller names none: `id` is what
+# `*_delete_link` takes, and without any `fields` Tracker returns the link's
+# type alone.
+DEFAULT_LINK_FIELDS = ["id", "shortId", "summary", "entityStatus"]
 
 # Status values for projects and portfolios.
 ProjectPortfolioStatus = Literal[
@@ -144,9 +152,23 @@ class GoalKeyResultItem(BaseTrackerEntity):
     assignee: UserReference | None = NoneExcludedField
 
 
+class EntityLink(BaseTrackerEntity):
+    """A link of a project, portfolio or goal to another one (`GET .../links`).
+
+    `type` is the relationship seen from the entity that was asked about
+    ('depends on' on one side reads 'is dependent by' on the other).
+    `linkFieldValues` holds the requested fields of the linked entity, `id`
+    included; its type is not reported.
+    """
+
+    type: str
+    linkFieldValues: dict[str, Any] | None = NoneExcludedField
+
+
 # There is deliberately no `links` field below: per api-ref/entities/about-entities
 # it is not among the values `fields` accepts, and neither get-entity nor
-# update-entity returns links, so links are write-only through the API.
+# update-entity returns links - they are read through `GET .../links`
+# (`EntityLink`).
 #
 # `date | datetime` below is only for API date fields (`start`/`end`): pydantic tries
 # `date` first, so Tracker's `...T00:00:00.000+0000` collapses to a bare date.

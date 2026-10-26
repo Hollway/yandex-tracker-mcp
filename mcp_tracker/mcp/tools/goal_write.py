@@ -27,6 +27,7 @@ from mcp_tracker.mcp.params import (
     GoalLinksParam,
     GoalStatusParam,
 )
+from mcp_tracker.mcp.tools._entity import GOAL, register_entity_write_tools
 from mcp_tracker.mcp.utils import get_yandex_auth
 from mcp_tracker.settings import Settings
 from mcp_tracker.tracker.proto.types.entities import GoalEntity
@@ -35,6 +36,8 @@ from mcp_tracker.tracker.proto.types.issues import IssueComment
 
 def register_goal_write_tools(_settings: Settings, mcp: MCPServer[AppContext]) -> None:
     """Register goal write tools (not registered in read-only mode)."""
+
+    register_entity_write_tools(GOAL, mcp)
 
     @mcp.tool(
         title="Create Goal",

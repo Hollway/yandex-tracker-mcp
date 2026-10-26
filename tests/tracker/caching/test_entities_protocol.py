@@ -6,6 +6,7 @@ import pytest
 from mcp_tracker.tracker.caching.client import make_cached_protocols
 from mcp_tracker.tracker.proto.common import YandexAuth
 from mcp_tracker.tracker.proto.types.entities import (
+    EntityLink,
     GoalEntity,
     GoalSearchResult,
     PortfolioEntity,
@@ -579,3 +580,36 @@ class TestCachingEntitiesProtocol:
             "e1", fields=None, auth=None
         )
         assert result == entity
+
+    async def test_get_links_is_not_cached(
+        self,
+        caching_entities_protocol: Any,
+        mock_original: AsyncMock,
+    ) -> None:
+        links = [EntityLink(type="depends on", linkFieldValues={"id": "e2"})]
+        mock_original.entity_get_links.return_value = links
+
+        await caching_entities_protocol.entity_get_links("project", "e1")
+        result = await caching_entities_protocol.entity_get_links("project", "e1")
+
+        assert mock_original.entity_get_links.call_count == 2
+        mock_original.entity_get_links.assert_called_with(
+            "project", "e1", fields=None, auth=None
+        )
+        assert result == links
+
+    async def test_delete_link_calls_original(
+        self,
+        caching_entities_protocol: Any,
+        mock_original: AsyncMock,
+        yandex_auth: YandexAuth,
+    ) -> None:
+        mock_original.entity_delete_link.return_value = None
+
+        await caching_entities_protocol.entity_delete_link(
+            "goal", "g1", "p1", auth=yandex_auth
+        )
+
+        mock_original.entity_delete_link.assert_called_once_with(
+            "goal", "g1", "p1", auth=yandex_auth
+        )

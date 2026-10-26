@@ -82,6 +82,9 @@ from mcp_tracker.tracker.proto.types.boards import Board, BoardColumnDetail, Spr
 from mcp_tracker.tracker.proto.types.components import Component
 from mcp_tracker.tracker.proto.types.entities import (
     DEFAULT_ENTITY_FIELDS_PARAM,
+    DEFAULT_LINK_FIELDS,
+    EntityLink,
+    EntityType,
     GoalEntity,
     GoalSearchResult,
     GoalStatus,
@@ -198,6 +201,7 @@ IssueAttachmentList = RootModel[list[IssueAttachment]]
 BulkChangeFailureList = RootModel[list[BulkChangeFailure]]
 ExternalApplicationList = RootModel[list[ExternalApplication]]
 RemoteLinkList = RootModel[list[RemoteLink]]
+EntityLinkList = RootModel[list[EntityLink]]
 
 
 class AbsenceSearchPage(BaseModel):
@@ -4518,6 +4522,43 @@ class TrackerClient(
             await self._entity_delete_checklist(
                 "portfolio", entity_id, fields=fields, auth=auth
             )
+        )
+
+    async def entity_get_links(
+        self,
+        entity_type: EntityType,
+        entity_id: str,
+        *,
+        fields: list[str] | None = None,
+        auth: YandexAuth | None = None,
+    ) -> list[EntityLink]:
+        # Without `fields` Tracker returns each link's type alone, and the id
+        # of the linked entity is what a caller needs to delete the link.
+        selected = list(fields) if fields else list(DEFAULT_LINK_FIELDS)
+        if "id" not in selected:
+            selected.insert(0, "id")
+        return EntityLinkList.model_validate_json(
+            await self._read(
+                "GET",
+                f"v3/entities/{entity_type}/{entity_id}/links",
+                auth=auth,
+                params={"fields": ",".join(selected)},
+            )
+        ).root
+
+    async def entity_delete_link(
+        self,
+        entity_type: EntityType,
+        entity_id: str,
+        linked_entity_id: str,
+        *,
+        auth: YandexAuth | None = None,
+    ) -> None:
+        await self._read(
+            "DELETE",
+            f"v3/entities/{entity_type}/{entity_id}/links",
+            auth=auth,
+            params={"right": linked_entity_id},
         )
 
     async def boards_list(

@@ -3,6 +3,8 @@ from typing import Any, Protocol, runtime_checkable
 
 from mcp_tracker.tracker.proto.common import YandexAuth
 from mcp_tracker.tracker.proto.types.entities import (
+    EntityLink,
+    EntityType,
     GoalEntity,
     GoalSearchResult,
     GoalStatus,
@@ -474,6 +476,27 @@ class EntitiesProtocol(Protocol):
         fields: list[str] | None = None,
         auth: YandexAuth | None = None,
     ) -> PortfolioEntity: ...
+
+    # The methods below are shared by the three entity types, which the
+    # entities API serves under the same paths.
+
+    async def entity_get_links(
+        self,
+        entity_type: EntityType,
+        entity_id: str,
+        *,
+        fields: list[str] | None = None,
+        auth: YandexAuth | None = None,
+    ) -> list[EntityLink]: ...
+
+    async def entity_delete_link(
+        self,
+        entity_type: EntityType,
+        entity_id: str,
+        linked_entity_id: str,
+        *,
+        auth: YandexAuth | None = None,
+    ) -> None: ...
 
 
 class EntitiesProtocolWrap(EntitiesProtocol):

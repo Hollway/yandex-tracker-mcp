@@ -577,9 +577,11 @@ tool does, the columns which name to call:
 | Delete one checklist item | `project_delete_checklist_item` | `portfolio_delete_checklist_item` | - |
 | Edit several existing items by id | `project_update_checklist` | `portfolio_update_checklist` | - |
 | Delete the whole checklist | `project_delete_checklist` | `portfolio_delete_checklist` | - |
+| Links to other projects, portfolios and goals, with the linked entity's id and the `fields` asked for | `project_get_links` | `portfolio_get_links` | `goal_get_links` |
+| Delete a link by the linked entity's id | `project_delete_link` | `portfolio_delete_link` | `goal_delete_link` |
 
 - **Arguments.** Reads take `entity_id` and `fields`; the `*_find` tools take `input`, `filter`, `order_by`, `order_asc`, `root_only`, `page`, `per_page`. Create and update take `summary` (required on create), `description`, `lead`, `team_users`, `clients`, `followers`, `start` (goals have none), `end`, `tags`, `entity_status`, `parent_entity`, `team_access` and `links`, and update also `comment` and `version` (optimistic locking). Every tool takes the same `fields` selector and returns the entity.
-- **`links` are added, never replaced**, and the API never returns them: an existing link cannot be read back or removed through this server, and a links-only update is rejected rather than reported as a success Tracker silently ignores.
+- **`links` on create and update are added, never replaced**: `*_get_links` reads them and `*_delete_link` removes one (a link is one relationship, deleted from either end). On update Tracker applies `links` only when a field actually changes or a `comment` comes with them, so a links-only update is rejected rather than reported as a success Tracker silently ignores.
 - **Not in the default field set:** `checklistItems` (the checklist tools return the whole entity, so ask for them to see the result), `metricItems`, and a goal's `keyResultItems` - the last two are read-only. Goals use their own `entityStatus` values (`draft`, `according_to_plan`, `at_risk`, `blocked`, `achieved`, `partially_achieved`, `not_achieved`, `exceeded`, `cancelled`). Bulk changes are not supported.
 
 </details>

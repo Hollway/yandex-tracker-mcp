@@ -574,9 +574,11 @@ claude mcp add yandex-tracker docker "run --rm -i -e TRACKER_TOKEN=ваш_ток
 | Удалить один пункт | `project_delete_checklist_item` | `portfolio_delete_checklist_item` | - |
 | Изменить несколько существующих пунктов по id | `project_update_checklist` | `portfolio_update_checklist` | - |
 | Удалить весь чек-лист | `project_delete_checklist` | `portfolio_delete_checklist` | - |
+| Связи с другими проектами, портфелями и целями: id связанной сущности и запрошенные `fields` | `project_get_links` | `portfolio_get_links` | `goal_get_links` |
+| Удалить связь по id связанной сущности | `project_delete_link` | `portfolio_delete_link` | `goal_delete_link` |
 
 - **Аргументы.** Чтение принимает `entity_id` и `fields`; инструменты `*_find` — `input`, `filter`, `order_by`, `order_asc`, `root_only`, `page`, `per_page`. Создание и изменение принимают `summary` (обязателен при создании), `description`, `lead`, `team_users`, `clients`, `followers`, `start` (у целей его нет), `end`, `tags`, `entity_status`, `parent_entity`, `team_access` и `links`, а изменение ещё `comment` и `version` (оптимистичная блокировка). Все инструменты принимают один и тот же селектор `fields` и возвращают сущность.
-- **`links` только добавляются, а не заменяются**, и API их никогда не возвращает: прочитать или удалить существующую связь через этот сервер нельзя, а изменение, состоящее только из `links`, отклоняется — вместо того чтобы отчитаться об успехе, который Трекер молча проигнорировал.
+- **`links` при создании и изменении только добавляются, а не заменяются**: `*_get_links` их читает, `*_delete_link` удаляет одну (связь — одно отношение, удалить её можно с любой стороны). При изменении Трекер применяет `links`, только если какое-то поле действительно меняется или вместе с ними передан `comment`, поэтому изменение, состоящее только из `links`, отклоняется — вместо того чтобы отчитаться об успехе, который Трекер молча проигнорировал.
 - **Не входит в набор полей по умолчанию:** `checklistItems` (инструменты чек-листа возвращают сущность целиком, так что запрашивайте их, чтобы увидеть результат), `metricItems` и ключевые результаты цели `keyResultItems` — последние два доступны только на чтение. У целей свой набор значений `entityStatus` (`draft`, `according_to_plan`, `at_risk`, `blocked`, `achieved`, `partially_achieved`, `not_achieved`, `exceeded`, `cancelled`). Массовые изменения не поддерживаются.
 
 </details>

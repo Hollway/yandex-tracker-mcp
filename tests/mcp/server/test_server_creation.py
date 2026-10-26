@@ -80,18 +80,21 @@ READ_ONLY_TOOL_NAMES = [
 
 # Entity read tools - registered only when TRACKER_ENTITIES_ENABLED is set
 ENTITY_READ_ONLY_TOOL_NAMES = [
-    # Project entity tools (3)
+    # Project entity tools
     "project_get",
     "project_find",
     "project_get_comments",
-    # Portfolio entity tools (3)
+    "project_get_links",
+    # Portfolio entity tools
     "portfolio_get",
     "portfolio_find",
     "portfolio_get_comments",
-    # Goal entity tools (3)
+    "portfolio_get_links",
+    # Goal entity tools
     "goal_get",
     "goal_find",
     "goal_get_comments",
+    "goal_get_links",
 ]
 
 # Write tool names - only registered when not in read-only mode
@@ -157,6 +160,7 @@ ENTITY_WRITE_TOOL_NAMES = [
     "project_delete_checklist_item",
     "project_update_checklist",
     "project_delete_checklist",
+    "project_delete_link",
     "portfolio_create",
     "portfolio_update",
     "portfolio_delete",
@@ -169,12 +173,14 @@ ENTITY_WRITE_TOOL_NAMES = [
     "portfolio_delete_checklist_item",
     "portfolio_update_checklist",
     "portfolio_delete_checklist",
+    "portfolio_delete_link",
     "goal_create",
     "goal_update",
     "goal_delete",
     "goal_add_comment",
     "goal_update_comment",
     "goal_delete_comment",
+    "goal_delete_link",
 ]
 
 # Tools that read local files - require both write mode and TRACKER_FILE_UPLOAD_ENABLED

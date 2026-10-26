@@ -362,7 +362,7 @@ class EntityLinksOnlyUpdate(YandexTrackerError):
             "Yandex Tracker ignores `links` when the update changes nothing else: "
             "pass at least one field to change, or a `comment`, in the same call. "
             "Note that links are added, not replaced - sending a link that already "
-            "exists fails, and links cannot be removed through this server."
+            "exists fails; *_get_links lists them and *_delete_link removes one."
         )
 
 

@@ -37,6 +37,7 @@ from mcp_tracker.mcp.params import (
     ProjectPortfolioLinksParam,
     ProjectPortfolioStatusParam,
 )
+from mcp_tracker.mcp.tools._entity import PORTFOLIO, register_entity_write_tools
 from mcp_tracker.mcp.utils import get_yandex_auth
 from mcp_tracker.settings import Settings
 from mcp_tracker.tracker.proto.types.entities import PortfolioEntity
@@ -47,6 +48,8 @@ def register_portfolio_write_tools(
     _settings: Settings, mcp: MCPServer[AppContext]
 ) -> None:
     """Register portfolio write tools (not registered in read-only mode)."""
+
+    register_entity_write_tools(PORTFOLIO, mcp)
 
     @mcp.tool(
         title="Create Portfolio",
