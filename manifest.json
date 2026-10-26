@@ -228,6 +228,10 @@
       "description": "Get the links of a project to other projects, portfolios and goals (requires TRACKER_ENTITIES_ENABLED)"
     },
     {
+      "name": "project_get_attachments",
+      "description": "List the files attached to a project (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
       "name": "portfolio_get",
       "description": "Get a portfolio by its id or shortId (requires TRACKER_ENTITIES_ENABLED)"
     },
@@ -244,6 +248,10 @@
       "description": "Get the links of a portfolio to other projects, portfolios and goals (requires TRACKER_ENTITIES_ENABLED)"
     },
     {
+      "name": "portfolio_get_attachments",
+      "description": "List the files attached to a portfolio (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
       "name": "goal_get",
       "description": "Get a goal by its id or shortId (requires TRACKER_ENTITIES_ENABLED)"
     },
@@ -258,6 +266,10 @@
     {
       "name": "goal_get_links",
       "description": "Get the links of a goal to other goals, projects and portfolios (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "goal_get_attachments",
+      "description": "List the files attached to a goal (requires TRACKER_ENTITIES_ENABLED)"
     },
     {
       "name": "project_create",
@@ -312,6 +324,10 @@
       "description": "Delete a link between a project and another entity (requires TRACKER_ENTITIES_ENABLED)"
     },
     {
+      "name": "project_delete_attachment",
+      "description": "Delete a file attached to a project (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
       "name": "portfolio_create",
       "description": "Create a new portfolio (requires TRACKER_ENTITIES_ENABLED)"
     },
@@ -364,6 +380,10 @@
       "description": "Delete a link between a portfolio and another entity (requires TRACKER_ENTITIES_ENABLED)"
     },
     {
+      "name": "portfolio_delete_attachment",
+      "description": "Delete a file attached to a portfolio (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
       "name": "goal_create",
       "description": "Create a new goal (requires TRACKER_ENTITIES_ENABLED)"
     },
@@ -390,6 +410,10 @@
     {
       "name": "goal_delete_link",
       "description": "Delete a link between a goal and another entity (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "goal_delete_attachment",
+      "description": "Delete a file attached to a goal (requires TRACKER_ENTITIES_ENABLED)"
     },
     {
       "name": "users_get_all",

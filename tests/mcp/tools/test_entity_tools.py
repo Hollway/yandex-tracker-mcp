@@ -6,7 +6,7 @@ import pytest
 from mcp import Client
 
 from mcp_tracker.tracker.proto.common import YandexAuth
-from mcp_tracker.tracker.proto.types.entities import EntityLink
+from mcp_tracker.tracker.proto.types.entities import EntityAttachment, EntityLink
 from tests.mcp.conftest import get_tool_result_content
 
 ENTITY_TYPES = ["project", "portfolio", "goal"]
@@ -78,6 +78,62 @@ class TestDeleteLink:
         result = await client_session_read_only.call_tool(
             f"{entity_type}_delete_link",
             {"entity_id": "e1", "linked_entity_id": "e2"},
+        )
+
+        assert result.is_error
+
+
+class TestGetAttachments:
+    @pytest.mark.parametrize("entity_type", ENTITY_TYPES)
+    async def test_returns_attachments(
+        self,
+        client_session: Client,
+        mock_entities_protocol: AsyncMock,
+        entity_type: str,
+    ) -> None:
+        mock_entities_protocol.entity_get_attachments.return_value = [
+            EntityAttachment(id="8021", name="a.txt", comment_id="c1")
+        ]
+
+        result = await client_session.call_tool(
+            f"{entity_type}_get_attachments", {"entity_id": "e1"}
+        )
+
+        assert not result.is_error
+        mock_entities_protocol.entity_get_attachments.assert_called_once_with(
+            entity_type, "e1", auth=YandexAuth()
+        )
+        content = get_tool_result_content(result)
+        assert content == [{"id": "8021", "name": "a.txt", "commentId": "c1"}]
+
+
+class TestDeleteAttachment:
+    @pytest.mark.parametrize("entity_type", ENTITY_TYPES)
+    async def test_deletes_attachment(
+        self,
+        client_session: Client,
+        mock_entities_protocol: AsyncMock,
+        entity_type: str,
+    ) -> None:
+        mock_entities_protocol.entity_delete_attachment.return_value = None
+
+        result = await client_session.call_tool(
+            f"{entity_type}_delete_attachment",
+            {"entity_id": "e1", "attachment_id": "8021"},
+        )
+
+        assert not result.is_error
+        mock_entities_protocol.entity_delete_attachment.assert_called_once_with(
+            entity_type, "e1", "8021", auth=YandexAuth()
+        )
+
+    @pytest.mark.parametrize("entity_type", ENTITY_TYPES)
+    async def test_not_registered_read_only(
+        self, client_session_read_only: Client, entity_type: str
+    ) -> None:
+        result = await client_session_read_only.call_tool(
+            f"{entity_type}_delete_attachment",
+            {"entity_id": "e1", "attachment_id": "8021"},
         )
 
         assert result.is_error

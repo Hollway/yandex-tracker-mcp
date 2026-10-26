@@ -17,6 +17,7 @@ from mcp_tracker.tracker.proto.templates import TemplatesProtocolWrap
 from mcp_tracker.tracker.proto.types.boards import Board, BoardColumnDetail, Sprint
 from mcp_tracker.tracker.proto.types.components import Component
 from mcp_tracker.tracker.proto.types.entities import (
+    EntityAttachment,
     EntityLink,
     EntityType,
     GoalEntity,
@@ -2330,6 +2331,29 @@ def make_cached_protocols(
         ) -> None:
             return await self._original.entity_delete_link(
                 entity_type, entity_id, linked_entity_id, auth=auth
+            )
+
+        async def entity_get_attachments(
+            self,
+            entity_type: EntityType,
+            entity_id: str,
+            *,
+            auth: YandexAuth | None = None,
+        ) -> list[EntityAttachment]:
+            return await self._original.entity_get_attachments(
+                entity_type, entity_id, auth=auth
+            )
+
+        async def entity_delete_attachment(
+            self,
+            entity_type: EntityType,
+            entity_id: str,
+            attachment_id: str,
+            *,
+            auth: YandexAuth | None = None,
+        ) -> None:
+            return await self._original.entity_delete_attachment(
+                entity_type, entity_id, attachment_id, auth=auth
             )
 
     class CachingBoardsProtocol(BoardsProtocolWrap):

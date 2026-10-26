@@ -579,6 +579,8 @@ tool does, the columns which name to call:
 | Delete the whole checklist | `project_delete_checklist` | `portfolio_delete_checklist` | - |
 | Links to other projects, portfolios and goals, with the linked entity's id and the `fields` asked for | `project_get_links` | `portfolio_get_links` | `goal_get_links` |
 | Delete a link by the linked entity's id | `project_delete_link` | `portfolio_delete_link` | `goal_delete_link` |
+| Files attached to the entity, each with the comment it came with | `project_get_attachments` | `portfolio_get_attachments` | `goal_get_attachments` |
+| Delete an attached file; the comment stays | `project_delete_attachment` | `portfolio_delete_attachment` | `goal_delete_attachment` |
 
 - **Arguments.** Reads take `entity_id` and `fields`; the `*_find` tools take `input`, `filter`, `order_by`, `order_asc`, `root_only`, `page`, `per_page`. Create and update take `summary` (required on create), `description`, `lead`, `team_users`, `clients`, `followers`, `start` (goals have none), `end`, `tags`, `entity_status`, `parent_entity`, `team_access` and `links`, and update also `comment` and `version` (optimistic locking). Every tool takes the same `fields` selector and returns the entity.
 - **`links` on create and update are added, never replaced**: `*_get_links` reads them and `*_delete_link` removes one (a link is one relationship, deleted from either end). On update Tracker applies `links` only when a field actually changes or a `comment` comes with them, so a links-only update is rejected rather than reported as a success Tracker silently ignores.

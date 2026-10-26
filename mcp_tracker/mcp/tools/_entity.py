@@ -6,14 +6,20 @@ registered once per type from `project.py`, `portfolio.py`, `goal.py` and their
 """
 
 from dataclasses import dataclass
+from typing import Annotated
 
 from mcp.server.mcpserver import Context, MCPServer
 from mcp.types import ToolAnnotations
+from pydantic import Field
 
 from mcp_tracker.mcp.context import AppContext
 from mcp_tracker.mcp.params import EntityID, EntityLinkedIDParam, EntityLinkFieldsParam
 from mcp_tracker.mcp.utils import get_yandex_auth
-from mcp_tracker.tracker.proto.types.entities import EntityLink, EntityType
+from mcp_tracker.tracker.proto.types.entities import (
+    EntityAttachment,
+    EntityLink,
+    EntityType,
+)
 
 
 @dataclass(frozen=True)
@@ -52,6 +58,23 @@ def register_entity_read_tools(kind: EntityKind, mcp: MCPServer[AppContext]) -> 
             kind.type, entity_id, fields=fields, auth=get_yandex_auth(ctx)
         )
 
+    @mcp.tool(
+        name=kind.tool("get_attachments"),
+        title=f"Get {kind.noun.title()} Attachments",
+        description=f"List the files attached to a Yandex Tracker {kind.noun} "
+        f"('{kind.russian}', 'вложения') with name, size and the comment each "
+        "came with.",
+        annotations=ToolAnnotations(read_only_hint=True),
+    )
+    async def get_attachments(
+        ctx: Context[AppContext],
+        entity_id: EntityID,
+    ) -> list[EntityAttachment]:
+        entities = ctx.request_context.lifespan_context.entities
+        return await entities.entity_get_attachments(
+            kind.type, entity_id, auth=get_yandex_auth(ctx)
+        )
+
 
 def register_entity_write_tools(kind: EntityKind, mcp: MCPServer[AppContext]) -> None:
     """Register the shared write tools of one entity type."""
@@ -71,4 +94,24 @@ def register_entity_write_tools(kind: EntityKind, mcp: MCPServer[AppContext]) ->
     ) -> None:
         await ctx.request_context.lifespan_context.entities.entity_delete_link(
             kind.type, entity_id, linked_entity_id, auth=get_yandex_auth(ctx)
+        )
+
+    @mcp.tool(
+        name=kind.tool("delete_attachment"),
+        title=f"Delete {kind.noun.title()} Attachment",
+        description=f"Delete a file attached to a Yandex Tracker {kind.noun} "
+        f"('{kind.russian}'). Cannot be undone; the comment it came with stays.",
+        annotations=ToolAnnotations(read_only_hint=False, destructive_hint=True),
+    )
+    async def delete_attachment(
+        ctx: Context[AppContext],
+        entity_id: EntityID,
+        attachment_id: Annotated[
+            str,
+            Field(description=f"Attachment `id` from {kind.tool('get_attachments')}."),
+        ],
+    ) -> None:
+        entities = ctx.request_context.lifespan_context.entities
+        await entities.entity_delete_attachment(
+            kind.type, entity_id, attachment_id, auth=get_yandex_auth(ctx)
         )

@@ -9,6 +9,7 @@ from mcp_tracker.tracker.proto.types.base import (
     NoneExcludedField,
     none_excluder,
 )
+from mcp_tracker.tracker.proto.types.issues import IssueAttachment
 from mcp_tracker.tracker.proto.types.mixins import CreatedUpdatedMixin
 from mcp_tracker.tracker.proto.types.pagination import PaginatedResult
 from mcp_tracker.tracker.proto.types.refs import QueueReference, UserReference
@@ -163,6 +164,21 @@ class EntityLink(BaseTrackerEntity):
 
     type: str
     linkFieldValues: dict[str, Any] | None = NoneExcludedField
+
+
+class EntityAttachment(IssueAttachment):
+    """A file attached to a project, portfolio or goal.
+
+    Files reach an entity through its comments, so each one names the comment
+    it came with.
+    """
+
+    comment_id: str | None = Field(
+        None,
+        validation_alias=AliasChoices("commentId", "comment_id"),
+        serialization_alias="commentId",
+        exclude_if=none_excluder,
+    )
 
 
 # There is deliberately no `links` field below: per api-ref/entities/about-entities

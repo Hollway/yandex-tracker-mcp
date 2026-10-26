@@ -83,6 +83,7 @@ from mcp_tracker.tracker.proto.types.components import Component
 from mcp_tracker.tracker.proto.types.entities import (
     DEFAULT_ENTITY_FIELDS_PARAM,
     DEFAULT_LINK_FIELDS,
+    EntityAttachment,
     EntityLink,
     EntityType,
     GoalEntity,
@@ -202,6 +203,7 @@ BulkChangeFailureList = RootModel[list[BulkChangeFailure]]
 ExternalApplicationList = RootModel[list[ExternalApplication]]
 RemoteLinkList = RootModel[list[RemoteLink]]
 EntityLinkList = RootModel[list[EntityLink]]
+EntityAttachmentList = RootModel[list[EntityAttachment]]
 
 
 class AbsenceSearchPage(BaseModel):
@@ -4559,6 +4561,35 @@ class TrackerClient(
             f"v3/entities/{entity_type}/{entity_id}/links",
             auth=auth,
             params={"right": linked_entity_id},
+        )
+
+    async def entity_get_attachments(
+        self,
+        entity_type: EntityType,
+        entity_id: str,
+        *,
+        auth: YandexAuth | None = None,
+    ) -> list[EntityAttachment]:
+        return EntityAttachmentList.model_validate_json(
+            await self._read(
+                "GET", f"v3/entities/{entity_type}/{entity_id}/attachments", auth=auth
+            )
+        ).root
+
+    async def entity_delete_attachment(
+        self,
+        entity_type: EntityType,
+        entity_id: str,
+        attachment_id: str,
+        *,
+        auth: YandexAuth | None = None,
+    ) -> None:
+        # A 404 here carries Tracker's own "Вложений N не существуют.", which
+        # is clear enough to pass through.
+        await self._read(
+            "DELETE",
+            f"v3/entities/{entity_type}/{entity_id}/attachments/{attachment_id}",
+            auth=auth,
         )
 
     async def boards_list(

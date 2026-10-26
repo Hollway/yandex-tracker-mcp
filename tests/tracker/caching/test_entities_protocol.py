@@ -6,6 +6,7 @@ import pytest
 from mcp_tracker.tracker.caching.client import make_cached_protocols
 from mcp_tracker.tracker.proto.common import YandexAuth
 from mcp_tracker.tracker.proto.types.entities import (
+    EntityAttachment,
     EntityLink,
     GoalEntity,
     GoalSearchResult,
@@ -612,4 +613,34 @@ class TestCachingEntitiesProtocol:
 
         mock_original.entity_delete_link.assert_called_once_with(
             "goal", "g1", "p1", auth=yandex_auth
+        )
+
+    async def test_get_attachments_is_not_cached(
+        self,
+        caching_entities_protocol: Any,
+        mock_original: AsyncMock,
+    ) -> None:
+        attachments = [EntityAttachment(id="8021", name="a.txt")]
+        mock_original.entity_get_attachments.return_value = attachments
+
+        await caching_entities_protocol.entity_get_attachments("goal", "g1")
+        result = await caching_entities_protocol.entity_get_attachments("goal", "g1")
+
+        assert mock_original.entity_get_attachments.call_count == 2
+        assert result == attachments
+
+    async def test_delete_attachment_calls_original(
+        self,
+        caching_entities_protocol: Any,
+        mock_original: AsyncMock,
+        yandex_auth: YandexAuth,
+    ) -> None:
+        mock_original.entity_delete_attachment.return_value = None
+
+        await caching_entities_protocol.entity_delete_attachment(
+            "project", "p1", "8021", auth=yandex_auth
+        )
+
+        mock_original.entity_delete_attachment.assert_called_once_with(
+            "project", "p1", "8021", auth=yandex_auth
         )

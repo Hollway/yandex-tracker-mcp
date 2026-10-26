@@ -3,6 +3,7 @@ from typing import Any, Protocol, runtime_checkable
 
 from mcp_tracker.tracker.proto.common import YandexAuth
 from mcp_tracker.tracker.proto.types.entities import (
+    EntityAttachment,
     EntityLink,
     EntityType,
     GoalEntity,
@@ -494,6 +495,23 @@ class EntitiesProtocol(Protocol):
         entity_type: EntityType,
         entity_id: str,
         linked_entity_id: str,
+        *,
+        auth: YandexAuth | None = None,
+    ) -> None: ...
+
+    async def entity_get_attachments(
+        self,
+        entity_type: EntityType,
+        entity_id: str,
+        *,
+        auth: YandexAuth | None = None,
+    ) -> list[EntityAttachment]: ...
+
+    async def entity_delete_attachment(
+        self,
+        entity_type: EntityType,
+        entity_id: str,
+        attachment_id: str,
         *,
         auth: YandexAuth | None = None,
     ) -> None: ...
