@@ -547,8 +547,10 @@ A component is a label grouping a queue's issues by product, process or owner. I
 | `component_delete` | Delete a component | `component_id` |
 | `component_get_user_permissions` | The permissions one user has on a component | `component_id`, `user` |
 | `component_get_group_permissions` | The permissions one user group has on a component | `component_id`, `group_id` |
+| `component_update_permissions` | Grant or revoke a component's permissions, the way `queue_update_permissions` does; returns them all | `component_id`, `create`, `read`, `write`, `grant`, `version` |
 
-- `TRACKER_LIMIT_QUEUES` and `TRACKER_READ_ONLY_QUEUES` apply through the component's queue: `component_update` and `component_delete` read the component first to learn it, and a component in a queue outside `TRACKER_LIMIT_QUEUES` is reported as not found.
+- `TRACKER_LIMIT_QUEUES` and `TRACKER_READ_ONLY_QUEUES` apply through the component's queue: `component_update`, `component_delete` and `component_update_permissions` read the component first to learn it, and a component in a queue outside `TRACKER_LIMIT_QUEUES` is reported as not found.
+- A component nobody has restricted has no permissions at all; the first change restricts it, and Tracker grants `create`, `write` and `grant` to the queue owner role on its own. The user confirms the change where the client can ask.
 
 </details>
 

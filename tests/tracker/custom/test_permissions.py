@@ -9,6 +9,7 @@ from aioresponses import aioresponses
 from mcp_tracker.tracker.custom.client import TrackerClient
 from mcp_tracker.tracker.custom.errors import (
     ComponentNotFound,
+    ComponentPermissionsVersionConflict,
     PermissionsEmptyUpdate,
     QueueNotFound,
     TrackerAPIError,
@@ -175,6 +176,57 @@ class TestComponentPermissions:
             m.get(f"{BASE}/v3/components/999/permissions/groups/1", status=404)
             with pytest.raises(ComponentNotFound):
                 await tracker_client.component_get_group_permissions(999, 1)
+
+    async def test_get_permissions(self, tracker_client: TrackerClient) -> None:
+        with aioresponses() as m:
+            m.get(
+                f"{BASE}/v3/components/2/permissions",
+                payload={"self": f"{BASE}/v3/components/2/permissions", "version": 1},
+            )
+            permissions = await tracker_client.component_get_permissions(2)
+
+        assert permissions.version == 1
+        assert permissions.read is None
+
+    async def test_update_sends_the_version(
+        self, tracker_client: TrackerClient
+    ) -> None:
+        capture = RequestCapture(payload={**PERMISSIONS, "version": 4})
+
+        with aioresponses() as m:
+            m.patch(
+                f"{BASE}/v3/components/2/permissions?version=3",
+                callback=capture.callback,
+            )
+            result = await tracker_client.component_update_permissions(
+                2,
+                {"read": PermissionChange(users=GranteeChange(add=["a"]))},
+                version=3,
+            )
+
+        assert result.version == 4
+        capture.last_request.assert_param("version", 3)
+        capture.last_request.assert_json_body({"read": {"users": {"add": ["a"]}}})
+
+    @pytest.mark.parametrize("status", [409, 412])
+    async def test_stale_version_is_a_conflict(
+        self, tracker_client: TrackerClient, status: int
+    ) -> None:
+        with aioresponses() as m:
+            m.patch(f"{BASE}/v3/components/2/permissions?version=1", status=status)
+            with pytest.raises(ComponentPermissionsVersionConflict):
+                await tracker_client.component_update_permissions(
+                    2,
+                    {"read": PermissionChange(users=GranteeChange(add=["a"]))},
+                    version=1,
+                )
+
+    async def test_empty_update_is_refused_without_a_request(
+        self, tracker_client: TrackerClient
+    ) -> None:
+        with aioresponses():
+            with pytest.raises(PermissionsEmptyUpdate, match=r"`grant`\."):
+                await tracker_client.component_update_permissions(2, {}, version=1)
 
 
 class TestGroups:

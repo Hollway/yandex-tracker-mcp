@@ -44,6 +44,7 @@ from mcp_tracker.tracker.custom.errors import (
     CommentTemplateNotFound,
     ComponentEmptyUpdate,
     ComponentNotFound,
+    ComponentPermissionsVersionConflict,
     ComponentVersionConflict,
     DashboardNotFound,
     EntityHasNoParent,
@@ -6051,6 +6052,45 @@ class TrackerClient(
                 f"v3/components/{component_id}/permissions/groups/{group_id}",
                 auth=auth,
                 not_found=ComponentNotFound(component_id),
+            )
+        )
+
+    async def component_get_permissions(
+        self, component_id: int, *, auth: YandexAuth | None = None
+    ) -> QueuePermissions:
+        """Undocumented, like the queue's: a component nobody restricted answers
+        its `version` alone."""
+        return QueuePermissions.model_validate_json(
+            await self._read(
+                "GET",
+                f"v3/components/{component_id}/permissions",
+                auth=auth,
+                not_found=ComponentNotFound(component_id),
+            )
+        )
+
+    async def component_update_permissions(
+        self,
+        component_id: int,
+        changes: dict[str, PermissionChange],
+        *,
+        version: int,
+        auth: YandexAuth | None = None,
+    ) -> QueuePermissions:
+        """Verified 2026-10-27: unlike the queue's, it wants `version` (428
+        without it, 412 for a stale one); a component has no `deny`."""
+        if not changes:
+            raise PermissionsEmptyUpdate("`create`, `read`, `write` or `grant`")
+        body = {action: change.to_api() for action, change in changes.items()}
+        return QueuePermissions.model_validate_json(
+            await self._read(
+                "PATCH",
+                f"v3/components/{component_id}/permissions",
+                auth=auth,
+                params={"version": version},
+                json=body,
+                not_found=ComponentNotFound(component_id),
+                conflict=ComponentPermissionsVersionConflict(component_id, version),
             )
         )
 

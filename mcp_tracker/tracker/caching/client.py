@@ -2979,6 +2979,25 @@ def make_cached_protocols(
         ) -> Component:
             return await self._original.component_get(component_id, auth=auth)
 
+        async def component_get_permissions(
+            self, component_id: int, *, auth: YandexAuth | None = None
+        ) -> QueuePermissions:
+            return await self._original.component_get_permissions(
+                component_id, auth=auth
+            )
+
+        async def component_update_permissions(
+            self,
+            component_id: int,
+            changes: dict[str, PermissionChange],
+            *,
+            version: int,
+            auth: YandexAuth | None = None,
+        ) -> QueuePermissions:
+            return await self._original.component_update_permissions(
+                component_id, changes, version=version, auth=auth
+            )
+
         async def component_create(
             self,
             queue_id: str,

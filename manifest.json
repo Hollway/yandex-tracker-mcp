@@ -220,6 +220,10 @@
       "description": "Get the permissions one user group has on a queue component"
     },
     {
+      "name": "component_update_permissions",
+      "description": "Grant or revoke the permissions of a queue component for users, groups and roles"
+    },
+    {
       "name": "project_get",
       "description": "Get a project by its id or shortId (requires TRACKER_ENTITIES_ENABLED)"
     },

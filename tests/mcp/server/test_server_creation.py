@@ -189,6 +189,7 @@ WRITE_TOOL_NAMES = [
     "comment_template_create",
     "comment_template_update",
     "comment_template_delete",
+    "component_update_permissions",
 ]
 
 # Entity write tools - require both write mode and TRACKER_ENTITIES_ENABLED

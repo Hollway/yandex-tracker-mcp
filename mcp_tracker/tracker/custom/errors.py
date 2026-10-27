@@ -739,11 +739,27 @@ class PermissionsEmptyUpdate(YandexTrackerError):
     """Raised for a permissions change that changes nothing - Tracker answers
     an empty one 200 and does nothing."""
 
-    def __init__(self) -> None:
+    def __init__(
+        self, actions: str = "`create`, `read`, `write`, `grant` or `deny`"
+    ) -> None:
         super().__init__(
-            "A permissions change must change something: pass at least one of "
-            "`create`, `read`, `write`, `grant` or `deny`."
+            f"A permissions change must change something: pass at least one of "
+            f"{actions}."
         )
+
+
+class ComponentPermissionsVersionConflict(YandexTrackerError):
+    """Raised when a change of a component's permissions is rejected (409/412)
+    because the `version` of its permissions is stale."""
+
+    def __init__(self, component_id: int, version: int):
+        super().__init__(
+            f"Editing conflict for the permissions of component '{component_id}' "
+            f"with version {version}: they were changed since that version was "
+            f"read. Omit `version` to change the current ones."
+        )
+        self.component_id = component_id
+        self.version = version
 
 
 class MacroNotFound(YandexTrackerError):

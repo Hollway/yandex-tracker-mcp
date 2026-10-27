@@ -342,3 +342,97 @@ class TestQueueUpdatePermissions:
         tools = await client_session_read_only.list_tools()
 
         assert "queue_update_permissions" not in {t.name for t in tools.tools}
+
+
+class TestComponentUpdatePermissions:
+    ARGS: dict[str, Any] = {"component_id": 1, "read": {"users": {"add": ["a"]}}}
+
+    async def test_reads_the_permissions_version_and_applies(
+        self, client_session: Client, mock_components_protocol: AsyncMock
+    ) -> None:
+        mock_components_protocol.component_get_permissions.return_value = (
+            QueuePermissions.model_construct(version=7)
+        )
+        mock_components_protocol.component_update_permissions.return_value = PERMISSIONS
+
+        result = await client_session.call_tool(
+            "component_update_permissions", self.ARGS
+        )
+
+        assert not result.is_error
+        call = mock_components_protocol.component_update_permissions.call_args
+        assert call.args == (
+            1,
+            {"read": PermissionChange(users=GranteeChange(add=["a"]))},
+        )
+        assert call.kwargs["version"] == 7
+        # No queue restriction: the component itself is not read.
+        mock_components_protocol.component_get.assert_not_called()
+
+    async def test_a_given_version_skips_the_read(
+        self, client_session: Client, mock_components_protocol: AsyncMock
+    ) -> None:
+        mock_components_protocol.component_update_permissions.return_value = PERMISSIONS
+
+        await client_session.call_tool(
+            "component_update_permissions", {**self.ARGS, "version": 3}
+        )
+
+        mock_components_protocol.component_get_permissions.assert_not_called()
+        call = mock_components_protocol.component_update_permissions.call_args
+        assert call.kwargs["version"] == 3
+
+    @pytest.mark.parametrize(
+        "answer",
+        [
+            pytest.param(ElicitResult(action="decline"), id="decline"),
+            pytest.param(
+                ElicitResult(action="accept", content={"confirm": False}), id="no"
+            ),
+        ],
+    )
+    async def test_unconfirmed_change_is_not_applied(
+        self,
+        mcp_server: MCPServer[AppContext],
+        mock_components_protocol: AsyncMock,
+        answer: ElicitResult,
+    ) -> None:
+        async with answering_session(mcp_server, answer) as client:
+            result = await client.call_tool("component_update_permissions", self.ARGS)
+
+        assert result.is_error
+        assert "cancelled by the user" in error_text(result.content)
+        mock_components_protocol.component_update_permissions.assert_not_called()
+
+    async def test_empty_change_is_refused(
+        self, client_session: Client, mock_components_protocol: AsyncMock
+    ) -> None:
+        result = await client_session.call_tool(
+            "component_update_permissions", {"component_id": 1}
+        )
+
+        assert result.is_error
+        assert "`grant`." in error_text(result.content)
+        mock_components_protocol.component_update_permissions.assert_not_called()
+
+    async def test_component_of_a_hidden_queue_is_not_found(
+        self,
+        client_session_with_limits: Client,
+        mock_components_protocol: AsyncMock,
+    ) -> None:
+        mock_components_protocol.component_get.return_value = OTHER_COMPONENT
+
+        result = await client_session_with_limits.call_tool(
+            "component_update_permissions", {**self.ARGS, "component_id": 2}
+        )
+
+        assert result.is_error
+        assert "OTHER" not in error_text(result.content)
+        mock_components_protocol.component_update_permissions.assert_not_called()
+
+    async def test_read_only_mode_tool_not_registered(
+        self, client_session_read_only: Client
+    ) -> None:
+        tools = await client_session_read_only.list_tools()
+
+        assert "component_update_permissions" not in {t.name for t in tools.tools}

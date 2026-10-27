@@ -544,8 +544,10 @@ claude mcp add yandex-tracker docker "run --rm -i -e TRACKER_TOKEN=ваш_ток
 | `component_delete` | Удалить компонент | `component_id` |
 | `component_get_user_permissions` | Права одного пользователя на компонент | `component_id`, `user` |
 | `component_get_group_permissions` | Права одной группы пользователей на компонент | `component_id`, `group_id` |
+| `component_update_permissions` | Выдать или отозвать права на компонент так же, как `queue_update_permissions`; возвращает все права | `component_id`, `create`, `read`, `write`, `grant`, `version` |
 
-- `TRACKER_LIMIT_QUEUES` и `TRACKER_READ_ONLY_QUEUES` применяются через очередь компонента: `component_update` и `component_delete` сначала читают компонент, чтобы её узнать, а компонент из очереди вне `TRACKER_LIMIT_QUEUES` считается не найденным.
+- `TRACKER_LIMIT_QUEUES` и `TRACKER_READ_ONLY_QUEUES` применяются через очередь компонента: `component_update`, `component_delete` и `component_update_permissions` сначала читают компонент, чтобы её узнать, а компонент из очереди вне `TRACKER_LIMIT_QUEUES` считается не найденным.
+- У компонента, который никто не ограничивал, прав нет вовсе; первое изменение закрывает его, и Трекер сам выдаёт `create`, `write` и `grant` роли владельца очереди. Пользователь подтверждает изменение, если клиент умеет спрашивать.
 
 </details>
 

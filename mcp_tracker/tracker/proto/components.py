@@ -2,7 +2,7 @@ from typing import Protocol, runtime_checkable
 
 from .common import YandexAuth
 from .types.components import Component
-from .types.permissions import SubjectPermissions
+from .types.permissions import PermissionChange, QueuePermissions, SubjectPermissions
 
 
 @runtime_checkable
@@ -14,6 +14,19 @@ class ComponentsProtocol(Protocol):
     async def component_get_group_permissions(
         self, component_id: int, group_id: int, *, auth: YandexAuth | None = None
     ) -> SubjectPermissions: ...
+
+    async def component_get_permissions(
+        self, component_id: int, *, auth: YandexAuth | None = None
+    ) -> QueuePermissions: ...
+
+    async def component_update_permissions(
+        self,
+        component_id: int,
+        changes: dict[str, PermissionChange],
+        *,
+        version: int,
+        auth: YandexAuth | None = None,
+    ) -> QueuePermissions: ...
 
     async def component_get(
         self, component_id: int, *, auth: YandexAuth | None = None
