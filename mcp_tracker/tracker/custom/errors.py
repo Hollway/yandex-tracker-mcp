@@ -690,7 +690,7 @@ class EntityItemNotFound(YandexTrackerError):
     def __init__(self, entity_id: str, item_id: str, *, item: str, field: str):
         super().__init__(
             f"No {item} '{item_id}' on '{entity_id}'. Ids change whenever the "
-            f"list is rewritten (an update or a move); read the current ones with "
+            f"list is rewritten (any update or move); read the current ones with "
             f"fields=['{field}']."
         )
         self.entity_id = entity_id

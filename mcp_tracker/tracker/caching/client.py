@@ -19,6 +19,7 @@ from mcp_tracker.tracker.proto.types.components import Component
 from mcp_tracker.tracker.proto.types.entities import (
     EntityAttachment,
     EntityLink,
+    EntityMetricItem,
     EntityType,
     GoalEntity,
     GoalKeyResultType,
@@ -2417,6 +2418,45 @@ def make_cached_protocols(
             auth: YandexAuth | None = None,
         ) -> GoalEntity:
             return await self._original.goal_delete_all_key_results(goal_id, auth=auth)
+
+        async def entity_add_metric(
+            self,
+            entity_type: EntityType,
+            entity_id: str,
+            *,
+            text: str,
+            url: str | None = None,
+            auth: YandexAuth | None = None,
+        ) -> list[EntityMetricItem]:
+            return await self._original.entity_add_metric(
+                entity_type, entity_id, text=text, url=url, auth=auth
+            )
+
+        async def entity_update_metric(
+            self,
+            entity_type: EntityType,
+            entity_id: str,
+            metric_id: str,
+            *,
+            text: str | None = None,
+            url: str | None = None,
+            auth: YandexAuth | None = None,
+        ) -> list[EntityMetricItem]:
+            return await self._original.entity_update_metric(
+                entity_type, entity_id, metric_id, text=text, url=url, auth=auth
+            )
+
+        async def entity_delete_metric(
+            self,
+            entity_type: EntityType,
+            entity_id: str,
+            metric_id: str,
+            *,
+            auth: YandexAuth | None = None,
+        ) -> list[EntityMetricItem]:
+            return await self._original.entity_delete_metric(
+                entity_type, entity_id, metric_id, auth=auth
+            )
 
         async def entity_get_attachments(
             self,

@@ -13,11 +13,20 @@ from mcp.types import ToolAnnotations
 from pydantic import Field
 
 from mcp_tracker.mcp.context import AppContext
-from mcp_tracker.mcp.params import EntityID, EntityLinkedIDParam, EntityLinkFieldsParam
+from mcp_tracker.mcp.params import (
+    EntityID,
+    EntityLinkedIDParam,
+    EntityLinkFieldsParam,
+    EntityMetricIDParam,
+    EntityMetricTextOptionalParam,
+    EntityMetricTextParam,
+    EntityMetricUrlParam,
+)
 from mcp_tracker.mcp.utils import get_yandex_auth
 from mcp_tracker.tracker.proto.types.entities import (
     EntityAttachment,
     EntityLink,
+    EntityMetricItem,
     EntityType,
 )
 
@@ -114,4 +123,64 @@ def register_entity_write_tools(kind: EntityKind, mcp: MCPServer[AppContext]) ->
         entities = ctx.request_context.lifespan_context.entities
         await entities.entity_delete_attachment(
             kind.type, entity_id, attachment_id, auth=get_yandex_auth(ctx)
+        )
+
+    @mcp.tool(
+        name=kind.tool("add_metric"),
+        title=f"Add {kind.noun.title()} Metric",
+        description=f"Add a metric ('метрика') - a dashboard widget shown on the "
+        f"page - to a Yandex Tracker {kind.noun} ('{kind.russian}') and return all "
+        "its metrics.",
+        annotations=ToolAnnotations(read_only_hint=False),
+    )
+    async def add_metric(
+        ctx: Context[AppContext],
+        entity_id: EntityID,
+        text: EntityMetricTextParam,
+        url: EntityMetricUrlParam = None,
+    ) -> list[EntityMetricItem]:
+        return await ctx.request_context.lifespan_context.entities.entity_add_metric(
+            kind.type, entity_id, text=text, url=url, auth=get_yandex_auth(ctx)
+        )
+
+    @mcp.tool(
+        name=kind.tool("update_metric"),
+        title=f"Update {kind.noun.title()} Metric",
+        description=f"Change the name or widget link of one metric ('метрика') of "
+        f"a Yandex Tracker {kind.noun} ('{kind.russian}'). Tracker rewrites the "
+        "list, so every metric gets a new id - use the ids returned.",
+        annotations=ToolAnnotations(read_only_hint=False),
+    )
+    async def update_metric(
+        ctx: Context[AppContext],
+        entity_id: EntityID,
+        metric_id: EntityMetricIDParam,
+        text: EntityMetricTextOptionalParam = None,
+        url: EntityMetricUrlParam = None,
+    ) -> list[EntityMetricItem]:
+        entities = ctx.request_context.lifespan_context.entities
+        return await entities.entity_update_metric(
+            kind.type,
+            entity_id,
+            metric_id,
+            text=text,
+            url=url,
+            auth=get_yandex_auth(ctx),
+        )
+
+    @mcp.tool(
+        name=kind.tool("delete_metric"),
+        title=f"Delete {kind.noun.title()} Metric",
+        description=f"Delete one metric ('метрика') of a Yandex Tracker {kind.noun} "
+        f"('{kind.russian}') and return the rest.",
+        annotations=ToolAnnotations(read_only_hint=False, destructive_hint=True),
+    )
+    async def delete_metric(
+        ctx: Context[AppContext],
+        entity_id: EntityID,
+        metric_id: EntityMetricIDParam,
+    ) -> list[EntityMetricItem]:
+        entities = ctx.request_context.lifespan_context.entities
+        return await entities.entity_delete_metric(
+            kind.type, entity_id, metric_id, auth=get_yandex_auth(ctx)
         )

@@ -5,6 +5,7 @@ from mcp_tracker.tracker.proto.common import YandexAuth
 from mcp_tracker.tracker.proto.types.entities import (
     EntityAttachment,
     EntityLink,
+    EntityMetricItem,
     EntityType,
     GoalEntity,
     GoalKeyResultType,
@@ -553,6 +554,36 @@ class EntitiesProtocol(Protocol):
         *,
         auth: YandexAuth | None = None,
     ) -> GoalEntity: ...
+
+    async def entity_add_metric(
+        self,
+        entity_type: EntityType,
+        entity_id: str,
+        *,
+        text: str,
+        url: str | None = None,
+        auth: YandexAuth | None = None,
+    ) -> list[EntityMetricItem]: ...
+
+    async def entity_update_metric(
+        self,
+        entity_type: EntityType,
+        entity_id: str,
+        metric_id: str,
+        *,
+        text: str | None = None,
+        url: str | None = None,
+        auth: YandexAuth | None = None,
+    ) -> list[EntityMetricItem]: ...
+
+    async def entity_delete_metric(
+        self,
+        entity_type: EntityType,
+        entity_id: str,
+        metric_id: str,
+        *,
+        auth: YandexAuth | None = None,
+    ) -> list[EntityMetricItem]: ...
 
     async def entity_get_attachments(
         self,

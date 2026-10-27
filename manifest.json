@@ -328,6 +328,18 @@
       "description": "Delete a file attached to a project (requires TRACKER_ENTITIES_ENABLED)"
     },
     {
+      "name": "project_add_metric",
+      "description": "Add a metric (dashboard widget) to a project (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "project_update_metric",
+      "description": "Change the name or widget link of a project metric (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "project_delete_metric",
+      "description": "Delete a metric of a project (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
       "name": "portfolio_create",
       "description": "Create a new portfolio (requires TRACKER_ENTITIES_ENABLED)"
     },
@@ -384,6 +396,18 @@
       "description": "Delete a file attached to a portfolio (requires TRACKER_ENTITIES_ENABLED)"
     },
     {
+      "name": "portfolio_add_metric",
+      "description": "Add a metric (dashboard widget) to a portfolio (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "portfolio_update_metric",
+      "description": "Change the name or widget link of a portfolio metric (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "portfolio_delete_metric",
+      "description": "Delete a metric of a portfolio (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
       "name": "goal_create",
       "description": "Create a new goal (requires TRACKER_ENTITIES_ENABLED)"
     },
@@ -414,6 +438,18 @@
     {
       "name": "goal_delete_attachment",
       "description": "Delete a file attached to a goal (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "goal_add_metric",
+      "description": "Add a metric (dashboard widget) to a goal (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "goal_update_metric",
+      "description": "Change the name or widget link of a goal metric (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "goal_delete_metric",
+      "description": "Delete a metric of a goal (requires TRACKER_ENTITIES_ENABLED)"
     },
     {
       "name": "goal_add_key_result",

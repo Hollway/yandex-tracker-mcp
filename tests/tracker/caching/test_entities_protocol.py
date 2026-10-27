@@ -8,6 +8,7 @@ from mcp_tracker.tracker.proto.common import YandexAuth
 from mcp_tracker.tracker.proto.types.entities import (
     EntityAttachment,
     EntityLink,
+    EntityMetricItem,
     GoalEntity,
     GoalSearchResult,
     PortfolioEntity,
@@ -702,3 +703,36 @@ class TestCachingEntitiesProtocol:
             *args, **kwargs, auth=yandex_auth
         )
         assert result == entity
+
+    @pytest.mark.parametrize(
+        "method,args,kwargs",
+        [
+            ("entity_add_metric", ("goal", "g1"), {"text": "A", "url": None}),
+            (
+                "entity_update_metric",
+                ("project", "p1", "m1"),
+                {"text": None, "url": "https://example.com"},
+            ),
+            ("entity_delete_metric", ("portfolio", "pf1", "m1"), {}),
+        ],
+    )
+    async def test_metric_writes_call_original(
+        self,
+        caching_entities_protocol: Any,
+        mock_original: AsyncMock,
+        yandex_auth: YandexAuth,
+        method: str,
+        args: tuple[str, ...],
+        kwargs: dict[str, Any],
+    ) -> None:
+        metrics = [EntityMetricItem(id="m1", text="A")]
+        getattr(mock_original, method).return_value = metrics
+
+        result = await getattr(caching_entities_protocol, method)(
+            *args, **kwargs, auth=yandex_auth
+        )
+
+        getattr(mock_original, method).assert_called_once_with(
+            *args, **kwargs, auth=yandex_auth
+        )
+        assert result == metrics

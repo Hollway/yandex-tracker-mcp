@@ -87,6 +87,7 @@ from mcp_tracker.tracker.proto.types.entities import (
     DEFAULT_LINK_FIELDS,
     EntityAttachment,
     EntityLink,
+    EntityMetricItem,
     EntityType,
     GoalEntity,
     GoalKeyResultItem,
@@ -234,6 +235,16 @@ class EntityCommentsRelativePage(BaseModel):
 
 class _ChecklistSnapshotFields(BaseModel):
     checklistItems: list[ChecklistItem] = Field(default_factory=list)
+
+
+class _MetricSnapshotFields(BaseModel):
+    metricItems: list[EntityMetricItem] = Field(default_factory=list)
+
+
+class _MetricSnapshot(BaseModel):
+    """Minimal parse of an entity answer to `?fields=metricItems`."""
+
+    fields: _MetricSnapshotFields = Field(default_factory=_MetricSnapshotFields)
 
 
 class _ChecklistSnapshot(BaseModel):
@@ -4741,6 +4752,106 @@ class TrackerClient(
         auth: YandexAuth | None = None,
     ) -> GoalEntity:
         return await self._goal_write_key_results(goal_id, None, auth=auth)
+
+    async def _entity_metrics(
+        self, entity_type: EntityType, entity_id: str, *, auth: YandexAuth | None
+    ) -> list[EntityMetricItem]:
+        return _MetricSnapshot.model_validate_json(
+            await self._entity_get(
+                entity_type, entity_id, fields=["metricItems"], auth=auth
+            )
+        ).fields.metricItems
+
+    async def _entity_write_metrics(
+        self,
+        entity_type: EntityType,
+        entity_id: str,
+        value: Any,
+        *,
+        auth: YandexAuth | None,
+    ) -> list[EntityMetricItem]:
+        """`PATCH` the entity's `metricItems` - `{"add": ...}`, `{"remove": ...}`
+        or a whole list, which gives every metric a new id - and return them."""
+        return _MetricSnapshot.model_validate_json(
+            await self._read(
+                "PATCH",
+                f"v3/entities/{entity_type}/{entity_id}",
+                auth=auth,
+                params={"fields": "metricItems"},
+                json={"fields": {"metricItems": value}},
+            )
+        ).fields.metricItems
+
+    @staticmethod
+    def _find_metric(
+        items: list[EntityMetricItem], entity_id: str, metric_id: str
+    ) -> int:
+        for index, item in enumerate(items):
+            if item.id == metric_id:
+                return index
+        raise EntityItemNotFound(
+            entity_id, metric_id, item="metric", field="metricItems"
+        )
+
+    async def entity_add_metric(
+        self,
+        entity_type: EntityType,
+        entity_id: str,
+        *,
+        text: str,
+        url: str | None = None,
+        auth: YandexAuth | None = None,
+    ) -> list[EntityMetricItem]:
+        metric: dict[str, Any] = {"text": text}
+        if url is not None:
+            metric["url"] = url
+        return await self._entity_write_metrics(
+            entity_type, entity_id, {"add": metric}, auth=auth
+        )
+
+    async def entity_update_metric(
+        self,
+        entity_type: EntityType,
+        entity_id: str,
+        metric_id: str,
+        *,
+        text: str | None = None,
+        url: str | None = None,
+        auth: YandexAuth | None = None,
+    ) -> list[EntityMetricItem]:
+        # No per-item write: the list is read, the one metric changed and the
+        # list written back, which renumbers every metric.
+        if text is None and url is None:
+            raise EntityItemEmptyUpdate("metric")
+        items = await self._entity_metrics(entity_type, entity_id, auth=auth)
+        index = self._find_metric(items, entity_id, metric_id)
+        drafts = [{"text": item.text, "url": item.url} for item in items]
+        if text is not None:
+            drafts[index]["text"] = text
+        if url is not None:
+            drafts[index]["url"] = url
+        return await self._entity_write_metrics(
+            entity_type, entity_id, drafts, auth=auth
+        )
+
+    async def entity_delete_metric(
+        self,
+        entity_type: EntityType,
+        entity_id: str,
+        metric_id: str,
+        *,
+        auth: YandexAuth | None = None,
+    ) -> list[EntityMetricItem]:
+        # `remove` wants the metric whole - `{id}` alone is a 200 no-op, and
+        # so is an unknown id - hence the read.
+        items = await self._entity_metrics(entity_type, entity_id, auth=auth)
+        metric = items[self._find_metric(items, entity_id, metric_id)]
+        return await self._entity_write_metrics(
+            entity_type,
+            entity_id,
+            {"remove": {"id": metric.id, "text": metric.text, "url": metric.url}},
+            auth=auth,
+        )
 
     async def entity_get_attachments(
         self,

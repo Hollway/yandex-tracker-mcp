@@ -596,6 +596,29 @@ EntityChecklistItemDeadlineParam = Annotated[
     ),
 ]
 
+EntityMetricIDParam = Annotated[
+    str,
+    Field(
+        description="Metric `id` from *_get with fields=['metricItems']. Ids "
+        "change after every update, so read them again first."
+    ),
+]
+
+EntityMetricTextParam = Annotated[str, Field(description="Metric name.")]
+
+EntityMetricTextOptionalParam = Annotated[
+    str | None, Field(description="Metric name; omit to keep it.")
+]
+
+EntityMetricUrlParam = Annotated[
+    str | None,
+    Field(
+        description="Link to the dashboard widget to embed, e.g. "
+        "'https://tracker.yandex.ru/dashboard/12/widget/34?_embedded=1'; omit "
+        "to keep it (or to add a metric without one)."
+    ),
+]
+
 GoalKeyResultIDParam = Annotated[
     str,
     Field(
