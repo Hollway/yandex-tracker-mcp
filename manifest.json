@@ -232,6 +232,18 @@
       "description": "Get a page of comments of a project by its id or shortId (cursor-paginated) (requires TRACKER_ENTITIES_ENABLED)"
     },
     {
+      "name": "project_get_links",
+      "description": "Get the links of a project to other projects, portfolios and goals (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "project_get_attachments",
+      "description": "List the files attached to a project (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "project_get_permissions",
+      "description": "Get who may read, change and manage access to a project (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
       "name": "portfolio_get",
       "description": "Get a portfolio by its id or shortId (requires TRACKER_ENTITIES_ENABLED)"
     },
@@ -244,6 +256,18 @@
       "description": "Get a page of comments of a portfolio by its id or shortId (cursor-paginated) (requires TRACKER_ENTITIES_ENABLED)"
     },
     {
+      "name": "portfolio_get_links",
+      "description": "Get the links of a portfolio to other projects, portfolios and goals (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "portfolio_get_attachments",
+      "description": "List the files attached to a portfolio (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "portfolio_get_permissions",
+      "description": "Get who may read, change and manage access to a portfolio (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
       "name": "goal_get",
       "description": "Get a goal by its id or shortId (requires TRACKER_ENTITIES_ENABLED)"
     },
@@ -254,6 +278,18 @@
     {
       "name": "goal_get_comments",
       "description": "Get a page of comments of a goal by its id or shortId (cursor-paginated) (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "goal_get_links",
+      "description": "Get the links of a goal to other goals, projects and portfolios (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "goal_get_attachments",
+      "description": "List the files attached to a goal (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "goal_get_permissions",
+      "description": "Get who may read, change and manage access to a goal (requires TRACKER_ENTITIES_ENABLED)"
     },
     {
       "name": "project_create",
@@ -304,6 +340,30 @@
       "description": "Delete the entire checklist of a project (requires TRACKER_ENTITIES_ENABLED)"
     },
     {
+      "name": "project_delete_link",
+      "description": "Delete a link between a project and another entity (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "project_delete_attachment",
+      "description": "Delete a file attached to a project (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "project_add_metric",
+      "description": "Add a metric (dashboard widget) to a project (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "project_update_metric",
+      "description": "Change the name or widget link of a project metric (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "project_delete_metric",
+      "description": "Delete a metric of a project (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "project_update_permissions",
+      "description": "Grant or revoke access to a project, or switch inheriting it, with user confirmation (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
       "name": "portfolio_create",
       "description": "Create a new portfolio (requires TRACKER_ENTITIES_ENABLED)"
     },
@@ -352,6 +412,30 @@
       "description": "Delete the entire checklist of a portfolio (requires TRACKER_ENTITIES_ENABLED)"
     },
     {
+      "name": "portfolio_delete_link",
+      "description": "Delete a link between a portfolio and another entity (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "portfolio_delete_attachment",
+      "description": "Delete a file attached to a portfolio (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "portfolio_add_metric",
+      "description": "Add a metric (dashboard widget) to a portfolio (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "portfolio_update_metric",
+      "description": "Change the name or widget link of a portfolio metric (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "portfolio_delete_metric",
+      "description": "Delete a metric of a portfolio (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "portfolio_update_permissions",
+      "description": "Grant or revoke access to a portfolio, or switch inheriting it, with user confirmation (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
       "name": "goal_create",
       "description": "Create a new goal (requires TRACKER_ENTITIES_ENABLED)"
     },
@@ -374,6 +458,50 @@
     {
       "name": "goal_delete_comment",
       "description": "Delete a comment from a goal (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "goal_delete_link",
+      "description": "Delete a link between a goal and another entity (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "goal_delete_attachment",
+      "description": "Delete a file attached to a goal (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "goal_add_metric",
+      "description": "Add a metric (dashboard widget) to a goal (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "goal_update_metric",
+      "description": "Change the name or widget link of a goal metric (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "goal_delete_metric",
+      "description": "Delete a metric of a goal (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "goal_update_permissions",
+      "description": "Grant or revoke access to a goal, or switch inheriting it, with user confirmation (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "goal_add_key_result",
+      "description": "Add a key result to a goal (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "goal_update_key_result",
+      "description": "Change one key result of a goal; every key result gets a new id (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "goal_move_key_result",
+      "description": "Move a key result of a goal before another one or to the end (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "goal_delete_key_result",
+      "description": "Delete one key result of a goal (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "goal_delete_all_key_results",
+      "description": "Delete every key result of a goal (requires TRACKER_ENTITIES_ENABLED)"
     },
     {
       "name": "users_get_all",

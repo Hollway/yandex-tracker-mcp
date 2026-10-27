@@ -17,7 +17,12 @@ from mcp_tracker.tracker.proto.templates import TemplatesProtocolWrap
 from mcp_tracker.tracker.proto.types.boards import Board, BoardColumnDetail, Sprint
 from mcp_tracker.tracker.proto.types.components import Component
 from mcp_tracker.tracker.proto.types.entities import (
+    EntityAttachment,
+    EntityLink,
+    EntityMetricItem,
+    EntityType,
     GoalEntity,
+    GoalKeyResultType,
     GoalSearchResult,
     GoalStatus,
     PortfolioEntity,
@@ -40,6 +45,7 @@ from mcp_tracker.tracker.proto.types.inputs import (
     ChecklistItemInput,
     EntityChecklistItemUpdateInput,
     EntityParentEntityInput,
+    GoalKeyResultProgressInput,
     GoalLinkInput,
     IssueComponentRef,
     IssueFollowerRef,
@@ -70,6 +76,9 @@ from mcp_tracker.tracker.proto.types.issues import (
 )
 from mcp_tracker.tracker.proto.types.pagination import PaginatedResult
 from mcp_tracker.tracker.proto.types.permissions import (
+    EntityPermissionAction,
+    EntityPermissionChange,
+    EntityPermissions,
     Group,
     PermissionAction,
     PermissionChange,
@@ -2419,6 +2428,203 @@ def make_cached_protocols(
         ) -> PortfolioEntity:
             return await self._original.portfolio_delete_checklist(
                 entity_id, fields=fields, auth=auth
+            )
+
+        # Not cached, like the comments: a link deleted a moment ago must not
+        # come back from the cache.
+        async def entity_get_links(
+            self,
+            entity_type: EntityType,
+            entity_id: str,
+            *,
+            fields: list[str] | None = None,
+            auth: YandexAuth | None = None,
+        ) -> list[EntityLink]:
+            return await self._original.entity_get_links(
+                entity_type, entity_id, fields=fields, auth=auth
+            )
+
+        async def entity_delete_link(
+            self,
+            entity_type: EntityType,
+            entity_id: str,
+            linked_entity_id: str,
+            *,
+            auth: YandexAuth | None = None,
+        ) -> None:
+            return await self._original.entity_delete_link(
+                entity_type, entity_id, linked_entity_id, auth=auth
+            )
+
+        async def goal_add_key_result(
+            self,
+            goal_id: str,
+            *,
+            text: str,
+            type: GoalKeyResultType,
+            assignee: str | None = None,
+            deadline: datetime.date | None = None,
+            progress: GoalKeyResultProgressInput | None = None,
+            achieved: bool | None = None,
+            status: GoalStatus | None = None,
+            auth: YandexAuth | None = None,
+        ) -> GoalEntity:
+            return await self._original.goal_add_key_result(
+                goal_id,
+                text=text,
+                type=type,
+                assignee=assignee,
+                deadline=deadline,
+                progress=progress,
+                achieved=achieved,
+                status=status,
+                auth=auth,
+            )
+
+        async def goal_update_key_result(
+            self,
+            goal_id: str,
+            key_result_id: str,
+            *,
+            text: str | None = None,
+            type: GoalKeyResultType | None = None,
+            assignee: str | None = None,
+            deadline: datetime.date | None = None,
+            progress: GoalKeyResultProgressInput | None = None,
+            achieved: bool | None = None,
+            status: GoalStatus | None = None,
+            auth: YandexAuth | None = None,
+        ) -> GoalEntity:
+            return await self._original.goal_update_key_result(
+                goal_id,
+                key_result_id,
+                text=text,
+                type=type,
+                assignee=assignee,
+                deadline=deadline,
+                progress=progress,
+                achieved=achieved,
+                status=status,
+                auth=auth,
+            )
+
+        async def goal_move_key_result(
+            self,
+            goal_id: str,
+            key_result_id: str,
+            *,
+            before: str | None = None,
+            auth: YandexAuth | None = None,
+        ) -> GoalEntity:
+            return await self._original.goal_move_key_result(
+                goal_id, key_result_id, before=before, auth=auth
+            )
+
+        async def goal_delete_key_result(
+            self,
+            goal_id: str,
+            key_result_id: str,
+            *,
+            auth: YandexAuth | None = None,
+        ) -> GoalEntity:
+            return await self._original.goal_delete_key_result(
+                goal_id, key_result_id, auth=auth
+            )
+
+        async def goal_delete_all_key_results(
+            self,
+            goal_id: str,
+            *,
+            auth: YandexAuth | None = None,
+        ) -> GoalEntity:
+            return await self._original.goal_delete_all_key_results(goal_id, auth=auth)
+
+        async def entity_add_metric(
+            self,
+            entity_type: EntityType,
+            entity_id: str,
+            *,
+            text: str,
+            url: str | None = None,
+            auth: YandexAuth | None = None,
+        ) -> list[EntityMetricItem]:
+            return await self._original.entity_add_metric(
+                entity_type, entity_id, text=text, url=url, auth=auth
+            )
+
+        async def entity_update_metric(
+            self,
+            entity_type: EntityType,
+            entity_id: str,
+            metric_id: str,
+            *,
+            text: str | None = None,
+            url: str | None = None,
+            auth: YandexAuth | None = None,
+        ) -> list[EntityMetricItem]:
+            return await self._original.entity_update_metric(
+                entity_type, entity_id, metric_id, text=text, url=url, auth=auth
+            )
+
+        async def entity_delete_metric(
+            self,
+            entity_type: EntityType,
+            entity_id: str,
+            metric_id: str,
+            *,
+            auth: YandexAuth | None = None,
+        ) -> list[EntityMetricItem]:
+            return await self._original.entity_delete_metric(
+                entity_type, entity_id, metric_id, auth=auth
+            )
+
+        # Not cached: the update reads the permissions to tell whether they
+        # are inherited, and a stale answer would decide that wrongly.
+        async def entity_get_permissions(
+            self,
+            entity_type: EntityType,
+            entity_id: str,
+            *,
+            auth: YandexAuth | None = None,
+        ) -> EntityPermissions:
+            return await self._original.entity_get_permissions(
+                entity_type, entity_id, auth=auth
+            )
+
+        async def entity_update_permissions(
+            self,
+            entity_type: EntityType,
+            entity_id: str,
+            changes: dict[EntityPermissionAction, EntityPermissionChange],
+            *,
+            inherit: bool | None = None,
+            auth: YandexAuth | None = None,
+        ) -> EntityPermissions:
+            return await self._original.entity_update_permissions(
+                entity_type, entity_id, changes, inherit=inherit, auth=auth
+            )
+
+        async def entity_get_attachments(
+            self,
+            entity_type: EntityType,
+            entity_id: str,
+            *,
+            auth: YandexAuth | None = None,
+        ) -> list[EntityAttachment]:
+            return await self._original.entity_get_attachments(
+                entity_type, entity_id, auth=auth
+            )
+
+        async def entity_delete_attachment(
+            self,
+            entity_type: EntityType,
+            entity_id: str,
+            attachment_id: str,
+            *,
+            auth: YandexAuth | None = None,
+        ) -> None:
+            return await self._original.entity_delete_attachment(
+                entity_type, entity_id, attachment_id, auth=auth
             )
 
     class CachingBoardsProtocol(BoardsProtocolWrap):

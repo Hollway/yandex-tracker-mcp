@@ -576,10 +576,24 @@ claude mcp add yandex-tracker docker "run --rm -i -e TRACKER_TOKEN=ваш_ток
 | Удалить один пункт | `project_delete_checklist_item` | `portfolio_delete_checklist_item` | - |
 | Изменить несколько существующих пунктов по id | `project_update_checklist` | `portfolio_update_checklist` | - |
 | Удалить весь чек-лист | `project_delete_checklist` | `portfolio_delete_checklist` | - |
+| Связи с другими проектами, портфелями и целями: id связанной сущности и запрошенные `fields` | `project_get_links` | `portfolio_get_links` | `goal_get_links` |
+| Удалить связь по id связанной сущности | `project_delete_link` | `portfolio_delete_link` | `goal_delete_link` |
+| Прикреплённые файлы и комментарий, с которым пришёл каждый | `project_get_attachments` | `portfolio_get_attachments` | `goal_get_attachments` |
+| Удалить прикреплённый файл; комментарий остаётся | `project_delete_attachment` | `portfolio_delete_attachment` | `goal_delete_attachment` |
+| Добавить метрику (виджет дашборда на странице); возвращает все метрики | `project_add_metric` | `portfolio_add_metric` | `goal_add_metric` |
+| Изменить название или ссылку на виджет метрики | `project_update_metric` | `portfolio_update_metric` | `goal_update_metric` |
+| Удалить метрику | `project_delete_metric` | `portfolio_delete_metric` | `goal_delete_metric` |
+| Кто может читать, изменять и управлять доступом, и от какого родителя права наследуются | `project_get_permissions` | `portfolio_get_permissions` | `goal_get_permissions` |
+| Выдать или отозвать `read` / `write` / `grant` пользователям, группам и ролям или переключить `inherit`; пользователь подтверждает | `project_update_permissions` | `portfolio_update_permissions` | `goal_update_permissions` |
+| Добавить ключевой результат: `type` `value` (с `progress`) или `binary` (с `achieved`) | - | - | `goal_add_key_result` |
+| Изменить один ключевой результат, оставив непереданные поля как есть | - | - | `goal_update_key_result` |
+| Переставить ключевой результат перед другим или в конец | - | - | `goal_move_key_result` |
+| Удалить один ключевой результат | - | - | `goal_delete_key_result` |
+| Удалить все ключевые результаты | - | - | `goal_delete_all_key_results` |
 
 - **Аргументы.** Чтение принимает `entity_id` и `fields`; инструменты `*_find` — `input`, `filter`, `order_by`, `order_asc`, `root_only`, `page`, `per_page`. Создание и изменение принимают `summary` (обязателен при создании), `description`, `lead`, `team_users`, `clients`, `followers`, `start` (у целей его нет), `end`, `tags`, `entity_status`, `parent_entity`, `team_access` и `links`, а изменение ещё `comment` и `version` (оптимистичная блокировка). Все инструменты принимают один и тот же селектор `fields` и возвращают сущность.
-- **`links` только добавляются, а не заменяются**, и API их никогда не возвращает: прочитать или удалить существующую связь через этот сервер нельзя, а изменение, состоящее только из `links`, отклоняется — вместо того чтобы отчитаться об успехе, который Трекер молча проигнорировал.
-- **Не входит в набор полей по умолчанию:** `checklistItems` (инструменты чек-листа возвращают сущность целиком, так что запрашивайте их, чтобы увидеть результат), `metricItems` и ключевые результаты цели `keyResultItems` — последние два доступны только на чтение. У целей свой набор значений `entityStatus` (`draft`, `according_to_plan`, `at_risk`, `blocked`, `achieved`, `partially_achieved`, `not_achieved`, `exceeded`, `cancelled`). Массовые изменения не поддерживаются.
+- **`links` при создании и изменении только добавляются, а не заменяются**: `*_get_links` их читает, `*_delete_link` удаляет одну (связь — одно отношение, удалить её можно с любой стороны). При изменении Трекер применяет `links`, только если какое-то поле действительно меняется или вместе с ними передан `comment`, поэтому изменение, состоящее только из `links`, отклоняется — вместо того чтобы отчитаться об успехе, который Трекер молча проигнорировал.
+- **Не входит в набор полей по умолчанию:** `checklistItems` (инструменты чек-листа возвращают сущность целиком, так что запрашивайте их, чтобы увидеть результат), `metricItems` и ключевые результаты цели `keyResultItems`. Инструменты ключевых результатов возвращают цель с её `keyResultItems` и `progressPercentage`; записи отдельного пункта у Трекера нет, поэтому изменение и перестановка переписывают список целиком, и **у всех ключевых результатов меняются id** — так же, как у метрик после `*_update_metric`. **Доступ**: право включает нижестоящие (у кого есть WRITE, не перечислены в READ, а без READ читать могут все); пока сущность наследует доступ от родителя, Трекер игнорирует его изменения, поэтому `*_update_permissions` отказывает, если в том же вызове не передан `inherit=false`. У целей свой набор значений `entityStatus` (`draft`, `according_to_plan`, `at_risk`, `blocked`, `achieved`, `partially_achieved`, `not_achieved`, `exceeded`, `cancelled`). Массовые изменения не поддерживаются.
 
 </details>
 

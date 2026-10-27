@@ -362,7 +362,7 @@ class EntityLinksOnlyUpdate(YandexTrackerError):
             "Yandex Tracker ignores `links` when the update changes nothing else: "
             "pass at least one field to change, or a `comment`, in the same call. "
             "Note that links are added, not replaced - sending a link that already "
-            "exists fails, and links cannot be removed through this server."
+            "exists fails; *_get_links lists them and *_delete_link removes one."
         )
 
 
@@ -741,4 +741,80 @@ class FilterEmptyUpdate(YandexTrackerError):
         super().__init__(
             "A filter update must change something: pass at least one of `name`, "
             "`query`, `filter`, `sorts` or `fields`."
+        )
+
+
+class EntityItemNotFound(YandexTrackerError):
+    """Raised when a key result or metric id is not in the entity's list.
+
+    Tracker answers a `remove` of an unknown id with 200 and changes nothing,
+    and rewriting a list gives every item a new id - so the list is read first
+    and an id it lacks is refused here.
+    """
+
+    def __init__(self, entity_id: str, item_id: str, *, item: str, field: str):
+        super().__init__(
+            f"No {item} '{item_id}' on '{entity_id}'. Ids change whenever the "
+            f"list is rewritten (any update or move); read the current ones with "
+            f"fields=['{field}']."
+        )
+        self.entity_id = entity_id
+        self.item_id = item_id
+
+
+class EntityItemEmptyUpdate(YandexTrackerError):
+    """Raised for a key result or metric update that would change nothing."""
+
+    def __init__(self, item: str) -> None:
+        super().__init__(
+            f"A {item} update must change something: pass at least one field. "
+            f"An omitted field keeps its current value."
+        )
+
+
+class EntityPermissionsEmptyUpdate(YandexTrackerError):
+    """Raised for an entity permissions change that changes nothing."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            "A permissions change must change something: pass at least one of "
+            "`read`, `write`, `grant` or `inherit`."
+        )
+
+
+class EntityPermissionsInherited(YandexTrackerError):
+    """Raised for a change to the permissions of an entity that inherits them.
+
+    Verified against the live API: while an entity inherits its permissions
+    from its parent, Tracker answers a change to them 200 and drops it.
+    """
+
+    def __init__(self, entity_id: str, source: str) -> None:
+        super().__init__(
+            f"'{entity_id}' inherits its permissions from '{source}', and Tracker ignores "
+            "changes to them until it stops: pass `inherit=false` in the same call "
+            "to give it permissions of its own, starting from the inherited ones."
+        )
+        self.entity_id = entity_id
+
+
+class EntityHasNoParent(YandexTrackerError):
+    """Raised for `inherit=true` on an entity that has no parent to inherit from."""
+
+    def __init__(self, entity_id: str) -> None:
+        super().__init__(
+            f"'{entity_id}' has no parent to inherit permissions from: set "
+            "`parent_entity` with the entity's update tool first."
+        )
+        self.entity_id = entity_id
+
+
+class EntityPermissionsChangeWhileInheriting(YandexTrackerError):
+    """Raised for `inherit=true` together with permission changes, which
+    Tracker would drop: an inheriting entity takes its parent's permissions."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            "`inherit=true` takes the parent's permissions and Tracker ignores "
+            "`read` / `write` / `grant` alongside it: pass one or the other."
         )

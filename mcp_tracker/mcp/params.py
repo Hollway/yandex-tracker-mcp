@@ -6,6 +6,7 @@ from pydantic import Field
 from mcp_tracker.tracker.proto.types.entities import (
     DEFAULT_ENTITY_FIELDS,
     GoalFieldsEnum,
+    GoalKeyResultType,
     GoalLinkRelationship,
     GoalStatus,
     PortfolioFieldsEnum,
@@ -21,6 +22,7 @@ from mcp_tracker.tracker.proto.types.inputs import (
     ChecklistItemInput,
     EntityChecklistItemUpdateInput,
     EntityParentEntityInput,
+    GoalKeyResultProgressInput,
     GoalLinkInput,
     IssueComponentRef,
     IssueFollowerRef,
@@ -428,8 +430,25 @@ _LINKS_DESCRIPTION = (
     "Links to ADD, e.g. [{{'relationship': '{example_relationship}', 'entity': "
     "'<other entity id>'}}]. Valid: {relationships}. {target_rules} "
     "Never re-send an existing link - that errors; on update `links` also needs "
-    "another field change or a `comment` in the same call."
+    "another field set to a new value, or a `comment`, in the same call."
 )
+
+EntityLinkFieldsParam = Annotated[
+    list[str] | None,
+    Field(
+        description="Fields of each linked entity to return, e.g. ['summary', "
+        "'lead']; `id` is always included. Omit for id, shortId, summary and "
+        "entityStatus. A name the linked entity's type lacks comes back null."
+    ),
+]
+
+EntityLinkedIDParam = Annotated[
+    str,
+    Field(
+        description="Id or shortId of the linked project, portfolio or goal, as "
+        "`*_get_links` returns it.",
+    ),
+]
 
 # The target's entity type matters on top of the relationship name, and the API
 # only answers 422 when the combination is wrong. Verified against the live API.
@@ -578,6 +597,90 @@ EntityChecklistItemDeadlineParam = Annotated[
         description="Deadline for the checklist item. Example: "
         "{'date': '2026-08-20T00:00:00.000+0000', 'deadlineType': 'date'}."
     ),
+]
+
+EntityMetricIDParam = Annotated[
+    str,
+    Field(
+        description="Metric `id` from *_get with fields=['metricItems']. Ids "
+        "change after every update, so read them again first."
+    ),
+]
+
+EntityMetricTextParam = Annotated[str, Field(description="Metric name.")]
+
+EntityMetricTextOptionalParam = Annotated[
+    str | None, Field(description="Metric name; omit to keep it.")
+]
+
+EntityMetricUrlParam = Annotated[
+    str | None,
+    Field(
+        description="Link to the dashboard widget to embed, e.g. "
+        "'https://tracker.yandex.ru/dashboard/12/widget/34?_embedded=1'; omit "
+        "to keep it (or to add a metric without one)."
+    ),
+]
+
+GoalKeyResultIDParam = Annotated[
+    str,
+    Field(
+        description="Key result `id` from goal_get with fields=['keyResultItems']. "
+        "Ids change after every update or move, so read them again first."
+    ),
+]
+
+GoalKeyResultTextParam = Annotated[str, Field(description="Key result text.")]
+
+GoalKeyResultTextOptionalParam = Annotated[
+    str | None, Field(description="Key result text; omit to keep it.")
+]
+
+GoalKeyResultTypeParam = Annotated[
+    GoalKeyResultType,
+    Field(
+        description="'value' measures progress from `progress.start` to "
+        "`progress.end` (then `progress` is required); 'binary' is done or not, "
+        "see `achieved`."
+    ),
+]
+
+GoalKeyResultTypeOptionalParam = Annotated[
+    GoalKeyResultType | None,
+    Field(
+        description="'value' (measured, needs `progress`) or 'binary' (done or "
+        "not); omit to keep it."
+    ),
+]
+
+GoalKeyResultAssigneeParam = Annotated[
+    str | None,
+    Field(description="Login or uid of the person responsible; omit to keep it."),
+]
+
+GoalKeyResultDeadlineParam = Annotated[
+    datetime.date | None, Field(description="Deadline date; omit to keep it.")
+]
+
+GoalKeyResultProgressParam = Annotated[
+    GoalKeyResultProgressInput | None,
+    Field(
+        description="Progress of a 'value' key result; on update, the values "
+        "omitted keep theirs."
+    ),
+]
+
+GoalKeyResultAchievedParam = Annotated[
+    bool | None,
+    Field(
+        description="Whether a 'binary' key result is achieved; sets its status "
+        "too unless `status` is given."
+    ),
+]
+
+GoalKeyResultStatusParam = Annotated[
+    GoalStatus | None,
+    Field(description="Status of the key result; omit to keep it."),
 ]
 
 EntityChecklistItemBeforeParam = Annotated[
@@ -1048,7 +1151,7 @@ A "queue" (e.g. `SOMEPROJECT` in an issue key like `SOMEPROJECT-1`) is where iss
 
 - Issue -> project: set the issue's `project` field (on `issue_create`/`issue_update`) to `{"primary": <project shortId>, "secondary": [<other shortIds>]}`; the `shortId` comes from `project_get`/`project_find`. There is no issue-to-portfolio or issue-to-goal link; portfolios and goals track progress through the projects (and, for goals, other goals) linked into them.
 - Containment - project/portfolio into a portfolio, goal into a parent goal: set `parent_entity` on the entity's create/update tool to `{"primary": <id>, "secondary": [<other ids>]}`.
-- Other relationships (a project "depends on" another project, or "works towards" a goal): use the `links` param on `*_create`/`*_update`, e.g. `[{"relationship": "works towards", "entity": <goal id>}]`. `links` ADDS links and never replaces them: pass only new ones, since linking an already-linked pair fails. Links are write-only in the Tracker API - no tool can read or delete them (removing one is a manual step in the Tracker UI) - and on `*_update` they are applied only when the call also changes a field or carries a `comment`, so a links-only update is rejected.
+- Other relationships (a project "depends on" another project, or "works towards" a goal): use the `links` param on `*_create`/`*_update`, e.g. `[{"relationship": "works towards", "entity": <goal id>}]`. `links` ADDS links and never replaces them: pass only new ones, since linking an already-linked pair fails. On `*_update` they are applied only when the call also changes a field to a new value or carries a `comment`, so a links-only update is rejected. `*_get_links` lists an entity's links with the linked entity's id, and `*_delete_link` removes one by that id - from either side, a link is one relationship seen from both ends.
 
 ## Fields and pagination
 

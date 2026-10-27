@@ -20,6 +20,7 @@ from mcp_tracker.mcp.params import (
     PageParam,
     PerPageParam,
 )
+from mcp_tracker.mcp.tools._entity import GOAL, register_entity_read_tools
 from mcp_tracker.mcp.utils import get_yandex_auth, set_non_needed_fields_null
 from mcp_tracker.settings import Settings
 from mcp_tracker.tracker.proto.types.entities import (
@@ -31,6 +32,8 @@ from mcp_tracker.tracker.proto.types.issues import CommentFieldsEnum, CommentsPa
 
 def register_goal_tools(_settings: Settings, mcp: MCPServer[AppContext]) -> None:
     """Register goal-related tools (all read-only)."""
+
+    register_entity_read_tools(GOAL, mcp)
 
     @mcp.tool(
         title="Get Goal",

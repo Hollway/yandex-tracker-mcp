@@ -1,7 +1,10 @@
 """Goal write MCP tools (conditionally registered based on read-only mode)."""
 
+from typing import Annotated
+
 from mcp.server.mcpserver import Context, MCPServer
 from mcp.types import ToolAnnotations
+from pydantic import Field
 
 from mcp_tracker.mcp.context import AppContext
 from mcp_tracker.mcp.params import (
@@ -24,9 +27,20 @@ from mcp_tracker.mcp.params import (
     EntityTeamUsersParam,
     EntityVersionParam,
     GoalFieldsParam,
+    GoalKeyResultAchievedParam,
+    GoalKeyResultAssigneeParam,
+    GoalKeyResultDeadlineParam,
+    GoalKeyResultIDParam,
+    GoalKeyResultProgressParam,
+    GoalKeyResultStatusParam,
+    GoalKeyResultTextOptionalParam,
+    GoalKeyResultTextParam,
+    GoalKeyResultTypeOptionalParam,
+    GoalKeyResultTypeParam,
     GoalLinksParam,
     GoalStatusParam,
 )
+from mcp_tracker.mcp.tools._entity import GOAL, register_entity_write_tools
 from mcp_tracker.mcp.utils import get_yandex_auth
 from mcp_tracker.settings import Settings
 from mcp_tracker.tracker.proto.types.entities import GoalEntity
@@ -35,6 +49,8 @@ from mcp_tracker.tracker.proto.types.issues import IssueComment
 
 def register_goal_write_tools(_settings: Settings, mcp: MCPServer[AppContext]) -> None:
     """Register goal write tools (not registered in read-only mode)."""
+
+    register_entity_write_tools(GOAL, mcp)
 
     @mcp.tool(
         title="Create Goal",
@@ -192,4 +208,120 @@ def register_goal_write_tools(_settings: Settings, mcp: MCPServer[AppContext]) -
             entity_id,
             comment_id,
             auth=get_yandex_auth(ctx),
+        )
+
+    @mcp.tool(
+        title="Add Goal Key Result",
+        description="Add a key result ('ключевой результат') to the end of a Yandex "
+        "Tracker goal ('цель') and return the goal's key results and progress.",
+        annotations=ToolAnnotations(read_only_hint=False),
+    )
+    async def goal_add_key_result(
+        ctx: Context[AppContext],
+        entity_id: EntityID,
+        text: GoalKeyResultTextParam,
+        type: GoalKeyResultTypeParam,
+        assignee: GoalKeyResultAssigneeParam = None,
+        deadline: GoalKeyResultDeadlineParam = None,
+        progress: GoalKeyResultProgressParam = None,
+        achieved: GoalKeyResultAchievedParam = None,
+        status: GoalKeyResultStatusParam = None,
+    ) -> GoalEntity:
+        return await ctx.request_context.lifespan_context.entities.goal_add_key_result(
+            entity_id,
+            text=text,
+            type=type,
+            assignee=assignee,
+            deadline=deadline,
+            progress=progress,
+            achieved=achieved,
+            status=status,
+            auth=get_yandex_auth(ctx),
+        )
+
+    @mcp.tool(
+        title="Update Goal Key Result",
+        description="Change one key result ('ключевой результат') of a Yandex "
+        "Tracker goal, keeping the fields you omit. Tracker rewrites the whole "
+        "list, so every key result gets a new id - use the ids returned.",
+        annotations=ToolAnnotations(read_only_hint=False),
+    )
+    async def goal_update_key_result(
+        ctx: Context[AppContext],
+        entity_id: EntityID,
+        key_result_id: GoalKeyResultIDParam,
+        text: GoalKeyResultTextOptionalParam = None,
+        type: GoalKeyResultTypeOptionalParam = None,
+        assignee: GoalKeyResultAssigneeParam = None,
+        deadline: GoalKeyResultDeadlineParam = None,
+        progress: GoalKeyResultProgressParam = None,
+        achieved: GoalKeyResultAchievedParam = None,
+        status: GoalKeyResultStatusParam = None,
+    ) -> GoalEntity:
+        entities = ctx.request_context.lifespan_context.entities
+        return await entities.goal_update_key_result(
+            entity_id,
+            key_result_id,
+            text=text,
+            type=type,
+            assignee=assignee,
+            deadline=deadline,
+            progress=progress,
+            achieved=achieved,
+            status=status,
+            auth=get_yandex_auth(ctx),
+        )
+
+    @mcp.tool(
+        title="Move Goal Key Result",
+        description="Move a key result ('ключевой результат') of a Yandex Tracker "
+        "goal before another one, or to the end. Every key result gets a new id - "
+        "use the ids returned.",
+        annotations=ToolAnnotations(read_only_hint=False),
+    )
+    async def goal_move_key_result(
+        ctx: Context[AppContext],
+        entity_id: EntityID,
+        key_result_id: GoalKeyResultIDParam,
+        before: Annotated[
+            str | None,
+            Field(
+                description="Id of the key result to put it before; omit for the end."
+            ),
+        ] = None,
+    ) -> GoalEntity:
+        entities = ctx.request_context.lifespan_context.entities
+        return await entities.goal_move_key_result(
+            entity_id, key_result_id, before=before, auth=get_yandex_auth(ctx)
+        )
+
+    @mcp.tool(
+        title="Delete Goal Key Result",
+        description="Delete one key result ('ключевой результат') of a Yandex "
+        "Tracker goal and return the rest. Cannot be undone.",
+        annotations=ToolAnnotations(read_only_hint=False, destructive_hint=True),
+    )
+    async def goal_delete_key_result(
+        ctx: Context[AppContext],
+        entity_id: EntityID,
+        key_result_id: GoalKeyResultIDParam,
+    ) -> GoalEntity:
+        entities = ctx.request_context.lifespan_context.entities
+        return await entities.goal_delete_key_result(
+            entity_id, key_result_id, auth=get_yandex_auth(ctx)
+        )
+
+    @mcp.tool(
+        title="Delete All Goal Key Results",
+        description="Delete every key result ('ключевые результаты') of a Yandex "
+        "Tracker goal. Cannot be undone.",
+        annotations=ToolAnnotations(read_only_hint=False, destructive_hint=True),
+    )
+    async def goal_delete_all_key_results(
+        ctx: Context[AppContext],
+        entity_id: EntityID,
+    ) -> GoalEntity:
+        entities = ctx.request_context.lifespan_context.entities
+        return await entities.goal_delete_all_key_results(
+            entity_id, auth=get_yandex_auth(ctx)
         )

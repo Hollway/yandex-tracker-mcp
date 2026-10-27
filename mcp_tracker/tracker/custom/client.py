@@ -44,7 +44,13 @@ from mcp_tracker.tracker.custom.errors import (
     ComponentEmptyUpdate,
     ComponentNotFound,
     ComponentVersionConflict,
+    EntityHasNoParent,
+    EntityItemEmptyUpdate,
+    EntityItemNotFound,
     EntityLinksOnlyUpdate,
+    EntityPermissionsChangeWhileInheriting,
+    EntityPermissionsEmptyUpdate,
+    EntityPermissionsInherited,
     FieldClearConflict,
     FilterConditionsConflict,
     FilterEmptyUpdate,
@@ -88,7 +94,14 @@ from mcp_tracker.tracker.proto.types.boards import Board, BoardColumnDetail, Spr
 from mcp_tracker.tracker.proto.types.components import Component
 from mcp_tracker.tracker.proto.types.entities import (
     DEFAULT_ENTITY_FIELDS_PARAM,
+    DEFAULT_LINK_FIELDS,
+    EntityAttachment,
+    EntityLink,
+    EntityMetricItem,
+    EntityType,
     GoalEntity,
+    GoalKeyResultItem,
+    GoalKeyResultType,
     GoalSearchResult,
     GoalStatus,
     PortfolioEntity,
@@ -112,6 +125,7 @@ from mcp_tracker.tracker.proto.types.inputs import (
     ChecklistItemInput,
     EntityChecklistItemUpdateInput,
     EntityParentEntityInput,
+    GoalKeyResultProgressInput,
     GoalLinkInput,
     IssueComponentRef,
     IssueFollowerRef,
@@ -143,6 +157,9 @@ from mcp_tracker.tracker.proto.types.issues import (
 )
 from mcp_tracker.tracker.proto.types.pagination import ItemT, PaginatedResult
 from mcp_tracker.tracker.proto.types.permissions import (
+    EntityPermissionAction,
+    EntityPermissionChange,
+    EntityPermissions,
     Group,
     PermissionAction,
     PermissionChange,
@@ -209,6 +226,8 @@ IssueAttachmentList = RootModel[list[IssueAttachment]]
 BulkChangeFailureList = RootModel[list[BulkChangeFailure]]
 ExternalApplicationList = RootModel[list[ExternalApplication]]
 RemoteLinkList = RootModel[list[RemoteLink]]
+EntityLinkList = RootModel[list[EntityLink]]
+EntityAttachmentList = RootModel[list[EntityAttachment]]
 
 
 class AbsenceSearchPage(BaseModel):
@@ -234,6 +253,16 @@ class EntityCommentsRelativePage(BaseModel):
 
 class _ChecklistSnapshotFields(BaseModel):
     checklistItems: list[ChecklistItem] = Field(default_factory=list)
+
+
+class _MetricSnapshotFields(BaseModel):
+    metricItems: list[EntityMetricItem] = Field(default_factory=list)
+
+
+class _MetricSnapshot(BaseModel):
+    """Minimal parse of an entity answer to `?fields=metricItems`."""
+
+    fields: _MetricSnapshotFields = Field(default_factory=_MetricSnapshotFields)
 
 
 class _ChecklistSnapshot(BaseModel):
@@ -4760,6 +4789,413 @@ class TrackerClient(
             await self._entity_delete_checklist(
                 "portfolio", entity_id, fields=fields, auth=auth
             )
+        )
+
+    async def entity_get_links(
+        self,
+        entity_type: EntityType,
+        entity_id: str,
+        *,
+        fields: list[str] | None = None,
+        auth: YandexAuth | None = None,
+    ) -> list[EntityLink]:
+        # Without `fields` Tracker returns each link's type alone, and the id
+        # of the linked entity is what a caller needs to delete the link.
+        selected = list(fields) if fields else list(DEFAULT_LINK_FIELDS)
+        if "id" not in selected:
+            selected.insert(0, "id")
+        return EntityLinkList.model_validate_json(
+            await self._read(
+                "GET",
+                f"v3/entities/{entity_type}/{entity_id}/links",
+                auth=auth,
+                params={"fields": ",".join(selected)},
+            )
+        ).root
+
+    async def entity_delete_link(
+        self,
+        entity_type: EntityType,
+        entity_id: str,
+        linked_entity_id: str,
+        *,
+        auth: YandexAuth | None = None,
+    ) -> None:
+        await self._read(
+            "DELETE",
+            f"v3/entities/{entity_type}/{entity_id}/links",
+            auth=auth,
+            params={"right": linked_entity_id},
+        )
+
+    async def _goal_write_key_results(
+        self, goal_id: str, value: Any, *, auth: YandexAuth | None
+    ) -> GoalEntity:
+        """`PATCH` the goal's `keyResultItems`: a list replaces them all (and
+        gives every item a new id), `{"add": ...}` / `{"remove": ...}` touch
+        one, `None` deletes them all."""
+        return GoalEntity.model_validate_json(
+            await self._read(
+                "PATCH",
+                f"v3/entities/goal/{goal_id}",
+                auth=auth,
+                params={"fields": "keyResultItems,progressPercentage"},
+                json={"fields": {"keyResultItems": value}},
+            )
+        )
+
+    async def _goal_key_results(
+        self, goal_id: str, *, auth: YandexAuth | None
+    ) -> list[GoalKeyResultItem]:
+        goal = GoalEntity.model_validate_json(
+            await self._entity_get(
+                "goal", goal_id, fields=["keyResultItems"], auth=auth
+            )
+        )
+        return (goal.fields.keyResultItems if goal.fields else None) or []
+
+    @staticmethod
+    def _find_key_result(
+        items: list[GoalKeyResultItem], goal_id: str, key_result_id: str
+    ) -> int:
+        for index, item in enumerate(items):
+            if item.id == key_result_id:
+                return index
+        raise EntityItemNotFound(
+            goal_id, key_result_id, item="key result", field="keyResultItems"
+        )
+
+    @staticmethod
+    def _key_result_draft(item: GoalKeyResultItem) -> dict[str, Any]:
+        """A key result as read, in the shape a write takes: references by id,
+        the deadline as a date, the status by key. `id` is read-only."""
+        draft: dict[str, Any] = {"type": item.type, "text": item.text}
+        if item.assignee is not None:
+            draft["assignee"] = item.assignee.id
+        if item.deadline is not None:
+            draft["deadline"] = {
+                "date": item.deadline.date.date().isoformat(),
+                "deadlineType": item.deadline.deadline_type or "date",
+            }
+        if item.progress is not None:
+            draft["progress"] = item.progress.model_dump(exclude_none=True)
+        if item.achieved is not None:
+            draft["achieved"] = item.achieved
+        if item.status is not None and item.status.id is not None:
+            draft["status"] = item.status.id
+        return draft
+
+    async def goal_add_key_result(
+        self,
+        goal_id: str,
+        *,
+        text: str,
+        type: GoalKeyResultType,
+        assignee: str | None = None,
+        deadline: datetime.date | None = None,
+        progress: GoalKeyResultProgressInput | None = None,
+        achieved: bool | None = None,
+        status: GoalStatus | None = None,
+        auth: YandexAuth | None = None,
+    ) -> GoalEntity:
+        item: dict[str, Any] = {"type": type, "text": text}
+        if assignee is not None:
+            item["assignee"] = assignee
+        if deadline is not None:
+            item["deadline"] = {"date": deadline.isoformat(), "deadlineType": "date"}
+        if progress is not None:
+            item["progress"] = progress.model_dump(exclude_none=True)
+        if achieved is not None:
+            item["achieved"] = achieved
+        if status is not None:
+            item["status"] = status
+        return await self._goal_write_key_results(goal_id, {"add": item}, auth=auth)
+
+    async def goal_update_key_result(
+        self,
+        goal_id: str,
+        key_result_id: str,
+        *,
+        text: str | None = None,
+        type: GoalKeyResultType | None = None,
+        assignee: str | None = None,
+        deadline: datetime.date | None = None,
+        progress: GoalKeyResultProgressInput | None = None,
+        achieved: bool | None = None,
+        status: GoalStatus | None = None,
+        auth: YandexAuth | None = None,
+    ) -> GoalEntity:
+        # There is no per-item endpoint: the whole list is read, the one item
+        # changed, and the list written back - which renumbers every item.
+        if all(
+            value is None
+            for value in (text, type, assignee, deadline, progress, achieved, status)
+        ):
+            raise EntityItemEmptyUpdate("key result")
+        items = await self._goal_key_results(goal_id, auth=auth)
+        index = self._find_key_result(items, goal_id, key_result_id)
+        drafts = [self._key_result_draft(item) for item in items]
+        draft = drafts[index]
+        if text is not None:
+            draft["text"] = text
+        if type is not None:
+            draft["type"] = type
+        if assignee is not None:
+            draft["assignee"] = assignee
+        if deadline is not None:
+            draft["deadline"] = {"date": deadline.isoformat(), "deadlineType": "date"}
+        if progress is not None:
+            draft["progress"] = {
+                **draft.get("progress", {}),
+                **progress.model_dump(exclude_none=True),
+            }
+        if achieved is not None:
+            draft["achieved"] = achieved
+            # Tracker derives a binary result's status from `achieved` only
+            # when no status is sent; resending the old one would keep it.
+            draft.pop("status", None)
+        if status is not None:
+            draft["status"] = status
+        return await self._goal_write_key_results(goal_id, drafts, auth=auth)
+
+    async def goal_move_key_result(
+        self,
+        goal_id: str,
+        key_result_id: str,
+        *,
+        before: str | None = None,
+        auth: YandexAuth | None = None,
+    ) -> GoalEntity:
+        items = await self._goal_key_results(goal_id, auth=auth)
+        moved = items.pop(self._find_key_result(items, goal_id, key_result_id))
+        position = (
+            len(items)
+            if before is None
+            else self._find_key_result(items, goal_id, before)
+        )
+        items.insert(position, moved)
+        return await self._goal_write_key_results(
+            goal_id, [self._key_result_draft(item) for item in items], auth=auth
+        )
+
+    async def goal_delete_key_result(
+        self,
+        goal_id: str,
+        key_result_id: str,
+        *,
+        auth: YandexAuth | None = None,
+    ) -> GoalEntity:
+        # `remove` by id keeps the other ids, but an unknown id is a silent
+        # no-op - hence the read. The full object as read answers 400: its
+        # `status` is an object, which a write does not take.
+        items = await self._goal_key_results(goal_id, auth=auth)
+        self._find_key_result(items, goal_id, key_result_id)
+        return await self._goal_write_key_results(
+            goal_id, {"remove": {"id": key_result_id}}, auth=auth
+        )
+
+    async def goal_delete_all_key_results(
+        self,
+        goal_id: str,
+        *,
+        auth: YandexAuth | None = None,
+    ) -> GoalEntity:
+        return await self._goal_write_key_results(goal_id, None, auth=auth)
+
+    async def _entity_metrics(
+        self, entity_type: EntityType, entity_id: str, *, auth: YandexAuth | None
+    ) -> list[EntityMetricItem]:
+        return _MetricSnapshot.model_validate_json(
+            await self._entity_get(
+                entity_type, entity_id, fields=["metricItems"], auth=auth
+            )
+        ).fields.metricItems
+
+    async def _entity_write_metrics(
+        self,
+        entity_type: EntityType,
+        entity_id: str,
+        value: Any,
+        *,
+        auth: YandexAuth | None,
+    ) -> list[EntityMetricItem]:
+        """`PATCH` the entity's `metricItems` - `{"add": ...}`, `{"remove": ...}`
+        or a whole list, which gives every metric a new id - and return them."""
+        return _MetricSnapshot.model_validate_json(
+            await self._read(
+                "PATCH",
+                f"v3/entities/{entity_type}/{entity_id}",
+                auth=auth,
+                params={"fields": "metricItems"},
+                json={"fields": {"metricItems": value}},
+            )
+        ).fields.metricItems
+
+    @staticmethod
+    def _find_metric(
+        items: list[EntityMetricItem], entity_id: str, metric_id: str
+    ) -> int:
+        for index, item in enumerate(items):
+            if item.id == metric_id:
+                return index
+        raise EntityItemNotFound(
+            entity_id, metric_id, item="metric", field="metricItems"
+        )
+
+    async def entity_add_metric(
+        self,
+        entity_type: EntityType,
+        entity_id: str,
+        *,
+        text: str,
+        url: str | None = None,
+        auth: YandexAuth | None = None,
+    ) -> list[EntityMetricItem]:
+        metric: dict[str, Any] = {"text": text}
+        if url is not None:
+            metric["url"] = url
+        return await self._entity_write_metrics(
+            entity_type, entity_id, {"add": metric}, auth=auth
+        )
+
+    async def entity_update_metric(
+        self,
+        entity_type: EntityType,
+        entity_id: str,
+        metric_id: str,
+        *,
+        text: str | None = None,
+        url: str | None = None,
+        auth: YandexAuth | None = None,
+    ) -> list[EntityMetricItem]:
+        # No per-item write: the list is read, the one metric changed and the
+        # list written back, which renumbers every metric.
+        if text is None and url is None:
+            raise EntityItemEmptyUpdate("metric")
+        items = await self._entity_metrics(entity_type, entity_id, auth=auth)
+        index = self._find_metric(items, entity_id, metric_id)
+        drafts = [{"text": item.text, "url": item.url} for item in items]
+        if text is not None:
+            drafts[index]["text"] = text
+        if url is not None:
+            drafts[index]["url"] = url
+        return await self._entity_write_metrics(
+            entity_type, entity_id, drafts, auth=auth
+        )
+
+    async def entity_delete_metric(
+        self,
+        entity_type: EntityType,
+        entity_id: str,
+        metric_id: str,
+        *,
+        auth: YandexAuth | None = None,
+    ) -> list[EntityMetricItem]:
+        # `remove` wants the metric whole - `{id}` alone is a 200 no-op, and
+        # so is an unknown id - hence the read.
+        items = await self._entity_metrics(entity_type, entity_id, auth=auth)
+        metric = items[self._find_metric(items, entity_id, metric_id)]
+        return await self._entity_write_metrics(
+            entity_type,
+            entity_id,
+            {"remove": {"id": metric.id, "text": metric.text, "url": metric.url}},
+            auth=auth,
+        )
+
+    async def entity_get_permissions(
+        self,
+        entity_type: EntityType,
+        entity_id: str,
+        *,
+        auth: YandexAuth | None = None,
+    ) -> EntityPermissions:
+        # `extendedPermissions` is `permissions` plus where the rights come
+        # from, so the plain read is not used.
+        return EntityPermissions.model_validate_json(
+            await self._read(
+                "GET",
+                f"v3/entities/{entity_type}/{entity_id}/extendedPermissions",
+                auth=auth,
+            )
+        )
+
+    async def entity_update_permissions(
+        self,
+        entity_type: EntityType,
+        entity_id: str,
+        changes: dict[EntityPermissionAction, EntityPermissionChange],
+        *,
+        inherit: bool | None = None,
+        auth: YandexAuth | None = None,
+    ) -> EntityPermissions:
+        if not changes and inherit is None:
+            raise EntityPermissionsEmptyUpdate()
+        if changes and inherit:
+            raise EntityPermissionsChangeWhileInheriting()
+        body: dict[str, Any] = {}
+        if inherit is False:
+            body["permissionSources"] = []
+        else:
+            # Tracker answers a change to inherited permissions 200 and drops
+            # it, and inheriting takes the parent's id - both need a read.
+            current = await self.entity_get_permissions(
+                entity_type, entity_id, auth=auth
+            )
+            sources = current.permissionSources or []
+            if changes and sources:
+                source = sources[0].display or str(sources[0].id)
+                raise EntityPermissionsInherited(entity_id, source)
+            if inherit:
+                parents = current.parentEntities
+                primary = parents.primary if parents is not None else None
+                if primary is None:
+                    raise EntityHasNoParent(entity_id)
+                body["permissionSources"] = [primary.id]
+        grants = {a: p for a, c in changes.items() if (p := c.part("add"))}
+        revokes = {a: p for a, c in changes.items() if (p := c.part("remove"))}
+        acl = {
+            side: actions
+            for side, actions in (("grant", grants), ("revoke", revokes))
+            if actions
+        }
+        if acl:
+            body["acl"] = acl
+        return EntityPermissions.model_validate_json(
+            await self._read(
+                "PATCH",
+                f"v3/entities/{entity_type}/{entity_id}/extendedPermissions",
+                auth=auth,
+                json=body,
+            )
+        )
+
+    async def entity_get_attachments(
+        self,
+        entity_type: EntityType,
+        entity_id: str,
+        *,
+        auth: YandexAuth | None = None,
+    ) -> list[EntityAttachment]:
+        return EntityAttachmentList.model_validate_json(
+            await self._read(
+                "GET", f"v3/entities/{entity_type}/{entity_id}/attachments", auth=auth
+            )
+        ).root
+
+    async def entity_delete_attachment(
+        self,
+        entity_type: EntityType,
+        entity_id: str,
+        attachment_id: str,
+        *,
+        auth: YandexAuth | None = None,
+    ) -> None:
+        # A 404 here carries Tracker's own "Вложений N не существуют.", which
+        # is clear enough to pass through.
+        await self._read(
+            "DELETE",
+            f"v3/entities/{entity_type}/{entity_id}/attachments/{attachment_id}",
+            auth=auth,
         )
 
     async def boards_list(

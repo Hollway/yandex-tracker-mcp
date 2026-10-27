@@ -1,6 +1,6 @@
 from datetime import date, datetime
 from enum import Enum
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import AliasChoices, Field
 
@@ -9,9 +9,18 @@ from mcp_tracker.tracker.proto.types.base import (
     NoneExcludedField,
     none_excluder,
 )
+from mcp_tracker.tracker.proto.types.issues import IssueAttachment
 from mcp_tracker.tracker.proto.types.mixins import CreatedUpdatedMixin
 from mcp_tracker.tracker.proto.types.pagination import PaginatedResult
 from mcp_tracker.tracker.proto.types.refs import QueueReference, UserReference
+
+# The three entity types of the entities API, as they appear in its paths.
+EntityType = Literal["project", "portfolio", "goal"]
+
+# Fields of a linked entity read when the caller names none: `id` is what
+# `*_delete_link` takes, and without any `fields` Tracker returns the link's
+# type alone.
+DEFAULT_LINK_FIELDS = ["id", "shortId", "summary", "entityStatus"]
 
 # Status values for projects and portfolios.
 ProjectPortfolioStatus = Literal[
@@ -26,7 +35,7 @@ ProjectPortfolioStatus = Literal[
     "cancelled",
 ]
 
-# Status values for goals.
+# Status values for goals - and for their key results.
 GoalStatus = Literal[
     "draft",
     "according_to_plan",
@@ -38,6 +47,9 @@ GoalStatus = Literal[
     "exceeded",
     "cancelled",
 ]
+
+# How a goal's key result is measured: by a value, or done / not done.
+GoalKeyResultType = Literal["value", "binary"]
 
 # Link relationship values for projects and portfolios.
 ProjectPortfolioLinkRelationship = Literal[
@@ -71,10 +83,7 @@ class ParentEntityRef(BaseTrackerEntity):
 
 
 class EntityMetricItem(BaseTrackerEntity):
-    """Metric widget shown on an entity (`metricItems`).
-
-    Readable through the `fields` selector; this server does not write metrics.
-    """
+    """Metric widget shown on an entity (`metricItems`)."""
 
     id: str | None = NoneExcludedField
     text: str | None = NoneExcludedField
@@ -130,8 +139,8 @@ class EntityChecklistItem(BaseTrackerEntity):
 class GoalKeyResultItem(BaseTrackerEntity):
     """Key result of a goal (`keyResultItems`).
 
-    Readable through the `fields` selector; this server does not write key
-    results. `progressPercentage` on the goal is derived from these.
+    Written by the `goal_*_key_result*` tools. `progressPercentage` on the goal
+    is derived from these.
     """
 
     id: str | None = NoneExcludedField
@@ -142,11 +151,43 @@ class GoalKeyResultItem(BaseTrackerEntity):
     progress: GoalKeyResultProgress | None = NoneExcludedField
     achieved: bool | None = NoneExcludedField
     assignee: UserReference | None = NoneExcludedField
+    # A goal status key ('at_risk', ...) with its display name. Set on write
+    # or, for a binary result written without one, derived from `achieved`.
+    status: EntityReference | None = NoneExcludedField
+
+
+class EntityLink(BaseTrackerEntity):
+    """A link of a project, portfolio or goal to another one (`GET .../links`).
+
+    `type` is the relationship seen from the entity that was asked about
+    ('depends on' on one side reads 'is dependent by' on the other).
+    `linkFieldValues` holds the requested fields of the linked entity, `id`
+    included; its type is not reported.
+    """
+
+    type: str
+    linkFieldValues: dict[str, Any] | None = NoneExcludedField
+
+
+class EntityAttachment(IssueAttachment):
+    """A file attached to a project, portfolio or goal.
+
+    Files reach an entity through its comments, so each one names the comment
+    it came with.
+    """
+
+    comment_id: str | None = Field(
+        None,
+        validation_alias=AliasChoices("commentId", "comment_id"),
+        serialization_alias="commentId",
+        exclude_if=none_excluder,
+    )
 
 
 # There is deliberately no `links` field below: per api-ref/entities/about-entities
 # it is not among the values `fields` accepts, and neither get-entity nor
-# update-entity returns links, so links are write-only through the API.
+# update-entity returns links - they are read through `GET .../links`
+# (`EntityLink`).
 #
 # `date | datetime` below is only for API date fields (`start`/`end`): pydantic tries
 # `date` first, so Tracker's `...T00:00:00.000+0000` collapses to a bare date.

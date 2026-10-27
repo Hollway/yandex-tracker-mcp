@@ -87,18 +87,27 @@ READ_ONLY_TOOL_NAMES = [
 
 # Entity read tools - registered only when TRACKER_ENTITIES_ENABLED is set
 ENTITY_READ_ONLY_TOOL_NAMES = [
-    # Project entity tools (3)
+    # Project entity tools
     "project_get",
     "project_find",
     "project_get_comments",
-    # Portfolio entity tools (3)
+    "project_get_links",
+    "project_get_attachments",
+    "project_get_permissions",
+    # Portfolio entity tools
     "portfolio_get",
     "portfolio_find",
     "portfolio_get_comments",
-    # Goal entity tools (3)
+    "portfolio_get_links",
+    "portfolio_get_attachments",
+    "portfolio_get_permissions",
+    # Goal entity tools
     "goal_get",
     "goal_find",
     "goal_get_comments",
+    "goal_get_links",
+    "goal_get_attachments",
+    "goal_get_permissions",
 ]
 
 # Write tool names - only registered when not in read-only mode
@@ -176,6 +185,12 @@ ENTITY_WRITE_TOOL_NAMES = [
     "project_delete_checklist_item",
     "project_update_checklist",
     "project_delete_checklist",
+    "project_delete_link",
+    "project_delete_attachment",
+    "project_add_metric",
+    "project_update_metric",
+    "project_delete_metric",
+    "project_update_permissions",
     "portfolio_create",
     "portfolio_update",
     "portfolio_delete",
@@ -188,12 +203,29 @@ ENTITY_WRITE_TOOL_NAMES = [
     "portfolio_delete_checklist_item",
     "portfolio_update_checklist",
     "portfolio_delete_checklist",
+    "portfolio_delete_link",
+    "portfolio_delete_attachment",
+    "portfolio_add_metric",
+    "portfolio_update_metric",
+    "portfolio_delete_metric",
+    "portfolio_update_permissions",
     "goal_create",
     "goal_update",
     "goal_delete",
     "goal_add_comment",
     "goal_update_comment",
     "goal_delete_comment",
+    "goal_delete_link",
+    "goal_delete_attachment",
+    "goal_add_metric",
+    "goal_update_metric",
+    "goal_delete_metric",
+    "goal_update_permissions",
+    "goal_add_key_result",
+    "goal_update_key_result",
+    "goal_move_key_result",
+    "goal_delete_key_result",
+    "goal_delete_all_key_results",
 ]
 
 # Tools that read local files - require both write mode and TRACKER_FILE_UPLOAD_ENABLED

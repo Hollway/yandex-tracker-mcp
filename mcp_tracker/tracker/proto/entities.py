@@ -3,7 +3,12 @@ from typing import Any, Protocol, runtime_checkable
 
 from mcp_tracker.tracker.proto.common import YandexAuth
 from mcp_tracker.tracker.proto.types.entities import (
+    EntityAttachment,
+    EntityLink,
+    EntityMetricItem,
+    EntityType,
     GoalEntity,
+    GoalKeyResultType,
     GoalSearchResult,
     GoalStatus,
     PortfolioEntity,
@@ -15,10 +20,16 @@ from mcp_tracker.tracker.proto.types.entities import (
 from mcp_tracker.tracker.proto.types.inputs import (
     EntityChecklistItemUpdateInput,
     EntityParentEntityInput,
+    GoalKeyResultProgressInput,
     GoalLinkInput,
     ProjectPortfolioLinkInput,
 )
 from mcp_tracker.tracker.proto.types.issues import CommentsPage, IssueComment
+from mcp_tracker.tracker.proto.types.permissions import (
+    EntityPermissionAction,
+    EntityPermissionChange,
+    EntityPermissions,
+)
 
 
 @runtime_checkable
@@ -474,6 +485,145 @@ class EntitiesProtocol(Protocol):
         fields: list[str] | None = None,
         auth: YandexAuth | None = None,
     ) -> PortfolioEntity: ...
+
+    # The methods below are shared by the three entity types, which the
+    # entities API serves under the same paths.
+
+    async def entity_get_links(
+        self,
+        entity_type: EntityType,
+        entity_id: str,
+        *,
+        fields: list[str] | None = None,
+        auth: YandexAuth | None = None,
+    ) -> list[EntityLink]: ...
+
+    async def entity_delete_link(
+        self,
+        entity_type: EntityType,
+        entity_id: str,
+        linked_entity_id: str,
+        *,
+        auth: YandexAuth | None = None,
+    ) -> None: ...
+
+    async def goal_add_key_result(
+        self,
+        goal_id: str,
+        *,
+        text: str,
+        type: GoalKeyResultType,
+        assignee: str | None = None,
+        deadline: datetime.date | None = None,
+        progress: GoalKeyResultProgressInput | None = None,
+        achieved: bool | None = None,
+        status: GoalStatus | None = None,
+        auth: YandexAuth | None = None,
+    ) -> GoalEntity: ...
+
+    async def goal_update_key_result(
+        self,
+        goal_id: str,
+        key_result_id: str,
+        *,
+        text: str | None = None,
+        type: GoalKeyResultType | None = None,
+        assignee: str | None = None,
+        deadline: datetime.date | None = None,
+        progress: GoalKeyResultProgressInput | None = None,
+        achieved: bool | None = None,
+        status: GoalStatus | None = None,
+        auth: YandexAuth | None = None,
+    ) -> GoalEntity: ...
+
+    async def goal_move_key_result(
+        self,
+        goal_id: str,
+        key_result_id: str,
+        *,
+        before: str | None = None,
+        auth: YandexAuth | None = None,
+    ) -> GoalEntity: ...
+
+    async def goal_delete_key_result(
+        self,
+        goal_id: str,
+        key_result_id: str,
+        *,
+        auth: YandexAuth | None = None,
+    ) -> GoalEntity: ...
+
+    async def goal_delete_all_key_results(
+        self,
+        goal_id: str,
+        *,
+        auth: YandexAuth | None = None,
+    ) -> GoalEntity: ...
+
+    async def entity_add_metric(
+        self,
+        entity_type: EntityType,
+        entity_id: str,
+        *,
+        text: str,
+        url: str | None = None,
+        auth: YandexAuth | None = None,
+    ) -> list[EntityMetricItem]: ...
+
+    async def entity_update_metric(
+        self,
+        entity_type: EntityType,
+        entity_id: str,
+        metric_id: str,
+        *,
+        text: str | None = None,
+        url: str | None = None,
+        auth: YandexAuth | None = None,
+    ) -> list[EntityMetricItem]: ...
+
+    async def entity_delete_metric(
+        self,
+        entity_type: EntityType,
+        entity_id: str,
+        metric_id: str,
+        *,
+        auth: YandexAuth | None = None,
+    ) -> list[EntityMetricItem]: ...
+
+    async def entity_get_permissions(
+        self,
+        entity_type: EntityType,
+        entity_id: str,
+        *,
+        auth: YandexAuth | None = None,
+    ) -> EntityPermissions: ...
+
+    async def entity_update_permissions(
+        self,
+        entity_type: EntityType,
+        entity_id: str,
+        changes: dict[EntityPermissionAction, EntityPermissionChange],
+        *,
+        inherit: bool | None = None,
+        auth: YandexAuth | None = None,
+    ) -> EntityPermissions: ...
+
+    async def entity_get_attachments(
+        self,
+        entity_type: EntityType,
+        entity_id: str,
+        *,
+        auth: YandexAuth | None = None,
+    ) -> list[EntityAttachment]: ...
+
+    async def entity_delete_attachment(
+        self,
+        entity_type: EntityType,
+        entity_id: str,
+        attachment_id: str,
+        *,
+        auth: YandexAuth | None = None,
+    ) -> None: ...
 
 
 class EntitiesProtocolWrap(EntitiesProtocol):

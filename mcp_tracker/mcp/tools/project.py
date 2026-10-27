@@ -20,6 +20,7 @@ from mcp_tracker.mcp.params import (
     PerPageParam,
     ProjectFieldsParam,
 )
+from mcp_tracker.mcp.tools._entity import PROJECT, register_entity_read_tools
 from mcp_tracker.mcp.utils import get_yandex_auth, set_non_needed_fields_null
 from mcp_tracker.settings import Settings
 from mcp_tracker.tracker.proto.types.entities import (
@@ -31,6 +32,8 @@ from mcp_tracker.tracker.proto.types.issues import CommentFieldsEnum, CommentsPa
 
 def register_project_tools(_settings: Settings, mcp: MCPServer[AppContext]) -> None:
     """Register project-related tools (all read-only)."""
+
+    register_entity_read_tools(PROJECT, mcp)
 
     @mcp.tool(
         title="Get Project",

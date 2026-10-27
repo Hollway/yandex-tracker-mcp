@@ -6,6 +6,9 @@ import pytest
 from mcp_tracker.tracker.caching.client import make_cached_protocols
 from mcp_tracker.tracker.proto.common import YandexAuth
 from mcp_tracker.tracker.proto.types.entities import (
+    EntityAttachment,
+    EntityLink,
+    EntityMetricItem,
     GoalEntity,
     GoalSearchResult,
     PortfolioEntity,
@@ -13,8 +16,16 @@ from mcp_tracker.tracker.proto.types.entities import (
     ProjectEntity,
     ProjectSearchResult,
 )
-from mcp_tracker.tracker.proto.types.inputs import EntityChecklistItemUpdateInput
+from mcp_tracker.tracker.proto.types.inputs import (
+    EntityChecklistItemUpdateInput,
+    GoalKeyResultProgressInput,
+)
 from mcp_tracker.tracker.proto.types.issues import CommentsPage, IssueComment
+from mcp_tracker.tracker.proto.types.permissions import (
+    EntityGranteeChange,
+    EntityPermissionChange,
+    EntityPermissions,
+)
 
 ENTITY_COMMENT_METHOD_PREFIXES = ["project", "portfolio", "goal"]
 ENTITY_CHECKLIST_METHOD_PREFIXES = ["project", "portfolio"]
@@ -579,3 +590,189 @@ class TestCachingEntitiesProtocol:
             "e1", fields=None, auth=None
         )
         assert result == entity
+
+    async def test_get_links_is_not_cached(
+        self,
+        caching_entities_protocol: Any,
+        mock_original: AsyncMock,
+    ) -> None:
+        links = [EntityLink(type="depends on", linkFieldValues={"id": "e2"})]
+        mock_original.entity_get_links.return_value = links
+
+        await caching_entities_protocol.entity_get_links("project", "e1")
+        result = await caching_entities_protocol.entity_get_links("project", "e1")
+
+        assert mock_original.entity_get_links.call_count == 2
+        mock_original.entity_get_links.assert_called_with(
+            "project", "e1", fields=None, auth=None
+        )
+        assert result == links
+
+    async def test_delete_link_calls_original(
+        self,
+        caching_entities_protocol: Any,
+        mock_original: AsyncMock,
+        yandex_auth: YandexAuth,
+    ) -> None:
+        mock_original.entity_delete_link.return_value = None
+
+        await caching_entities_protocol.entity_delete_link(
+            "goal", "g1", "p1", auth=yandex_auth
+        )
+
+        mock_original.entity_delete_link.assert_called_once_with(
+            "goal", "g1", "p1", auth=yandex_auth
+        )
+
+    async def test_get_attachments_is_not_cached(
+        self,
+        caching_entities_protocol: Any,
+        mock_original: AsyncMock,
+    ) -> None:
+        attachments = [EntityAttachment(id="8021", name="a.txt")]
+        mock_original.entity_get_attachments.return_value = attachments
+
+        await caching_entities_protocol.entity_get_attachments("goal", "g1")
+        result = await caching_entities_protocol.entity_get_attachments("goal", "g1")
+
+        assert mock_original.entity_get_attachments.call_count == 2
+        assert result == attachments
+
+    async def test_delete_attachment_calls_original(
+        self,
+        caching_entities_protocol: Any,
+        mock_original: AsyncMock,
+        yandex_auth: YandexAuth,
+    ) -> None:
+        mock_original.entity_delete_attachment.return_value = None
+
+        await caching_entities_protocol.entity_delete_attachment(
+            "project", "p1", "8021", auth=yandex_auth
+        )
+
+        mock_original.entity_delete_attachment.assert_called_once_with(
+            "project", "p1", "8021", auth=yandex_auth
+        )
+
+    @pytest.mark.parametrize(
+        "method,args,kwargs",
+        [
+            (
+                "goal_add_key_result",
+                ("g1",),
+                {
+                    "text": "Launch",
+                    "type": "binary",
+                    "assignee": None,
+                    "deadline": None,
+                    "progress": None,
+                    "achieved": True,
+                    "status": None,
+                },
+            ),
+            (
+                "goal_update_key_result",
+                ("g1", "kr1"),
+                {
+                    "text": None,
+                    "type": None,
+                    "assignee": None,
+                    "deadline": None,
+                    "progress": GoalKeyResultProgressInput(current=5),
+                    "achieved": None,
+                    "status": "at_risk",
+                },
+            ),
+            ("goal_move_key_result", ("g1", "kr1"), {"before": "kr2"}),
+            ("goal_delete_key_result", ("g1", "kr1"), {}),
+            ("goal_delete_all_key_results", ("g1",), {}),
+        ],
+    )
+    async def test_key_result_writes_call_original(
+        self,
+        caching_entities_protocol: Any,
+        mock_original: AsyncMock,
+        yandex_auth: YandexAuth,
+        method: str,
+        args: tuple[str, ...],
+        kwargs: dict[str, Any],
+    ) -> None:
+        entity = GoalEntity(id="g1", entityType="goal")
+        getattr(mock_original, method).return_value = entity
+
+        result = await getattr(caching_entities_protocol, method)(
+            *args, **kwargs, auth=yandex_auth
+        )
+
+        getattr(mock_original, method).assert_called_once_with(
+            *args, **kwargs, auth=yandex_auth
+        )
+        assert result == entity
+
+    @pytest.mark.parametrize(
+        "method,args,kwargs",
+        [
+            ("entity_add_metric", ("goal", "g1"), {"text": "A", "url": None}),
+            (
+                "entity_update_metric",
+                ("project", "p1", "m1"),
+                {"text": None, "url": "https://example.com"},
+            ),
+            ("entity_delete_metric", ("portfolio", "pf1", "m1"), {}),
+        ],
+    )
+    async def test_metric_writes_call_original(
+        self,
+        caching_entities_protocol: Any,
+        mock_original: AsyncMock,
+        yandex_auth: YandexAuth,
+        method: str,
+        args: tuple[str, ...],
+        kwargs: dict[str, Any],
+    ) -> None:
+        metrics = [EntityMetricItem(id="m1", text="A")]
+        getattr(mock_original, method).return_value = metrics
+
+        result = await getattr(caching_entities_protocol, method)(
+            *args, **kwargs, auth=yandex_auth
+        )
+
+        getattr(mock_original, method).assert_called_once_with(
+            *args, **kwargs, auth=yandex_auth
+        )
+        assert result == metrics
+
+    async def test_get_permissions_is_not_cached(
+        self,
+        caching_entities_protocol: Any,
+        mock_original: AsyncMock,
+    ) -> None:
+        permissions = EntityPermissions(accessType="public")
+        mock_original.entity_get_permissions.return_value = permissions
+
+        await caching_entities_protocol.entity_get_permissions("goal", "g1")
+        result = await caching_entities_protocol.entity_get_permissions("goal", "g1")
+
+        assert mock_original.entity_get_permissions.call_count == 2
+        assert result == permissions
+
+    async def test_update_permissions_calls_original(
+        self,
+        caching_entities_protocol: Any,
+        mock_original: AsyncMock,
+        yandex_auth: YandexAuth,
+    ) -> None:
+        permissions = EntityPermissions(accessType="custom")
+        mock_original.entity_update_permissions.return_value = permissions
+        changes = {
+            "GRANT": EntityPermissionChange(users=EntityGranteeChange(add=["u1"]))
+        }
+
+        result = await caching_entities_protocol.entity_update_permissions(
+            "project", "p1", changes, inherit=False, auth=yandex_auth
+        )
+
+        mock_original.entity_update_permissions.assert_called_once_with(
+            "project", "p1", changes, inherit=False, auth=yandex_auth
+        )
+        assert result == permissions

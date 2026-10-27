@@ -215,3 +215,15 @@ class ChecklistItemInput(BaseModel):
     deadline: ChecklistItemDeadlineInput | None = Field(
         None, description="Checklist item deadline"
     )
+
+
+class GoalKeyResultProgressInput(BaseModel):
+    """How far a measured key result has come."""
+
+    start: float | None = Field(
+        None, description="Start value; required when adding a key result."
+    )
+    end: float | None = Field(
+        None, description="Target value; required when adding a key result."
+    )
+    current: float | None = Field(None, description="Value reached so far.")
