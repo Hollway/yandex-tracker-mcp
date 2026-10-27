@@ -45,9 +45,13 @@ class TestCachingGlobalDataProtocol:
         mock_original: AsyncMock,
         yandex_auth: YandexAuth,
     ) -> None:
-        result = await caching_global_data_protocol.get_global_fields(auth=yandex_auth)
+        result = await caching_global_data_protocol.get_global_fields(
+            language="en", auth=yandex_auth
+        )
 
-        mock_original.get_global_fields.assert_called_once_with(auth=yandex_auth)
+        mock_original.get_global_fields.assert_called_once_with(
+            language="en", auth=yandex_auth
+        )
         assert result == mock_original.get_global_fields.return_value
 
     async def test_get_statuses_calls_original(

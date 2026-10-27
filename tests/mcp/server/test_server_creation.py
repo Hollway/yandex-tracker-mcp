@@ -36,10 +36,12 @@ READ_ONLY_TOOL_NAMES = [
     "queue_get_user_permissions",
     "queue_get_group_permissions",
     "groups_get_all",
-    # Field tools (10)
+    # Field tools (12)
     "get_global_fields",
     "field_get",
     "fields_get_categories",
+    "fields_find",
+    "field_get_values",
     "get_statuses",
     "get_issue_types",
     "get_priorities",

@@ -97,6 +97,7 @@ from mcp_tracker.tracker.proto.types.entities import (
 from mcp_tracker.tracker.proto.types.fields import (
     FIELD_TYPES,
     FieldCategory,
+    FieldLanguage,
     FieldType,
     GlobalField,
     LocalField,
@@ -850,7 +851,11 @@ class TrackerClient(
             )
 
     async def queues_get_local_fields(
-        self, queue_id: str, *, auth: YandexAuth | None = None
+        self,
+        queue_id: str,
+        *,
+        language: FieldLanguage | None = None,
+        auth: YandexAuth | None = None,
     ) -> list[LocalField]:
         return LocalFieldList.model_validate_json(
             await self._read(
@@ -858,6 +863,7 @@ class TrackerClient(
                 f"v3/queues/{queue_id}/localFields",
                 auth=auth,
                 not_found=QueueNotFound(queue_id),
+                extra_headers={"Accept-Language": language} if language else None,
             )
         ).root
 
@@ -1592,10 +1598,18 @@ class TrackerClient(
         )
 
     async def get_global_fields(
-        self, *, auth: YandexAuth | None = None
+        self,
+        *,
+        language: FieldLanguage | None = None,
+        auth: YandexAuth | None = None,
     ) -> list[GlobalField]:
         return GlobalFieldList.model_validate_json(
-            await self._read("GET", "v3/fields", auth=auth)
+            await self._read(
+                "GET",
+                "v3/fields",
+                auth=auth,
+                extra_headers={"Accept-Language": language} if language else None,
+            )
         ).root
 
     async def get_statuses(self, *, auth: YandexAuth | None = None) -> list[Status]:

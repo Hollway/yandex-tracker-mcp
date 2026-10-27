@@ -3,7 +3,7 @@ from typing import Any, Protocol, runtime_checkable
 
 from .common import YandexAuth
 from .types.components import Component
-from .types.fields import FieldType, GlobalField, LocalField
+from .types.fields import FieldLanguage, FieldType, GlobalField, LocalField
 from .types.pagination import PaginatedResult
 from .types.permissions import (
     PermissionAction,
@@ -43,7 +43,11 @@ class QueuesProtocol(Protocol):
     ) -> Queue: ...
 
     async def queues_get_local_fields(
-        self, queue_id: str, *, auth: YandexAuth | None = None
+        self,
+        queue_id: str,
+        *,
+        language: FieldLanguage | None = None,
+        auth: YandexAuth | None = None,
     ) -> list[LocalField]: ...
 
     async def queues_get_tags(

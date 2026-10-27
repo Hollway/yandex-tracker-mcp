@@ -81,7 +81,7 @@ class TestCachingQueuesProtocol:
         )
 
         mock_original.queues_get_local_fields.assert_called_once_with(
-            "TEST", auth=yandex_auth
+            "TEST", language=None, auth=yandex_auth
         )
         assert result == mock_original.queues_get_local_fields.return_value
 

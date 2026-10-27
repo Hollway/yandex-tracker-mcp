@@ -12,6 +12,12 @@ class Resolution(BaseTrackerEntity):
     name: str | None = Field(
         None, description="Displayed resolution name", exclude_if=none_excluder
     )
+    display: str | None = Field(
+        None,
+        description="Displayed name when the resolution comes as a reference "
+        "(a queue's `issueTypesConfig`)",
+        exclude_if=none_excluder,
+    )
     description: str | None = Field(
         default=None, description="Resolution description", exclude_if=none_excluder
     )

@@ -28,6 +28,7 @@ from mcp_tracker.tracker.proto.types.entities import (
 )
 from mcp_tracker.tracker.proto.types.fields import (
     FieldCategory,
+    FieldLanguage,
     FieldType,
     GlobalField,
     LocalField,
@@ -133,9 +134,15 @@ def make_cached_protocols(
 
         @cached(**cache_config)
         async def queues_get_local_fields(
-            self, queue_id: str, *, auth: YandexAuth | None = None
+            self,
+            queue_id: str,
+            *,
+            language: FieldLanguage | None = None,
+            auth: YandexAuth | None = None,
         ) -> list[LocalField]:
-            return await self._original.queues_get_local_fields(queue_id, auth=auth)
+            return await self._original.queues_get_local_fields(
+                queue_id, language=language, auth=auth
+            )
 
         @cached(**cache_config)
         async def queues_get_tags(
@@ -1176,9 +1183,12 @@ def make_cached_protocols(
     class CachingGlobalDataProtocol(GlobalDataProtocolWrap):
         @cached(**cache_config)
         async def get_global_fields(
-            self, *, auth: YandexAuth | None = None
+            self,
+            *,
+            language: FieldLanguage | None = None,
+            auth: YandexAuth | None = None,
         ) -> list[GlobalField]:
-            return await self._original.get_global_fields(auth=auth)
+            return await self._original.get_global_fields(language=language, auth=auth)
 
         @cached(**cache_config)
         async def get_statuses(self, *, auth: YandexAuth | None = None) -> list[Status]:
