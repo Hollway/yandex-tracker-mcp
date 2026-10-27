@@ -171,6 +171,20 @@ class EntityChecklistItemUpdateInput(BaseModel):
     )
 
 
+class BoardColumnInput(BaseModel):
+    """A column of an agile board, as created with the board."""
+
+    name: str = Field(..., description="Column name")
+    statuses: list[str] = Field(
+        ...,
+        description="Keys of the issue statuses shown in this column, e.g. "
+        "['open', 'new']",
+    )
+    limit: int | None = Field(
+        None, gt=0, description="Most issues the column should hold"
+    )
+
+
 class ChecklistItemDeadlineInput(BaseModel):
     """Deadline of an issue checklist item."""
 

@@ -689,7 +689,15 @@ claude mcp add yandex-tracker docker "run --rm -i -e TRACKER_TOKEN=ваш_ток
 | `boards_get_all` | Agile-доски организации; возвращает `{boards, next_cursor}` | `queue`, `fields`, `cursor` (предыдущий `next_cursor`), `per_page` |
 | `board_get` | Одна доска с `autoFilterSettings` (что она собирает), `estimateBy`, `useRanking` и рабочим `calendar` | `board_id`, `fields` |
 | `board_get_columns` | Колонки доски со статусами задач, которые в них попадают | `board_id` |
+| `board_get_column` | Одна колонка со статусами и лимитом задач (`limit`) | `board_id`, `column_id` |
+| `board_create` | Создать доску, при желании сразу с колонками и фильтром, который собирает на неё задачи | `name`, `columns`, `auto_filter`, `owner`, `private`, `sprints` |
+| `board_update` | Переименовать доску, заменить все её колонки, включить или выключить спринты | `board_id`, `name`, `columns`, `sprints`, `version` |
+| `board_delete` | Удалить доску вместе с её спринтами; задачи остаются | `board_id` |
+| `board_create_column` | Добавить колонку справа от остальных | `board_id`, `name`, `statuses`, `limit`, `version` |
+| `board_update_column` | Переименовать колонку, сменить её статусы или лимит задач | `board_id`, `column_id`, `name`, `statuses`, `limit`, `version` |
+| `board_delete_column` | Удалить колонку | `board_id`, `column_id`, `version` |
 | `board_get_sprints` | Спринты доски со статусом (`draft`, `in_progress`, `released`, `archived`) и плановыми/фактическими датами | `board_id`, `fields` |
+| `board_get_sprint_issues` | Задачи, которые сейчас в спринте, постранично | `sprint_id`, `fields`, `include_description`, `page`, `per_page` |
 | `board_create_sprint` | Создать спринт; он создаётся в статусе `draft` | `board_id`, `name`, `start_date`, `end_date` |
 | `board_update_sprint` | Переименовать спринт, сдвинуть даты или сменить статус | `sprint_id`, `name`, `start_date`, `end_date`, `status`, `version` |
 | `board_start_sprint` | Запустить спринт (`in_progress`) | `sprint_id`, `version` |
@@ -699,6 +707,9 @@ claude mcp add yandex-tracker docker "run --rm -i -e TRACKER_TOKEN=ваш_ток
 - У доски нет собственной очереди, поэтому `queue` сопоставляется с фильтром самой доски и не находит доски, которые фильтруют по чему-то другому — например, персональные по исполнителю. Чтобы найти и их, прочитайте несколько задач очереди через `issues_find` и посмотрите их поле `boards`.
 - Доски принадлежат организации, а не очереди, поэтому `TRACKER_LIMIT_QUEUES` их не фильтрует: проверяется только аргумент `queue` у `boards_get_all`, а в ответах могут упоминаться закрытые очереди. Инструменты записи спринтов не подчиняются и `TRACKER_READ_ONLY_QUEUES` - убрать их может только `TRACKER_READ_ONLY`; `version` у них необязателен, без него читается текущая.
 - У не-scrum доски спринтов нет, и `board_get_sprints` для неё отклоняется. Возвращённый `id` спринта — это то, что принимают `issue_create` / `issue_update`.
+- Запись досок и колонок тоже не подчиняется `TRACKER_LIMIT_QUEUES` / `TRACKER_READ_ONLY_QUEUES`. У колонки нет своей версии: каждое изменение колонки увеличивает `version` доски, и именно её означает `version` во всех этих инструментах; без него запись идёт безусловно.
+- `auto_filter` задаётся только при создании доски - поменять фильтр потом Трекер не даёт. `board_update` с `columns` удаляет все колонки и создаёт новые с новыми id. Лимит колонки (`limit`) после установки можно только поменять, но не снять; полная замена колонок его сбрасывает.
+- `board_get_sprint_issues` показывает спринт таким, какой он сейчас. Что было запланировано на старте (начальный набор диаграммы сгорания), в публичном API Трекера нет. При `TRACKER_LIMIT_QUEUES` в списке только задачи разрешённых очередей.
 
 </details>
 

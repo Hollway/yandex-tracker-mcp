@@ -453,6 +453,40 @@ class VersionEmptyUpdate(YandexTrackerError):
         )
 
 
+class BoardVersionConflict(YandexTrackerError):
+    """Raised when Tracker refuses a board or column write over the board's `version`.
+
+    A column has no version of its own: every change to a column bumps the
+    board's, so a version read before a column change is stale after it.
+    """
+
+    def __init__(self, board_id: int, version: int):
+        super().__init__(
+            f"Editing conflict for board '{board_id}' with version {version}: the "
+            f"board or one of its columns was changed since that version was read. "
+            f"Re-read it with board_get, or omit `version` to write to the current "
+            f"board."
+        )
+        self.board_id = board_id
+        self.version = version
+
+
+class BoardEmptyUpdate(YandexTrackerError):
+    def __init__(self) -> None:
+        super().__init__(
+            "A board update must change something: pass at least one of `name`, "
+            "`columns` or `sprints`."
+        )
+
+
+class BoardColumnEmptyUpdate(YandexTrackerError):
+    def __init__(self) -> None:
+        super().__init__(
+            "A column update must change something: pass at least one of `name`, "
+            "`statuses` or `limit`."
+        )
+
+
 class SprintNotFound(YandexTrackerError):
     def __init__(self, sprint_id: int):
         super().__init__(

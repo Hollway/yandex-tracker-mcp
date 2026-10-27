@@ -1,8 +1,8 @@
-"""Sprint write tools (conditionally registered based on read-only mode).
+"""Board, column and sprint write tools (registered unless read-only).
 
-A sprint belongs to a board, and a board to no queue, so TRACKER_LIMIT_QUEUES
-and TRACKER_READ_ONLY_QUEUES do not apply to these tools - only
-TRACKER_READ_ONLY does.
+A board belongs to no queue, and its columns and sprints to the board, so
+TRACKER_LIMIT_QUEUES and TRACKER_READ_ONLY_QUEUES do not apply to these tools -
+only TRACKER_READ_ONLY does.
 """
 
 import asyncio
@@ -15,15 +15,33 @@ from mcp.types import ToolAnnotations
 from pydantic import Field
 
 from mcp_tracker.mcp.context import AppContext
-from mcp_tracker.mcp.params import BoardID
+from mcp_tracker.mcp.params import (
+    BoardColumnID,
+    BoardColumnLimitParam,
+    BoardColumnsParam,
+    BoardID,
+    BoardSprintsParam,
+    BoardVersionParam,
+    SprintID,
+)
 from mcp_tracker.mcp.utils import get_yandex_auth
 from mcp_tracker.settings import Settings
 from mcp_tracker.tracker.custom.errors import SprintVersionConflict
 from mcp_tracker.tracker.proto.boards import BoardsProtocol
 from mcp_tracker.tracker.proto.common import YandexAuth
-from mcp_tracker.tracker.proto.types.boards import Sprint
+from mcp_tracker.tracker.proto.types.boards import Board, BoardColumnDetail, Sprint
 
-SprintIDParam = Annotated[int, Field(description="Sprint `id` from board_get_sprints.")]
+BoardNameParam = Annotated[str, Field(description="Board name.")]
+
+ColumnNameParam = Annotated[str, Field(description="Column name.")]
+
+ColumnStatusesParam = Annotated[
+    list[str],
+    Field(
+        description="Keys of the issue statuses shown in the column, e.g. "
+        "['needInfo', 'inProgress'] - get_statuses lists them."
+    ),
+]
 
 SprintVersionParam = Annotated[
     int | None,
@@ -72,7 +90,162 @@ async def _write_current(
 
 
 def register_board_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -> None:
-    """Register sprint write tools (not registered in read-only mode)."""
+    """Register board, column and sprint write tools (not in read-only mode)."""
+
+    @mcp.tool(
+        title="Create Board",
+        description="Create a Yandex Tracker agile board ('доска'), optionally with "
+        "its columns and the filter that puts issues on it. The filter can only be "
+        "set here - no tool changes it later. Not covered by the queue restrictions.",
+        annotations=ToolAnnotations(read_only_hint=False),
+    )
+    async def board_create(
+        ctx: Context[AppContext],
+        name: BoardNameParam,
+        columns: BoardColumnsParam = None,
+        auto_filter: Annotated[
+            dict[str, list[str]] | None,
+            Field(
+                description="Issues the board collects by itself: a field key "
+                "mapped to the values it accepts, e.g. {'queue': ['DEV'], "
+                "'assignee': ['i.ivanov']}. Omit for a board that only shows "
+                "issues added to it by hand."
+            ),
+        ] = None,
+        owner: Annotated[
+            str | None,
+            Field(description="Login or uid of the owner; omit to own it yourself."),
+        ] = None,
+        private: Annotated[
+            bool | None,
+            Field(
+                description="True: only the owner sees the board. Omit for a board "
+                "every employee can see."
+            ),
+        ] = None,
+        sprints: BoardSprintsParam = None,
+    ) -> Board:
+        return await ctx.request_context.lifespan_context.boards.board_create(
+            name=name,
+            columns=columns,
+            owner=owner,
+            private=private,
+            sprints=sprints,
+            auto_filter=auto_filter,
+            auth=get_yandex_auth(ctx),
+        )
+
+    @mcp.tool(
+        title="Update Board",
+        description="Rename a Yandex Tracker agile board, replace all of its "
+        "columns, or turn sprints on or off. Passing `columns` deletes the current "
+        "columns and creates new ones with new ids - board_update_column changes one "
+        "in place. Not covered by the queue restrictions.",
+        annotations=ToolAnnotations(read_only_hint=False),
+    )
+    async def board_update(
+        ctx: Context[AppContext],
+        board_id: BoardID,
+        name: Annotated[str | None, Field(description="New name.")] = None,
+        columns: BoardColumnsParam = None,
+        sprints: BoardSprintsParam = None,
+        version: BoardVersionParam = None,
+    ) -> Board:
+        return await ctx.request_context.lifespan_context.boards.board_update(
+            board_id,
+            version=version,
+            name=name,
+            columns=columns,
+            sprints=sprints,
+            auth=get_yandex_auth(ctx),
+        )
+
+    @mcp.tool(
+        title="Delete Board",
+        description="Permanently delete a Yandex Tracker agile board together with "
+        "its sprints; the issues stay. Not covered by the queue restrictions.",
+        annotations=ToolAnnotations(read_only_hint=False, destructive_hint=True),
+    )
+    async def board_delete(
+        ctx: Context[AppContext],
+        board_id: BoardID,
+    ) -> None:
+        await ctx.request_context.lifespan_context.boards.board_delete(
+            board_id, auth=get_yandex_auth(ctx)
+        )
+
+    @mcp.tool(
+        title="Create Board Column",
+        description="Add a column ('колонка') to a Yandex Tracker agile board for "
+        "the issue statuses given; it goes to the right of the others. Not covered "
+        "by the queue restrictions.",
+        annotations=ToolAnnotations(read_only_hint=False),
+    )
+    async def board_create_column(
+        ctx: Context[AppContext],
+        board_id: BoardID,
+        name: ColumnNameParam,
+        statuses: ColumnStatusesParam,
+        limit: BoardColumnLimitParam = None,
+        version: BoardVersionParam = None,
+    ) -> BoardColumnDetail:
+        return await ctx.request_context.lifespan_context.boards.board_create_column(
+            board_id,
+            name=name,
+            statuses=statuses,
+            limit=limit,
+            version=version,
+            auth=get_yandex_auth(ctx),
+        )
+
+    @mcp.tool(
+        title="Update Board Column",
+        description="Rename a column of a Yandex Tracker agile board, change its "
+        "statuses or its issue limit. Only the arguments passed change; `statuses` "
+        "replaces the whole list. Not covered by the queue restrictions.",
+        annotations=ToolAnnotations(read_only_hint=False),
+    )
+    async def board_update_column(
+        ctx: Context[AppContext],
+        board_id: BoardID,
+        column_id: BoardColumnID,
+        name: Annotated[str | None, Field(description="New name.")] = None,
+        statuses: Annotated[
+            list[str] | None,
+            Field(
+                description="Keys of the issue statuses shown in the column, e.g. "
+                "['needInfo', 'inProgress'] - get_statuses lists them. Replaces the "
+                "current list."
+            ),
+        ] = None,
+        limit: BoardColumnLimitParam = None,
+        version: BoardVersionParam = None,
+    ) -> BoardColumnDetail:
+        return await ctx.request_context.lifespan_context.boards.board_update_column(
+            board_id,
+            column_id,
+            version=version,
+            name=name,
+            statuses=statuses,
+            limit=limit,
+            auth=get_yandex_auth(ctx),
+        )
+
+    @mcp.tool(
+        title="Delete Board Column",
+        description="Delete a column ('колонка') of a Yandex Tracker agile board; "
+        "the issues stay. Not covered by the queue restrictions.",
+        annotations=ToolAnnotations(read_only_hint=False, destructive_hint=True),
+    )
+    async def board_delete_column(
+        ctx: Context[AppContext],
+        board_id: BoardID,
+        column_id: BoardColumnID,
+        version: BoardVersionParam = None,
+    ) -> None:
+        await ctx.request_context.lifespan_context.boards.board_delete_column(
+            board_id, column_id, version=version, auth=get_yandex_auth(ctx)
+        )
 
     @mcp.tool(
         title="Create Sprint",
@@ -105,7 +278,7 @@ def register_board_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -
     )
     async def board_update_sprint(
         ctx: Context[AppContext],
-        sprint_id: SprintIDParam,
+        sprint_id: SprintID,
         name: Annotated[str | None, Field(description="New name.")] = None,
         start_date: Annotated[
             datetime.date | None, Field(description="New start date, YYYY-MM-DD.")
@@ -146,7 +319,7 @@ def register_board_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -
     )
     async def board_start_sprint(
         ctx: Context[AppContext],
-        sprint_id: SprintIDParam,
+        sprint_id: SprintID,
         version: SprintVersionParam = None,
     ) -> Sprint:
         boards = ctx.request_context.lifespan_context.boards
@@ -167,7 +340,7 @@ def register_board_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -
     )
     async def board_archive_sprint(
         ctx: Context[AppContext],
-        sprint_id: SprintIDParam,
+        sprint_id: SprintID,
         version: SprintVersionParam = None,
     ) -> Sprint:
         boards = ctx.request_context.lifespan_context.boards
@@ -188,7 +361,7 @@ def register_board_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -
     )
     async def board_delete_sprint(
         ctx: Context[AppContext],
-        sprint_id: SprintIDParam,
+        sprint_id: SprintID,
     ) -> None:
         await ctx.request_context.lifespan_context.boards.sprint_delete(
             sprint_id, auth=get_yandex_auth(ctx)

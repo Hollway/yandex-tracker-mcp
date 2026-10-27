@@ -6,8 +6,12 @@ from mcp import Client
 from mcp.types import TextContent
 
 from mcp_tracker.mcp.tools import board_write
-from mcp_tracker.tracker.custom.errors import SprintVersionConflict
-from mcp_tracker.tracker.proto.types.boards import Sprint
+from mcp_tracker.tracker.custom.errors import (
+    BoardVersionConflict,
+    SprintVersionConflict,
+)
+from mcp_tracker.tracker.proto.types.boards import Board, BoardColumnDetail, Sprint
+from mcp_tracker.tracker.proto.types.inputs import BoardColumnInput
 from tests.mcp.conftest import get_tool_result_content
 
 
@@ -170,3 +174,168 @@ class TestBoardSprintWrites:
 
         assert result.is_error
         mock_boards_protocol.sprint_update.assert_not_called()
+
+
+class TestBoardWrites:
+    async def test_create_passes_everything(
+        self,
+        client_session: Client,
+        mock_boards_protocol: AsyncMock,
+    ) -> None:
+        mock_boards_protocol.board_create.return_value = Board(id=163, name="B")
+
+        result = await client_session.call_tool(
+            "board_create",
+            {
+                "name": "B",
+                "columns": [{"name": "To Do", "statuses": ["open"], "limit": 2}],
+                "auto_filter": {"queue": ["DEV"]},
+                "owner": "i.ivanov",
+                "private": True,
+                "sprints": True,
+            },
+        )
+
+        assert not result.is_error
+        kwargs = mock_boards_protocol.board_create.call_args.kwargs
+        assert kwargs["columns"] == [
+            BoardColumnInput(name="To Do", statuses=["open"], limit=2)
+        ]
+        assert kwargs["auto_filter"] == {"queue": ["DEV"]}
+        assert (kwargs["owner"], kwargs["private"], kwargs["sprints"]) == (
+            "i.ivanov",
+            True,
+            True,
+        )
+        assert get_tool_result_content(result)["id"] == 163
+
+    async def test_create_defaults_to_nothing_but_the_name(
+        self,
+        client_session: Client,
+        mock_boards_protocol: AsyncMock,
+    ) -> None:
+        mock_boards_protocol.board_create.return_value = Board(id=163, name="B")
+
+        result = await client_session.call_tool("board_create", {"name": "B"})
+
+        assert not result.is_error
+        kwargs = mock_boards_protocol.board_create.call_args.kwargs
+        assert kwargs["name"] == "B"
+        assert [kwargs[k] for k in ("columns", "auto_filter", "owner")] == [None] * 3
+
+    async def test_a_column_limit_must_be_positive(
+        self,
+        client_session: Client,
+        mock_boards_protocol: AsyncMock,
+    ) -> None:
+        result = await client_session.call_tool(
+            "board_create",
+            {"name": "B", "columns": [{"name": "X", "statuses": [], "limit": 0}]},
+        )
+
+        assert result.is_error
+        mock_boards_protocol.board_create.assert_not_called()
+
+    @pytest.mark.parametrize("version", [None, 4])
+    async def test_update_passes_the_version_through(
+        self,
+        client_session: Client,
+        mock_boards_protocol: AsyncMock,
+        version: int | None,
+    ) -> None:
+        mock_boards_protocol.board_update.return_value = Board(id=163, version=5)
+        args: dict[str, Any] = {"board_id": 163, "name": "N"}
+        if version is not None:
+            args["version"] = version
+
+        result = await client_session.call_tool("board_update", args)
+
+        assert not result.is_error
+        call = mock_boards_protocol.board_update.call_args
+        assert call.args == (163,)
+        assert call.kwargs["version"] == version
+        assert call.kwargs["name"] == "N"
+
+    async def test_a_conflict_reaches_the_caller(
+        self,
+        client_session: Client,
+        mock_boards_protocol: AsyncMock,
+    ) -> None:
+        mock_boards_protocol.board_update.side_effect = BoardVersionConflict(163, 4)
+
+        result = await client_session.call_tool(
+            "board_update", {"board_id": 163, "name": "N", "version": 4}
+        )
+
+        assert result.is_error
+        error = result.content[0]
+        assert isinstance(error, TextContent)
+        assert "Editing conflict for board '163'" in error.text
+
+    async def test_delete(
+        self,
+        client_session: Client,
+        mock_boards_protocol: AsyncMock,
+    ) -> None:
+        result = await client_session.call_tool("board_delete", {"board_id": 163})
+
+        assert not result.is_error
+        assert mock_boards_protocol.board_delete.call_args.args == (163,)
+
+
+class TestBoardColumnWrites:
+    async def test_create(
+        self,
+        client_session: Client,
+        mock_boards_protocol: AsyncMock,
+    ) -> None:
+        mock_boards_protocol.board_create_column.return_value = BoardColumnDetail(
+            id=8, name="Lim", limit=2
+        )
+
+        result = await client_session.call_tool(
+            "board_create_column",
+            {"board_id": 163, "name": "Lim", "statuses": ["inProgress"], "limit": 2},
+        )
+
+        assert not result.is_error
+        call = mock_boards_protocol.board_create_column.call_args
+        assert call.args == (163,)
+        assert call.kwargs["statuses"] == ["inProgress"]
+        assert (call.kwargs["limit"], call.kwargs["version"]) == (2, None)
+        assert get_tool_result_content(result)["id"] == 8
+
+    async def test_update_passes_only_what_was_given(
+        self,
+        client_session: Client,
+        mock_boards_protocol: AsyncMock,
+    ) -> None:
+        mock_boards_protocol.board_update_column.return_value = BoardColumnDetail(
+            id=7, name="Done"
+        )
+
+        result = await client_session.call_tool(
+            "board_update_column",
+            {"board_id": 163, "column_id": 7, "name": "Done", "version": 6},
+        )
+
+        assert not result.is_error
+        call = mock_boards_protocol.board_update_column.call_args
+        assert call.args == (163, 7)
+        assert call.kwargs["name"] == "Done"
+        assert call.kwargs["version"] == 6
+        assert (call.kwargs["statuses"], call.kwargs["limit"]) == (None, None)
+
+    async def test_delete(
+        self,
+        client_session: Client,
+        mock_boards_protocol: AsyncMock,
+    ) -> None:
+        result = await client_session.call_tool(
+            "board_delete_column", {"board_id": 163, "column_id": 7}
+        )
+
+        assert not result.is_error
+        call = mock_boards_protocol.board_delete_column.call_args
+        assert call.args == (163, 7)
+        assert call.kwargs["version"] is None

@@ -8,12 +8,19 @@ from pydantic import Field
 
 from mcp_tracker.mcp.context import AppContext
 from mcp_tracker.mcp.params import (
+    BoardColumnID,
     BoardCursorParam,
     BoardID,
     BoardQueueFilter,
     CursorPerPageParam,
+    IssueSearchFieldsParam,
+    IssueSearchIncludeDescriptionParam,
+    PageParam,
+    PerPageParam,
+    SprintID,
 )
 from mcp_tracker.mcp.tools._access import check_queue_access
+from mcp_tracker.mcp.tools.issue_read import find_issues
 from mcp_tracker.mcp.utils import get_yandex_auth, set_non_needed_fields_null
 from mcp_tracker.settings import Settings
 from mcp_tracker.tracker.proto.types.boards import (
@@ -24,6 +31,8 @@ from mcp_tracker.tracker.proto.types.boards import (
     Sprint,
     SprintFieldsEnum,
 )
+from mcp_tracker.tracker.proto.types.issues import Issue
+from mcp_tracker.tracker.proto.types.pagination import PaginatedResult
 
 # Page size for the walk `queue` needs. On a real organization's 415 boards,
 # 25 / 50 / 100 per page cost about the same in total, so take the fewest round
@@ -75,6 +84,20 @@ def board_queue_keys(board: Board) -> set[str]:
                 keys.add(fixed.key.upper())
 
     return keys
+
+
+def sprint_issues_query(sprint_id: int, settings: Settings) -> str:
+    """The YQL for the issues currently in a sprint.
+
+    `Sprint:` takes the sprint's id as well as its name, and an id is the one
+    that cannot match two sprints. Under TRACKER_LIMIT_QUEUES the queues go
+    into the query rather than being filtered out of each page, so the pages
+    and the total still add up.
+    """
+    query = f"Sprint: {sprint_id}"
+    if settings.tracker_limit_queues:
+        query += " Queue: " + ", ".join(sorted(settings.tracker_limit_queues))
+    return query + ' "Sort by": Created ASC'
 
 
 def register_board_tools(settings: Settings, mcp: MCPServer[AppContext]) -> None:
@@ -177,6 +200,55 @@ def register_board_tools(settings: Settings, mcp: MCPServer[AppContext]) -> None
             board_id,
             auth=get_yandex_auth(ctx),
         )
+
+    @mcp.tool(
+        title="Get Board Column",
+        description="Get one column ('колонка') of a Yandex Tracker agile board "
+        "with the issue statuses mapped onto it and its issue limit.",
+        annotations=ToolAnnotations(read_only_hint=True),
+    )
+    async def board_get_column(
+        ctx: Context[AppContext],
+        board_id: BoardID,
+        column_id: BoardColumnID,
+    ) -> BoardColumnDetail:
+        return await ctx.request_context.lifespan_context.boards.board_get_column(
+            board_id,
+            column_id,
+            auth=get_yandex_auth(ctx),
+        )
+
+    @mcp.tool(
+        title="Get Sprint Issues",
+        description="Get the issues ('задачи') currently in a sprint ('спринт') of "
+        "a Yandex Tracker board, a page at a time. This is the sprint as it is now, "
+        "not as planned at its start - Tracker's API has no snapshot of that.",
+        annotations=ToolAnnotations(read_only_hint=True),
+    )
+    async def board_get_sprint_issues(
+        ctx: Context[AppContext],
+        sprint_id: SprintID,
+        include_description: IssueSearchIncludeDescriptionParam = False,
+        fields: IssueSearchFieldsParam = None,
+        page: PageParam = 1,
+        per_page: PerPageParam = 100,
+    ) -> PaginatedResult[Issue]:
+        result = await find_issues(
+            ctx,
+            settings,
+            sprint_issues_query(sprint_id, settings),
+            include_description=include_description,
+            fields=fields,
+            page=page,
+            per_page=per_page,
+        )
+        if page == 1 and not result.values:
+            # An unknown sprint matches no issues rather than failing the
+            # search; reading it tells that apart from an empty sprint.
+            await ctx.request_context.lifespan_context.boards.sprint_get(
+                sprint_id, auth=get_yandex_auth(ctx)
+            )
+        return result
 
     @mcp.tool(
         title="Get Board Sprints",

@@ -3,6 +3,7 @@ from typing import Protocol, runtime_checkable
 
 from .common import YandexAuth
 from .types.boards import Board, BoardColumnDetail, Sprint
+from .types.inputs import BoardColumnInput
 
 
 @runtime_checkable
@@ -22,6 +23,69 @@ class BoardsProtocol(Protocol):
     async def board_get_columns(
         self, board_id: int, *, auth: YandexAuth | None = None
     ) -> list[BoardColumnDetail]: ...
+
+    async def board_create(
+        self,
+        *,
+        name: str,
+        columns: list[BoardColumnInput] | None = None,
+        owner: str | None = None,
+        private: bool | None = None,
+        sprints: bool | None = None,
+        auto_filter: dict[str, list[str]] | None = None,
+        auth: YandexAuth | None = None,
+    ) -> Board: ...
+
+    async def board_update(
+        self,
+        board_id: int,
+        *,
+        version: int | None = None,
+        name: str | None = None,
+        columns: list[BoardColumnInput] | None = None,
+        sprints: bool | None = None,
+        auth: YandexAuth | None = None,
+    ) -> Board: ...
+
+    async def board_delete(
+        self, board_id: int, *, auth: YandexAuth | None = None
+    ) -> None: ...
+
+    async def board_get_column(
+        self, board_id: int, column_id: int, *, auth: YandexAuth | None = None
+    ) -> BoardColumnDetail: ...
+
+    async def board_create_column(
+        self,
+        board_id: int,
+        *,
+        name: str,
+        statuses: list[str],
+        limit: int | None = None,
+        version: int | None = None,
+        auth: YandexAuth | None = None,
+    ) -> BoardColumnDetail: ...
+
+    async def board_update_column(
+        self,
+        board_id: int,
+        column_id: int,
+        *,
+        version: int | None = None,
+        name: str | None = None,
+        statuses: list[str] | None = None,
+        limit: int | None = None,
+        auth: YandexAuth | None = None,
+    ) -> BoardColumnDetail: ...
+
+    async def board_delete_column(
+        self,
+        board_id: int,
+        column_id: int,
+        *,
+        version: int | None = None,
+        auth: YandexAuth | None = None,
+    ) -> None: ...
 
     async def board_get_sprints(
         self, board_id: int, *, auth: YandexAuth | None = None
