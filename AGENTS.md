@@ -23,7 +23,7 @@ uv run yandex-tracker-mcp # Run the server
 
 ## Architecture
 
-- **Protocols** (`mcp_tracker/tracker/proto/`): Define API contracts (`QueuesProtocol`, `IssueProtocol`, `GlobalDataProtocol`, `TemplatesProtocol`, `UsersProtocol`, `EntitiesProtocol`, `BoardsProtocol`, `ComponentsProtocol`, `WorkflowsProtocol`), each exposed on `AppContext` as `queues` / `issues` / `fields` / `templates` / `users` / `entities` / `boards` / `components` / `workflows`
+- **Protocols** (`mcp_tracker/tracker/proto/`): Define API contracts (`QueuesProtocol`, `IssueProtocol`, `GlobalDataProtocol`, `TemplatesProtocol`, `UsersProtocol`, `EntitiesProtocol`, `BoardsProtocol`, `ComponentsProtocol`, `WorkflowsProtocol`, `ReportsProtocol`), each exposed on `AppContext` as `queues` / `issues` / `fields` / `templates` / `users` / `entities` / `boards` / `components` / `workflows` / `reports`
 - **Client** (`mcp_tracker/tracker/custom/client.py`): Implements protocols, handles HTTP requests
 - **Caching** (`mcp_tracker/tracker/caching/client.py`): Wraps protocols with Redis caching
 - **MCP Server** (`mcp_tracker/mcp/server.py`): Server creation and configuration
@@ -38,6 +38,7 @@ uv run yandex-tracker-mcp # Run the server
   - `issue_read.py` / `issue_write.py`: Issue read-only / write tools
   - `user.py`: User tools (read-only); `user_write.py`: absence create / delete, not covered by the queue restrictions
   - `worklog.py`: Worklog search across issues (read-only)
+  - `report.py` / `report_write.py`: Issue report read-only / write tools; `report_create` is refused under `TRACKER_LIMIT_QUEUES`
   - `workflow.py` / `workflow_write.py`: Workflow and transition screen read-only / write tools (`queue_get_workflows` itself lives with the queue tools); `workflow_write.py` is only registered when writes are on and `settings.tracker_workflows_write_enabled=True`
   - `catalog_write.py`: Status, resolution, issue type and priority write tools (`status_*`, `resolution_*`, `issue_type_*`, `priority_*`), registered under the same flag as `workflow_write.py`; the reads are the legacy `get_statuses` etc. in `field.py`
   - `field_write.py`: Issue field and field category write tools (`field_create`, `field_update`, `field_create_category`, `field_update_category`), same flag and same queue-restriction rule as `catalog_write.py`; the reads (`field_get`, `fields_get_categories`) are in `field.py`
@@ -77,6 +78,7 @@ uv run yandex-tracker-mcp # Run the server
 - **Queue permissions** (verified 2026-10-26 on the temporary queue MCPTMS): `GET v3/queues/{q}/permissions` is undocumented but answers the whole object (`create` / `read` / `write` / `grant` / `deny`, each with `users`, `groups`, `roles`, plus `version`). `PATCH` takes, per permission and per kind, either a list (replaces it) or `{"add": [...], "remove": [...]}`; it ignores `version` (a stale one is accepted), answers an empty body 200 without a change, and **does take a role in `deny`** although the reference says roles cannot be denied. An unknown user or group answers 422 ("пользователи [...] не существуют", "группы [...] не существуют"). `.../permissions/users/{login}` and `.../groups/{id}` give one subject's permissions with what each comes through (upper-case keys). Components have the same reads under `v3/components/{id}/permissions...`; their `PATCH` wants `version` (428 without it) and is not used here. Group ids come from `GET v3/groups` (paginated). `queue_update_permissions` asks the user to confirm by elicitation, the way the bulk tools do.
 - **Worklog search** (`POST v3/worklog/_search`) filters only by `createdBy` and by `createdAt` - when a record was *entered*, not the `start` of the work it records - and the documentation says nothing of paging, so the client follows a `Link: rel="next"` if one comes back (guarded by `_MAX_WORKLOG_SEARCH_PAGES`). `worklogs_find` turns `start_from` into the entry window `createdAt >= start_from` and checks `start` itself, which misses only time logged in advance; days are the server's local days (`local_day_start` / `local_day_end` in `mcp/utils.py`). Results from queues outside `TRACKER_LIMIT_QUEUES` are dropped by the issue key.
 - **Absences** (`POST v3/gaps/_search`, since 07.2026) need organization-administrator rights - a 403 becomes `AbsencesForbidden` - take at most 100 users and page by user; the user object of each row is cut down to `login` / `display` (`AbsenceUser`). Writes (verified on the live API 2026-10-26): `POST v3/gaps` with `{"gaps": [...]}` answers 200 with the saved rows and full user objects (`user` by login works, an unknown one answers 422 "пользователи [...] не существуют", an unknown `workflow` or `to` not after `from` 422 with a readable text); an `id` that already exists answers **500** "Внутренняя ошибка" instead of updating the absence, so the create tool sends no `id` and an absence is changed by deleting and creating it. `DELETE v3/gaps?gapIds=a,b` answers 204, also for unknown or already deleted ids; without `gapIds` 400. `GET v3/gaps/workflows` lists the ten kinds (`AbsenceKind`). The write tools (`user_write.py`) are not covered by the queue restrictions - an absence belongs to no queue.
+- **Reports** (`v3/entities/report`, verified on the live API 2026-10-26): an issue export ('Выгрузка задач', `type: issueFilterExport`, `format` xlsx / csv / xml; an unknown format answers 400 "Unrecognized value") or a worklog report (`worklogReport`, made in the UI). `POST v3/entities/report/` (trailing slash) answers 200 with `id` / `shortId` and no `fields`; Tracker builds the file within a second (`entityStatus: done`). **The API offers no way to get the file**: `.../attachments` is empty, `expand=attachments` answers 422, `.../download` and the like 404, and no field holds it - the tools say so. `GET .../{id or shortId}?fields=summary,entityStatus,parameters` nests them under `fields` (`Report` lifts them); an unknown id answers 404 "сущность [...] не существуют", a malformed one 400. `POST .../_search` takes `fields=summary,entityStatus` but answers **500** to `parameters`; its totals are in the body (`hits`, `pages`); `filter.author` takes a **uid only** - a login answers `hits: 0` - so `reports_find` resolves a login through `user_get`. `DELETE .../{id}` answers 204, then 404. Reads are not cached.
 - **Templates are not applied on write** (decided 2026-08-17, not yet implemented): `POST /v3/issues` has no `templateId` parameter, so `issue_create` cannot take one without expanding the template client-side. Callers read `issue_template_get` and fill the arguments themselves. Adding a `template_id` parameter later means merging `fieldTemplates` under the explicit arguments (which win) and mapping its reference values onto the `Issue*Ref` models - the template returns them as objects like `{"id": "1", "key": "bug"}`, and `components` in particular need the id-or-name form (see the reference-fields note above). `checklistItems` / `metricItems` cannot be sent at creation at all and would need a follow-up request.
 
 ## Testing
@@ -153,6 +155,7 @@ For paginated methods, use `side_effect` for sequential returns: `mock.method.si
    - Temporary attachment tools → `attachment_write.py`
    - User tools → `user.py`; absence write tools → `user_write.py`
    - Worklog search tools → `worklog.py`
+   - Issue report tools → `report.py`; write tools → `report_write.py`
    - Workflow/screen read-only tools → `workflow.py`; write tools → `workflow_write.py`
    - Status/resolution/issue type/priority write tools → `catalog_write.py`
    - Issue field and field category write tools → `field_write.py`
@@ -181,6 +184,8 @@ For paginated methods, use `side_effect` for sequential returns: `mock.method.si
 | User            | `user.py`            | Yes       |
 | User Write      | `user_write.py`      | No        |
 | Worklog         | `worklog.py`         | Yes       |
+| Report          | `report.py`          | Yes       |
+| Report Write    | `report_write.py`    | No        |
 | Workflow        | `workflow.py`        | Yes       |
 | Workflow Write  | `workflow_write.py`  | No        |
 | Catalog Write   | `catalog_write.py`   | No        |

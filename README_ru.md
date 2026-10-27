@@ -781,6 +781,21 @@ claude mcp add yandex-tracker docker "run --rm -i -e TRACKER_TOKEN=ваш_ток
 
 </details>
 
+<details>
+<summary><strong>Отчёты</strong></summary>
+
+| Инструмент | Что делает | Ключевые аргументы |
+| --- | --- | --- |
+| `report_create` | Выгрузить задачи, подходящие под запрос, в файл xlsx, csv или xml в Трекере | `summary`, `format`, `fields`, одно из `query` / `filter` / `filter_id`, `sorts` |
+| `report_get` | Один отчёт: название, статус и что он выгружает | `report_id` (`id` или `shortId`) |
+| `reports_find` | Отчёты организации, новые первыми; возвращает `{values, hits, pages}` | `author` (логин или uid), `page`, `per_page` |
+| `report_delete` | Удалить отчёт | `report_id` |
+
+- Файл через API не получить: отчёт скачивается в веб-интерфейсе Трекера. Чтобы прочитать задачи через сервер, используйте `issues_find`.
+- `report_create` не работает при `TRACKER_LIMIT_QUEUES`: запрос может захватить задачи любой очереди; пишущие инструменты не регистрируются в режиме только для чтения.
+
+</details>
+
 ## Транспорт http
 
 MCP сервер также может работать в режиме streamable-http для веб-интеграций или когда транспорт stdio не подходит.

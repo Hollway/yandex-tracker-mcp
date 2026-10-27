@@ -13,6 +13,7 @@ from mcp_tracker.tracker.proto.entities import EntitiesProtocolWrap
 from mcp_tracker.tracker.proto.fields import GlobalDataProtocolWrap
 from mcp_tracker.tracker.proto.issues import IssueProtocolWrap
 from mcp_tracker.tracker.proto.queues import QueuesProtocolWrap
+from mcp_tracker.tracker.proto.reports import ReportsProtocolWrap
 from mcp_tracker.tracker.proto.templates import TemplatesProtocolWrap
 from mcp_tracker.tracker.proto.types.boards import Board, BoardColumnDetail, Sprint
 from mcp_tracker.tracker.proto.types.components import Component
@@ -88,6 +89,7 @@ from mcp_tracker.tracker.proto.types.queues import (
     QueueVersion,
 )
 from mcp_tracker.tracker.proto.types.refs import IssueTypeReference
+from mcp_tracker.tracker.proto.types.reports import Report, ReportFormat, ReportSort
 from mcp_tracker.tracker.proto.types.resolutions import Resolution
 from mcp_tracker.tracker.proto.types.statuses import Status, StatusType
 from mcp_tracker.tracker.proto.types.templates import CommentTemplate, IssueTemplate
@@ -121,6 +123,7 @@ class CacheCollection:
     boards: type[BoardsProtocolWrap]
     components: type[ComponentsProtocolWrap]
     workflows: type[WorkflowsProtocolWrap]
+    reports: type[ReportsProtocolWrap]
 
 
 def make_cached_protocols(
@@ -2604,6 +2607,55 @@ def make_cached_protocols(
         ) -> None:
             return await self._original.workflow_delete(workflow_id, auth=auth)
 
+    class CachingReportsProtocol(ReportsProtocolWrap):
+        """Not cached: a report is built right after its create, and the tools
+        are a create / read / delete cycle a stale read would misreport."""
+
+        async def report_create(
+            self,
+            summary: str,
+            *,
+            format: ReportFormat,
+            fields: list[str],
+            query: str | None = None,
+            filter: dict[str, Any] | None = None,
+            filter_id: int | None = None,
+            sorts: list[ReportSort] | None = None,
+            auth: YandexAuth | None = None,
+        ) -> Report:
+            return await self._original.report_create(
+                summary,
+                format=format,
+                fields=fields,
+                query=query,
+                filter=filter,
+                filter_id=filter_id,
+                sorts=sorts,
+                auth=auth,
+            )
+
+        async def report_get(
+            self, report_id: str, *, auth: YandexAuth | None = None
+        ) -> Report:
+            return await self._original.report_get(report_id, auth=auth)
+
+        async def reports_find(
+            self,
+            *,
+            author: str | None = None,
+            per_page: int = 50,
+            page: int = 1,
+            auth: YandexAuth | None = None,
+        ) -> PaginatedResult[Report]:
+            return await self._original.reports_find(
+                author=author, per_page=per_page, page=page, auth=auth
+            )
+
+        async def report_delete(
+            self, report_id: str, *, auth: YandexAuth | None = None
+        ) -> None:
+            await self._original.report_delete(report_id, auth=auth)
+
     return CacheCollection(
         queues=CachingQueuesProtocol,
         issues=CachingIssuesProtocol,
@@ -2614,4 +2666,5 @@ def make_cached_protocols(
         boards=CachingBoardsProtocol,
         components=CachingComponentsProtocol,
         workflows=CachingWorkflowsProtocol,
+        reports=CachingReportsProtocol,
     )

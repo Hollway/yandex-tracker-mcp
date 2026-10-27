@@ -400,6 +400,22 @@
       "description": "List the organization's user groups with their numeric ids"
     },
     {
+      "name": "report_create",
+      "description": "Export the issues a query matches to an xlsx, csv or xml report, downloaded in the Tracker web interface"
+    },
+    {
+      "name": "report_get",
+      "description": "Get an issue report by id: its name, status and what it exports"
+    },
+    {
+      "name": "reports_find",
+      "description": "List the organization's issue reports, optionally by author"
+    },
+    {
+      "name": "report_delete",
+      "description": "Delete an issue report"
+    },
+    {
       "name": "get_global_fields",
       "description": "Get all global fields available in Yandex Tracker"
     },

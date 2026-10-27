@@ -24,6 +24,7 @@ from mcp_tracker.tracker.proto.entities import EntitiesProtocol
 from mcp_tracker.tracker.proto.fields import GlobalDataProtocol
 from mcp_tracker.tracker.proto.issues import IssueProtocol
 from mcp_tracker.tracker.proto.queues import QueuesProtocol
+from mcp_tracker.tracker.proto.reports import ReportsProtocol
 from mcp_tracker.tracker.proto.templates import TemplatesProtocol
 from mcp_tracker.tracker.proto.users import UsersProtocol
 from mcp_tracker.tracker.proto.workflows import WorkflowsProtocol
@@ -107,6 +108,7 @@ def make_tracker_lifespan(settings: Settings) -> Lifespan:
         boards: BoardsProtocol = tracker
         components: ComponentsProtocol = tracker
         workflows: WorkflowsProtocol = tracker
+        reports: ReportsProtocol = tracker
         if settings.tools_cache_enabled:
             cache_collection = make_cached_protocols(settings.cache_kwargs())
             queues = cache_collection.queues(queues)
@@ -118,6 +120,7 @@ def make_tracker_lifespan(settings: Settings) -> Lifespan:
             boards = cache_collection.boards(boards)
             components = cache_collection.components(components)
             workflows = cache_collection.workflows(workflows)
+            reports = cache_collection.reports(reports)
 
         try:
             await tracker.prepare()
@@ -132,6 +135,7 @@ def make_tracker_lifespan(settings: Settings) -> Lifespan:
                 boards=boards,
                 components=components,
                 workflows=workflows,
+                reports=reports,
             )
         finally:
             await tracker.close()

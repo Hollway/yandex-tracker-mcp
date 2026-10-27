@@ -78,6 +78,7 @@ from mcp_tracker.tracker.proto.entities import EntitiesProtocol
 from mcp_tracker.tracker.proto.fields import GlobalDataProtocol
 from mcp_tracker.tracker.proto.issues import IssueProtocol
 from mcp_tracker.tracker.proto.queues import QueuesProtocol
+from mcp_tracker.tracker.proto.reports import ReportsProtocol
 from mcp_tracker.tracker.proto.templates import TemplatesProtocol
 from mcp_tracker.tracker.proto.types.boards import Board, BoardColumnDetail, Sprint
 from mcp_tracker.tracker.proto.types.components import Component
@@ -156,6 +157,7 @@ from mcp_tracker.tracker.proto.types.queues import (
     QueueVersion,
 )
 from mcp_tracker.tracker.proto.types.refs import IssueTypeReference
+from mcp_tracker.tracker.proto.types.reports import Report, ReportFormat, ReportSort
 from mcp_tracker.tracker.proto.types.resolutions import Resolution
 from mcp_tracker.tracker.proto.types.statuses import Status, StatusType
 from mcp_tracker.tracker.proto.types.templates import CommentTemplate, IssueTemplate
@@ -210,6 +212,18 @@ class AbsenceSearchPage(BaseModel):
 
 class CreatedAbsences(BaseModel):
     gaps: list[CreatedAbsence] = Field(default_factory=list)
+
+
+class ReportSearchPage(BaseModel):
+    values: list[Report] = Field(default_factory=list)
+    hits: int | None = None
+    pages: int | None = None
+
+
+# What a report read asks for. `parameters` answers 500 on the search (verified
+# 2026-10-26), so the listing goes without it.
+_REPORT_FIELDS = "summary,entityStatus,parameters"
+_REPORT_SEARCH_FIELDS = "summary,entityStatus"
 
 
 ChecklistItemList = RootModel[list[ChecklistItem]]
@@ -572,6 +586,7 @@ class TrackerClient(
     BoardsProtocol,
     ComponentsProtocol,
     WorkflowsProtocol,
+    ReportsProtocol,
 ):
     def __init__(
         self,
@@ -2755,6 +2770,100 @@ class TrackerClient(
             if exc.status == 403:
                 raise AbsencesForbidden("delete") from exc
             raise
+
+    async def report_create(
+        self,
+        summary: str,
+        *,
+        format: ReportFormat,
+        fields: list[str],
+        query: str | None = None,
+        filter: dict[str, Any] | None = None,
+        filter_id: int | None = None,
+        sorts: list[ReportSort] | None = None,
+        auth: YandexAuth | None = None,
+    ) -> Report:
+        """Create an issue export, `POST v3/entities/report/` (trailing slash).
+
+        Tracker builds the file within a second or so; the API offers no way to
+        fetch it (verified 2026-10-26).
+        """
+        issue_filter: dict[str, Any] = {}
+        if query is not None:
+            issue_filter["query"] = query
+        if filter is not None:
+            issue_filter["filter"] = filter
+        if filter_id is not None:
+            issue_filter["filterId"] = filter_id
+        if sorts:
+            issue_filter["sorts"] = [sort.model_dump(by_alias=True) for sort in sorts]
+        body = {
+            "fields": {
+                "summary": summary,
+                "parameters": {
+                    "type": "issueFilterExport",
+                    "format": format,
+                    "filter": issue_filter,
+                    "fields": fields,
+                },
+            }
+        }
+        created = Report.model_validate_json(
+            await self._read("POST", "v3/entities/report/", auth=auth, json=body)
+        )
+        return created.model_copy(update={"summary": summary})
+
+    async def report_get(
+        self, report_id: str, *, auth: YandexAuth | None = None
+    ) -> Report:
+        return Report.model_validate_json(
+            await self._read(
+                "GET",
+                f"v3/entities/report/{quote(report_id, safe='')}",
+                auth=auth,
+                params={"fields": _REPORT_FIELDS},
+            )
+        )
+
+    async def reports_find(
+        self,
+        *,
+        author: str | None = None,
+        per_page: int = 50,
+        page: int = 1,
+        auth: YandexAuth | None = None,
+    ) -> PaginatedResult[Report]:
+        """Reports, newest first, `POST v3/entities/report/_search`.
+
+        The totals come in the body, not in headers; `author` takes a uid only -
+        a login matches nothing.
+        """
+        body: dict[str, Any] = {"orderBy": "createdAt", "orderAsc": False}
+        if author is not None:
+            body["filter"] = {"author": author}
+        found = ReportSearchPage.model_validate_json(
+            await self._read(
+                "POST",
+                "v3/entities/report/_search",
+                auth=auth,
+                params={
+                    "fields": _REPORT_SEARCH_FIELDS,
+                    "perPage": per_page,
+                    "page": page,
+                },
+                json=body,
+            )
+        )
+        return PaginatedResult[Report](
+            values=found.values, hits=found.hits, pages=found.pages
+        )
+
+    async def report_delete(
+        self, report_id: str, *, auth: YandexAuth | None = None
+    ) -> None:
+        await self._read(
+            "DELETE", f"v3/entities/report/{quote(report_id, safe='')}", auth=auth
+        )
 
     async def users_list(
         self, per_page: int = 50, page: int = 1, *, auth: YandexAuth | None = None

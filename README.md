@@ -784,6 +784,21 @@ Downloads are saved under `TRACKER_ATTACHMENTS_DIR` (default `<system temp>/yand
 
 </details>
 
+<details>
+<summary><strong>Reports</strong></summary>
+
+| Tool | What it does | Key arguments |
+| --- | --- | --- |
+| `report_create` | Export the issues a query matches to an xlsx, csv or xml file in Tracker | `summary`, `format`, `fields`, one of `query` / `filter` / `filter_id`, `sorts` |
+| `report_get` | One report: name, status and what it exports | `report_id` (`id` or `shortId`) |
+| `reports_find` | The organization's reports, newest first; returns `{values, hits, pages}` | `author` (login or uid), `page`, `per_page` |
+| `report_delete` | Delete a report | `report_id` |
+
+- The API returns no file: a report is downloaded in Tracker's web interface. To read issues through the server, use `issues_find`.
+- `report_create` is refused under `TRACKER_LIMIT_QUEUES`, since a query may match issues of any queue; the write tools are not registered in read-only mode.
+
+</details>
+
 ## http Transport
 
 The MCP server can also be run in streamable-http mode for web-based integrations or when stdio transport is not suitable.

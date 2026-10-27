@@ -6,6 +6,7 @@ from mcp_tracker.tracker.proto.entities import EntitiesProtocol
 from mcp_tracker.tracker.proto.fields import GlobalDataProtocol
 from mcp_tracker.tracker.proto.issues import IssueProtocol
 from mcp_tracker.tracker.proto.queues import QueuesProtocol
+from mcp_tracker.tracker.proto.reports import ReportsProtocol
 from mcp_tracker.tracker.proto.templates import TemplatesProtocol
 from mcp_tracker.tracker.proto.users import UsersProtocol
 from mcp_tracker.tracker.proto.workflows import WorkflowsProtocol
@@ -22,5 +23,6 @@ class AppContext:
     boards: BoardsProtocol
     components: ComponentsProtocol
     workflows: WorkflowsProtocol
+    reports: ReportsProtocol
     # Queue key -> (forbids AI tools, monotonic time the answer expires).
     ai_access: dict[str, tuple[bool, float]] = field(default_factory=dict)

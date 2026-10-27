@@ -17,6 +17,7 @@ All notable changes to this project will be documented in this file.
 - **Absences** - `users_get_absences` reads the vacations, sick leave and other absences of up to 100 users over a period, `users_create_absences` and `users_delete_absences` record and remove them; all three need organization administrator rights
 - **`issue_get_comment`** - one comment by its id, with its attached files
 - **`issue_delete_checklist`** - delete the whole checklist of an issue at once
+- **Reports** - `report_create` exports the issues a query matches to an xlsx, csv or xml file in Tracker, `report_get`, `reports_find` and `report_delete` read and remove reports; the file itself is downloaded in Tracker's web interface
 - **`issue_delete_attachment`** - delete a file attached to an issue
 - **`queue_get_triggers`** - the automation triggers of a queue with their conditions and actions; webhook credentials are left out
 - **`queue_update_version`, `queue_delete_version`** - change or delete a queue version; versions could only be listed and created

@@ -36,6 +36,8 @@ TOOL_NAME_ENTITIES = frozenset(
         "project",
         "queue",
         "queues",
+        "report",
+        "reports",
         "resolution",
         "screen",
         "status",

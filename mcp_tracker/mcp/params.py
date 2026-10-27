@@ -266,6 +266,11 @@ EntityID = Annotated[
     Field(description="Entity id or shortId"),
 ]
 
+ReportID = Annotated[
+    str,
+    Field(description="Report `id` or `shortId`, as reports_find returns them."),
+]
+
 
 def entity_fields_description(default_fields: list[str]) -> str:
     """Shared wording for per-entity `fields` params (project/portfolio/goal).
