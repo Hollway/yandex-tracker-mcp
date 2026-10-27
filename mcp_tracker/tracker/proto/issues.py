@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 
 from .common import YandexAuth
+from .types.filters import FilterSort, IssueFilter
 from .types.inputs import (
     ChecklistItemDeadlineInput,
     ChecklistItemInput,
@@ -20,6 +21,7 @@ from .types.issues import (
     BulkChangeFailure,
     ChangelogPage,
     ChecklistItem,
+    CommentReaction,
     CommentsPage,
     ExternalApplication,
     Issue,
@@ -137,6 +139,22 @@ class IssueProtocol(Protocol):
         *,
         auth: YandexAuth | None = None,
     ) -> None: ...
+    async def issue_add_comment_reaction(
+        self,
+        issue_id: str,
+        comment_id: int | str,
+        reaction: CommentReaction,
+        *,
+        auth: YandexAuth | None = None,
+    ) -> IssueComment: ...
+    async def issue_delete_comment_reaction(
+        self,
+        issue_id: str,
+        comment_id: int | str,
+        reaction: CommentReaction,
+        *,
+        auth: YandexAuth | None = None,
+    ) -> IssueComment: ...
     async def issues_get_links(
         self, issue_id: str, *, auth: YandexAuth | None = None
     ) -> list[IssueLink]: ...
@@ -157,13 +175,45 @@ class IssueProtocol(Protocol):
     ) -> None: ...
     async def issues_find(
         self,
-        query: str,
+        query: str | None = None,
         *,
+        filter_id: int | None = None,
         per_page: int = 15,
         page: int = 1,
         fields: Sequence[str] | None = None,
         auth: YandexAuth | None = None,
     ) -> PaginatedResult[Issue]: ...
+    async def issues_suggest(
+        self, text: str, *, auth: YandexAuth | None = None
+    ) -> list[Issue]: ...
+    # Saved filters - see AGENTS.md, *Saved filters*.
+    async def filter_get(
+        self, filter_id: int, *, auth: YandexAuth | None = None
+    ) -> IssueFilter: ...
+    async def filter_create(
+        self,
+        *,
+        name: str,
+        query: str | None = None,
+        filter: dict[str, Any] | None = None,
+        sorts: list[FilterSort] | None = None,
+        fields: list[str] | None = None,
+        auth: YandexAuth | None = None,
+    ) -> IssueFilter: ...
+    async def filter_update(
+        self,
+        filter_id: int,
+        *,
+        name: str | None = None,
+        query: str | None = None,
+        filter: dict[str, Any] | None = None,
+        sorts: list[FilterSort] | None = None,
+        fields: list[str] | None = None,
+        auth: YandexAuth | None = None,
+    ) -> IssueFilter: ...
+    async def filter_delete(
+        self, filter_id: int, *, auth: YandexAuth | None = None
+    ) -> None: ...
     async def issue_get_worklogs(
         self, issue_id: str, *, auth: YandexAuth | None = None
     ) -> list[Worklog]: ...
@@ -235,7 +285,11 @@ class IssueProtocol(Protocol):
         auth: YandexAuth | None = None,
     ) -> int: ...
     async def issues_count(
-        self, query: str, *, auth: YandexAuth | None = None
+        self,
+        query: str | None = None,
+        *,
+        filter_id: int | None = None,
+        auth: YandexAuth | None = None,
     ) -> int: ...
     async def issue_get_checklist(
         self, issue_id: str, *, auth: YandexAuth | None = None

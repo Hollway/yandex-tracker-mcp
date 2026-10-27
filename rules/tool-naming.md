@@ -14,7 +14,7 @@
 ## Entities
 
 `applications` (external applications an issue links to), `attachment` (a temporary attachment, not yet bound to an issue), `board`,
-`boards`, `comment`, `component`, `goal`, `issue`, `issues`, `portfolio`,
+`boards`, `comment`, `component`, `filter` (a saved issue filter), `goal`, `issue`, `issues`, `portfolio`,
 `priority`, `project`, `queue`, `queues`, `resolution`, `screen` (a transition
 screen), `status`, `user`, `users`, `workflow`, `workflows`, `worklogs` (records
 across issues).

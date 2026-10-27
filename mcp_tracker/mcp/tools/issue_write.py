@@ -19,6 +19,8 @@ from pydantic import BaseModel, Field, create_model
 from mcp_tracker.mcp.context import AppContext
 from mcp_tracker.mcp.errors import TrackerError
 from mcp_tracker.mcp.params import (
+    CommentReactionCommentIDParam,
+    CommentReactionParam,
     IssueChecklistItemAssigneeParam,
     IssueChecklistItemCheckedParam,
     IssueChecklistItemClearAssigneeParam,
@@ -44,6 +46,7 @@ from mcp_tracker.mcp.tools._access import (
     is_queue_allowed,
     queue_of_key,
 )
+from mcp_tracker.mcp.tools._ai_access import AiAccessRestricted, check_ai_access
 from mcp_tracker.mcp.tools._files import (
     UploadFilenameParam,
     UploadFilePathParam,
@@ -737,6 +740,44 @@ def register_issue_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -
         )
 
     @mcp.tool(
+        title="Add Comment Reaction",
+        description="Put a reaction (like, heart, fire, ...) on a comment of a "
+        "Yandex Tracker issue ('реакция') and return the comment with its "
+        "reactions. A reaction you already put there is refused.",
+        annotations=ToolAnnotations(read_only_hint=False),
+    )
+    async def issue_add_comment_reaction(
+        ctx: Context[AppContext],
+        issue_id: IssueID,
+        comment_id: CommentReactionCommentIDParam,
+        reaction: CommentReactionParam,
+    ) -> IssueComment:
+        check_issue_access(settings, issue_id, write=True)
+        comment = await ctx.request_context.lifespan_context.issues.issue_add_comment_reaction(
+            issue_id, comment_id, reaction, auth=get_yandex_auth(ctx)
+        )
+        return await _hide_restricted_text(ctx, settings, issue_id, comment)
+
+    @mcp.tool(
+        title="Delete Comment Reaction",
+        description="Take your reaction off a comment of a Yandex Tracker issue "
+        "('реакция') and return the comment with the reactions left. A reaction "
+        "that is not there is refused.",
+        annotations=ToolAnnotations(read_only_hint=False),
+    )
+    async def issue_delete_comment_reaction(
+        ctx: Context[AppContext],
+        issue_id: IssueID,
+        comment_id: CommentReactionCommentIDParam,
+        reaction: CommentReactionParam,
+    ) -> IssueComment:
+        check_issue_access(settings, issue_id, write=True)
+        comment = await ctx.request_context.lifespan_context.issues.issue_delete_comment_reaction(
+            issue_id, comment_id, reaction, auth=get_yandex_auth(ctx)
+        )
+        return await _hide_restricted_text(ctx, settings, issue_id, comment)
+
+    @mcp.tool(
         title="Add Issue Remote Link",
         description="Link a Yandex Tracker issue to an object in another "
         "application, e.g. a pull request or a document. `origin` is an "
@@ -1226,3 +1267,16 @@ def register_issue_bulk_tools(settings: Settings, mcp: MCPServer[AppContext]) ->
             failures = await issues.bulk_change_get_failures(bulk_change_id, auth=auth)
             failures = [f for f in failures if _bulk_failure_allowed(settings, f)]
         return BulkChangeReport(change=change, failures=failures)
+
+
+async def _hide_restricted_text(
+    ctx: Context[AppContext], settings: Settings, issue_id: str, comment: IssueComment
+) -> IssueComment:
+    """A reaction is a write and goes through, but the comment it answers with
+    is someone's text, which a queue forbidding AI tools keeps back."""
+    try:
+        await check_ai_access(ctx, settings, issue_id)
+    except AiAccessRestricted:
+        comment.text = None
+        comment.text_html = None
+    return comment

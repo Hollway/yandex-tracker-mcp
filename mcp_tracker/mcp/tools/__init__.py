@@ -25,6 +25,8 @@ This package organizes MCP tools by category:
   (conditional on read-only mode and tracker_workflows_write_enabled)
 - field_write.py: Issue field and field category write tools (the same
   conditions as catalog_write.py)
+- filter.py: Saved issue filter tools (read-only)
+- filter_write.py: Saved issue filter write tools (conditional on read-only mode)
 - project.py: Project entity tools (read-only)
 - project_write.py: Project entity write tools (conditional on read-only mode)
 - portfolio.py: Portfolio entity tools (read-only)
@@ -47,6 +49,8 @@ from mcp_tracker.mcp.tools.component import register_component_tools
 from mcp_tracker.mcp.tools.component_write import register_component_write_tools
 from mcp_tracker.mcp.tools.field import register_field_tools
 from mcp_tracker.mcp.tools.field_write import register_field_write_tools
+from mcp_tracker.mcp.tools.filter import register_filter_tools
+from mcp_tracker.mcp.tools.filter_write import register_filter_write_tools
 from mcp_tracker.mcp.tools.goal import register_goal_tools
 from mcp_tracker.mcp.tools.goal_write import register_goal_write_tools
 from mcp_tracker.mcp.tools.issue_read import (
@@ -95,6 +99,7 @@ def register_all_tools(settings: Settings, mcp: MCPServer[AppContext]) -> None:
     register_user_tools(settings, mcp)
     register_worklog_tools(settings, mcp)
     register_workflow_tools(settings, mcp)
+    register_filter_tools(settings, mcp)
 
     # Changes nothing in Tracker, so it does not depend on tracker_read_only.
     if settings.tracker_attachment_download_enabled:
@@ -111,6 +116,7 @@ def register_all_tools(settings: Settings, mcp: MCPServer[AppContext]) -> None:
         register_board_write_tools(settings, mcp)
         register_component_write_tools(settings, mcp)
         register_issue_write_tools(settings, mcp)
+        register_filter_write_tools(settings, mcp)
 
         if settings.tracker_bulk_enabled:
             register_issue_bulk_tools(settings, mcp)

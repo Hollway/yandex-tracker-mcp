@@ -32,6 +32,7 @@ from mcp_tracker.tracker.proto.types.fields import (
     GlobalField,
     LocalField,
 )
+from mcp_tracker.tracker.proto.types.filters import FilterSort, IssueFilter
 from mcp_tracker.tracker.proto.types.inputs import (
     ChecklistItemDeadlineInput,
     ChecklistItemInput,
@@ -53,6 +54,7 @@ from mcp_tracker.tracker.proto.types.issues import (
     BulkChangeFailure,
     ChangelogPage,
     ChecklistItem,
+    CommentReaction,
     CommentsPage,
     ExternalApplication,
     Issue,
@@ -77,6 +79,7 @@ from mcp_tracker.tracker.proto.types.queue_automation import (
     QueueAutoaction,
     QueueAutoactionRun,
     QueueAutoactionRunIssue,
+    QueueForms,
     QueueIssueTypeConfigInput,
     QueueMacro,
     QueueTriggerLog,
@@ -141,6 +144,12 @@ def make_cached_protocols(
             self, queue_id: str, *, auth: YandexAuth | None = None
         ) -> list[str]:
             return await self._original.queues_get_tags(queue_id, auth=auth)
+
+        @cached(**cache_config)
+        async def queue_get_forms(
+            self, queue_id: str, *, auth: YandexAuth | None = None
+        ) -> QueueForms:
+            return await self._original.queue_get_forms(queue_id, auth=auth)
 
         async def queue_get_local_field(
             self, queue_id: str, field_key: str, *, auth: YandexAuth | None = None
@@ -512,6 +521,13 @@ def make_cached_protocols(
                 auth=auth,
             )
 
+        async def queue_delete_trigger(
+            self, queue_id: str, trigger_id: int, *, auth: YandexAuth | None = None
+        ) -> None:
+            return await self._original.queue_delete_trigger(
+                queue_id, trigger_id, auth=auth
+            )
+
         async def queue_delete_macro(
             self, queue_id: str, macro_id: int, *, auth: YandexAuth | None = None
         ) -> None:
@@ -792,11 +808,94 @@ def make_cached_protocols(
                 issue_id, comment_id, auth=auth
             )
 
+        async def issue_add_comment_reaction(
+            self,
+            issue_id: str,
+            comment_id: int | str,
+            reaction: CommentReaction,
+            *,
+            auth: YandexAuth | None = None,
+        ) -> IssueComment:
+            return await self._original.issue_add_comment_reaction(
+                issue_id, comment_id, reaction, auth=auth
+            )
+
+        async def issue_delete_comment_reaction(
+            self,
+            issue_id: str,
+            comment_id: int | str,
+            reaction: CommentReaction,
+            *,
+            auth: YandexAuth | None = None,
+        ) -> IssueComment:
+            return await self._original.issue_delete_comment_reaction(
+                issue_id, comment_id, reaction, auth=auth
+            )
+
+        @cached(**cache_config)
+        async def issues_suggest(
+            self, text: str, *, auth: YandexAuth | None = None
+        ) -> list[Issue]:
+            return await self._original.issues_suggest(text, auth=auth)
+
+        # Not cached: a filter changed through filter_update is read back
+        # right after, and a stale read would show the old conditions.
+        async def filter_get(
+            self, filter_id: int, *, auth: YandexAuth | None = None
+        ) -> IssueFilter:
+            return await self._original.filter_get(filter_id, auth=auth)
+
+        async def filter_create(
+            self,
+            *,
+            name: str,
+            query: str | None = None,
+            filter: dict[str, Any] | None = None,
+            sorts: list[FilterSort] | None = None,
+            fields: list[str] | None = None,
+            auth: YandexAuth | None = None,
+        ) -> IssueFilter:
+            return await self._original.filter_create(
+                name=name,
+                query=query,
+                filter=filter,
+                sorts=sorts,
+                fields=fields,
+                auth=auth,
+            )
+
+        async def filter_update(
+            self,
+            filter_id: int,
+            *,
+            name: str | None = None,
+            query: str | None = None,
+            filter: dict[str, Any] | None = None,
+            sorts: list[FilterSort] | None = None,
+            fields: list[str] | None = None,
+            auth: YandexAuth | None = None,
+        ) -> IssueFilter:
+            return await self._original.filter_update(
+                filter_id,
+                name=name,
+                query=query,
+                filter=filter,
+                sorts=sorts,
+                fields=fields,
+                auth=auth,
+            )
+
+        async def filter_delete(
+            self, filter_id: int, *, auth: YandexAuth | None = None
+        ) -> None:
+            return await self._original.filter_delete(filter_id, auth=auth)
+
         @cached(**cache_config)
         async def issues_find(
             self,
-            query: str,
+            query: str | None = None,
             *,
+            filter_id: int | None = None,
             per_page: int = 15,
             page: int = 1,
             fields: Sequence[str] | None = None,
@@ -804,6 +903,7 @@ def make_cached_protocols(
         ) -> PaginatedResult[Issue]:
             return await self._original.issues_find(
                 query=query,
+                filter_id=filter_id,
                 per_page=per_page,
                 page=page,
                 fields=fields,
@@ -948,9 +1048,15 @@ def make_cached_protocols(
 
         @cached(**cache_config)
         async def issues_count(
-            self, query: str, *, auth: YandexAuth | None = None
+            self,
+            query: str | None = None,
+            *,
+            filter_id: int | None = None,
+            auth: YandexAuth | None = None,
         ) -> int:
-            return await self._original.issues_count(query, auth=auth)
+            return await self._original.issues_count(
+                query, filter_id=filter_id, auth=auth
+            )
 
         @cached(**cache_config)
         async def issue_get_checklist(

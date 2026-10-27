@@ -48,6 +48,10 @@
       "description": "Get all tags for a specific queue"
     },
     {
+      "name": "queue_get_forms",
+      "description": "Get the issue-intake forms of a queue"
+    },
+    {
       "name": "queue_get_local_field",
       "description": "Get one local field of a queue by its key"
     },
@@ -98,6 +102,10 @@
     {
       "name": "queue_update_trigger",
       "description": "Change a queue trigger: name, actions, conditions, order, or switch it off"
+    },
+    {
+      "name": "queue_delete_trigger",
+      "description": "Permanently delete a queue automation trigger"
     },
     {
       "name": "queue_get_trigger_logs",
@@ -612,6 +620,14 @@
       "description": "Delete a comment from a Yandex Tracker issue"
     },
     {
+      "name": "issue_add_comment_reaction",
+      "description": "Put a reaction (like, heart, fire, ...) on an issue comment"
+    },
+    {
+      "name": "issue_delete_comment_reaction",
+      "description": "Take your reaction off an issue comment"
+    },
+    {
       "name": "issue_get_remote_links",
       "description": "Get the links of an issue to objects in other applications"
     },
@@ -729,7 +745,27 @@
     },
     {
       "name": "issues_count",
-      "description": "Count issues matching a query using Yandex Tracker Query Language"
+      "description": "Count issues matching a query using Yandex Tracker Query Language or a saved filter"
+    },
+    {
+      "name": "issues_suggest",
+      "description": "Quick lookup of issues by a fragment of the summary"
+    },
+    {
+      "name": "filter_get",
+      "description": "Get a saved issue filter by id"
+    },
+    {
+      "name": "filter_create",
+      "description": "Save an issue filter with a query or field conditions"
+    },
+    {
+      "name": "filter_update",
+      "description": "Change a saved issue filter"
+    },
+    {
+      "name": "filter_delete",
+      "description": "Permanently delete a saved issue filter"
     }
   ],
   "user_config": {

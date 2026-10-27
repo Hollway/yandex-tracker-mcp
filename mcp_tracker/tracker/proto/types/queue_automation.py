@@ -9,7 +9,7 @@ dropped from what comes back, as `QueueTrigger` does.
 import datetime
 from typing import Any
 
-from pydantic import Field, field_validator
+from pydantic import ConfigDict, Field, field_validator
 
 from mcp_tracker.tracker.proto.types.base import BaseTrackerEntity, NoneExcludedField
 from mcp_tracker.tracker.proto.types.queues import _drop_secrets
@@ -87,6 +87,27 @@ class QueueMacro(BaseTrackerEntity):
     queue: QueueReference | None = NoneExcludedField
     body: str | None = NoneExcludedField
     issueUpdate: list[dict[str, Any]] | None = NoneExcludedField
+
+
+class QueueForm(BaseTrackerEntity):
+    """An issue-intake form of a queue (a Yandex Forms form creating issues)."""
+
+    # No form was available to read on the live API, so whatever else Tracker
+    # sends is passed through as it comes.
+    model_config = ConfigDict(extra="allow")
+
+    id: int | str | None = NoneExcludedField
+    name: str | None = NoneExcludedField
+    description: str | None = NoneExcludedField
+    path: str | None = NoneExcludedField
+
+
+class QueueForms(BaseTrackerEntity):
+    """The forms of a queue, in their configured order."""
+
+    queue: QueueReference | None = NoneExcludedField
+    forms: list[QueueForm] = Field(default_factory=list)
+    showDefaultCreationForm: bool | None = NoneExcludedField
 
 
 class QueueIssueTypeConfigInput(BaseTrackerEntity):

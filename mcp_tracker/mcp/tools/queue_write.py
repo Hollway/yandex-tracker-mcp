@@ -255,8 +255,8 @@ def register_queue_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -
         title="Update Queue Trigger",
         description="Change an automation trigger of a Yandex Tracker queue "
         "('триггер'): rename it, replace its actions or conditions, move it in the "
-        "order, or switch it off with active=false - the API has no trigger "
-        "delete. Only the arguments passed change.",
+        "order, or switch it off with active=false (queue_delete_trigger removes "
+        "it). Only the arguments passed change.",
         annotations=ToolAnnotations(read_only_hint=False),
     )
     async def queue_update_trigger(
@@ -305,6 +305,23 @@ def register_queue_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -
             active=active,
             before=before,
             auth=auth,
+        )
+
+    @mcp.tool(
+        title="Delete Queue Trigger",
+        description="Permanently delete an automation trigger of a Yandex Tracker "
+        "queue ('триггер'); there is no undo. To keep it but stop it firing, "
+        "use queue_update_trigger with active=false.",
+        annotations=ToolAnnotations(read_only_hint=False, destructive_hint=True),
+    )
+    async def queue_delete_trigger(
+        ctx: Context[AppContext],
+        queue_id: QueueID,
+        trigger_id: TriggerIDParam,
+    ) -> None:
+        check_queue_access(settings, queue_id, write=True)
+        await ctx.request_context.lifespan_context.queues.queue_delete_trigger(
+            queue_id, trigger_id, auth=get_yandex_auth(ctx)
         )
 
     @mcp.tool(

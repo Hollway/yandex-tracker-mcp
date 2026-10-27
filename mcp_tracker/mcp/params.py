@@ -14,6 +14,7 @@ from mcp_tracker.tracker.proto.types.entities import (
     ProjectPortfolioStatus,
 )
 from mcp_tracker.tracker.proto.types.fields import FieldType
+from mcp_tracker.tracker.proto.types.filters import FilterSort
 from mcp_tracker.tracker.proto.types.inputs import (
     ChecklistItemDeadlineInput,
     ChecklistItemInput,
@@ -27,6 +28,7 @@ from mcp_tracker.tracker.proto.types.inputs import (
     IssueSprintRef,
     ProjectPortfolioLinkInput,
 )
+from mcp_tracker.tracker.proto.types.issues import CommentReaction
 
 PageParam = Annotated[
     int,
@@ -821,6 +823,67 @@ AutoactionIDParam = Annotated[
 
 MacroIDParam = Annotated[int, Field(description="Macro `id` from queue_get_macros.")]
 
+FilterIDParam = Annotated[
+    int,
+    Field(
+        description="Saved filter id: from filter_create, or the number in the "
+        "filter's link in Tracker - the API cannot list filters."
+    ),
+]
+
+CommentReactionCommentIDParam = Annotated[
+    int | str,
+    Field(description="The comment's numeric `id` or its `longId`."),
+]
+
+CommentReactionParam = Annotated[
+    CommentReaction,
+    Field(
+        description="Reaction: LIKE, DISLIKE, LAUGH, HOORAY, CONFUSED, HEART, "
+        "ROCKET, EYES, FIRE, OK, FACEPALM or CHECK."
+    ),
+]
+
+SearchFilterIDParam = Annotated[
+    int | None,
+    Field(
+        description="Id of a saved filter (filter_get) whose conditions to search "
+        "by, instead of or together with `query`."
+    ),
+]
+
+FilterQueryParam = Annotated[
+    str | None,
+    Field(
+        description="The filter's conditions in Yandex Tracker Query language, "
+        "e.g. 'Queue: TEST Status: open'. Not together with `filter`; either one "
+        "replaces the conditions the filter had."
+    ),
+]
+
+FilterConditionsParam = Annotated[
+    dict[str, Any] | None,
+    Field(
+        description="The filter's conditions as field values, e.g. "
+        '{"queue": "TEST", "assignee": "me()", "status": ["open", "inProgress"]}. '
+        "Not together with `query`; either one replaces the conditions the filter "
+        "had."
+    ),
+]
+
+FilterSortsParam = Annotated[
+    list[FilterSort] | None,
+    Field(description="Sort order of the filter's issues, first key first."),
+]
+
+FilterColumnsParam = Annotated[
+    list[str] | None,
+    Field(
+        description="Issue fields shown as columns in the Tracker UI, e.g. "
+        "['key', 'summary', 'status']; does not change what a search returns."
+    ),
+]
+
 MacroBodyParam = Annotated[
     str | None,
     Field(
@@ -844,10 +907,12 @@ QueueIssueTypeParam = Annotated[
 
 
 YTQuery = Annotated[
-    str,
+    str | None,
     Field(
         description=(
-            """Search query to filter issues using Yandex Tracker Query.\n"""
+            """Search query to filter issues using Yandex Tracker Query. May be """
+            """omitted when `filter_id` is given; with both, only issues matching """
+            """both come back.\n"""
             """# General instructions\n"""
             """1. To search by a specific field use the following syntax: `Description: "some issue description"`\n"""
             """2. Multiple fields should be separated by space: `Description: "some issue description" Created: today()`\n"""

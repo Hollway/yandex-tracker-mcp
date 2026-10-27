@@ -43,6 +43,9 @@ from mcp_tracker.tracker.custom.errors import (
     ComponentVersionConflict,
     EntityLinksOnlyUpdate,
     FieldClearConflict,
+    FilterConditionsConflict,
+    FilterEmptyUpdate,
+    FilterNotFound,
     IssueNotFound,
     IssueTemplateNotFound,
     IssueVersionConflict,
@@ -98,6 +101,7 @@ from mcp_tracker.tracker.proto.types.fields import (
     GlobalField,
     LocalField,
 )
+from mcp_tracker.tracker.proto.types.filters import FilterSort, IssueFilter
 from mcp_tracker.tracker.proto.types.inputs import (
     ChecklistItemDeadlineInput,
     ChecklistItemInput,
@@ -120,6 +124,7 @@ from mcp_tracker.tracker.proto.types.issues import (
     ChangelogEntry,
     ChangelogPage,
     ChecklistItem,
+    CommentReaction,
     CommentsPage,
     ExternalApplication,
     Issue,
@@ -144,6 +149,7 @@ from mcp_tracker.tracker.proto.types.queue_automation import (
     QueueAutoaction,
     QueueAutoactionRun,
     QueueAutoactionRunIssue,
+    QueueForms,
     QueueIssueTypeConfigInput,
     QueueMacro,
     QueueTriggerLog,
@@ -847,6 +853,18 @@ class TrackerClient(
             )
         ).root
 
+    async def queue_get_forms(
+        self, queue_id: str, *, auth: YandexAuth | None = None
+    ) -> QueueForms:
+        return QueueForms.model_validate_json(
+            await self._read(
+                "GET",
+                f"v3/queues/{queue_id}/forms",
+                auth=auth,
+                not_found=QueueNotFound(queue_id),
+            )
+        )
+
     # Local fields (verified 2026-10-26): read and changed by their key, while
     # the `id` that comes back is `<hash>--<key>` - the name an issue write
     # takes. An update ignores `version` (a stale one is accepted), and there
@@ -1255,6 +1273,17 @@ class TrackerClient(
                 not_found=TriggerNotFound(queue_id, trigger_id),
                 conflict=TriggerVersionConflict(queue_id, trigger_id, version),
             )
+        )
+
+    async def queue_delete_trigger(
+        self, queue_id: str, trigger_id: int, *, auth: YandexAuth | None = None
+    ) -> None:
+        """Undocumented, verified 2026-10-26: 204, no `version`; 404 afterwards."""
+        await self._read(
+            "DELETE",
+            f"v3/queues/{queue_id}/triggers/{trigger_id}",
+            auth=auth,
+            not_found=TriggerNotFound(queue_id, trigger_id),
         )
 
     async def queue_get_trigger_logs(
@@ -2325,10 +2354,86 @@ class TrackerClient(
             not_found=IssueNotFound(issue_id),
         )
 
+    async def issue_add_comment_reaction(
+        self,
+        issue_id: str,
+        comment_id: int | str,
+        reaction: CommentReaction,
+        *,
+        auth: YandexAuth | None = None,
+    ) -> IssueComment:
+        return await self._comment_reaction(
+            "POST", issue_id, comment_id, reaction, auth=auth
+        )
+
+    async def issue_delete_comment_reaction(
+        self,
+        issue_id: str,
+        comment_id: int | str,
+        reaction: CommentReaction,
+        *,
+        auth: YandexAuth | None = None,
+    ) -> IssueComment:
+        # Undocumented, verified 2026-10-26: the same path as adding one.
+        return await self._comment_reaction(
+            "DELETE", issue_id, comment_id, reaction, auth=auth
+        )
+
+    async def _comment_reaction(
+        self,
+        method: Literal["POST", "DELETE"],
+        issue_id: str,
+        comment_id: int | str,
+        reaction: CommentReaction,
+        *,
+        auth: YandexAuth | None,
+    ) -> IssueComment:
+        """Both answer with the comment and its reactions after the change; a
+        reaction already there (or already gone) answers 422 with Tracker's text."""
+        return IssueComment.model_validate_json(
+            await self._read(
+                method,
+                f"v3/issues/{issue_id}/comments/"
+                f"{quote(str(comment_id), safe='')}/reactions/{reaction}",
+                auth=auth,
+                not_found=CommentNotFound(issue_id, comment_id),
+            )
+        )
+
+    @staticmethod
+    def _search_body(query: str | None, filter_id: int | None) -> dict[str, Any]:
+        """A search by a query, a saved filter or both - Tracker then returns the
+        issues matching both."""
+        body: dict[str, Any] = {}
+        if query is not None:
+            body["query"] = query
+        if filter_id is not None:
+            body["filterId"] = filter_id
+        return body
+
+    async def issues_suggest(
+        self, text: str, *, auth: YandexAuth | None = None
+    ) -> list[Issue]:
+        """At most 20 issues whose summary contains `text`. The documented
+        `queue` parameter is accepted but changes nothing (2026-10-26)."""
+        return IssueList.model_validate_json(
+            await self._read(
+                "GET",
+                "v3/issues/_suggest",
+                auth=auth,
+                params={
+                    "input": text,
+                    "full": "true",
+                    "fields": "key,summary,status",
+                },
+            )
+        ).root
+
     async def issues_find(
         self,
-        query: str,
+        query: str | None = None,
         *,
+        filter_id: int | None = None,
         per_page: int = 15,
         page: int = 1,
         fields: Sequence[str] | None = None,
@@ -2345,9 +2450,7 @@ class TrackerClient(
             # to whatever is asked for.
             params["fields"] = ",".join(fields)
 
-        body: dict[str, Any] = {
-            "query": query,
-        }
+        body = self._search_body(query, filter_id)
 
         async with self._request(
             "POST", "v3/issues/_search", auth=auth, params=params, json=body
@@ -2881,15 +2984,114 @@ class TrackerClient(
                 await response.read()
             ).checklistItems
 
-    async def issues_count(self, query: str, *, auth: YandexAuth | None = None) -> int:
-        body: dict[str, Any] = {
-            "query": query,
-        }
+    async def issues_count(
+        self,
+        query: str | None = None,
+        *,
+        filter_id: int | None = None,
+        auth: YandexAuth | None = None,
+    ) -> int:
+        body = self._search_body(query, filter_id)
 
         async with self._request(
             "POST", "v3/issues/_count", auth=auth, json=body
         ) as response:
             return int(await response.text())
+
+    # Saved filters - see AGENTS.md, *Saved filters*.
+
+    async def filter_get(
+        self, filter_id: int, *, auth: YandexAuth | None = None
+    ) -> IssueFilter:
+        return IssueFilter.model_validate_json(
+            await self._read(
+                "GET",
+                f"v3/filters/{filter_id}",
+                auth=auth,
+                not_found=FilterNotFound(filter_id),
+            )
+        )
+
+    @staticmethod
+    def _filter_body(
+        *,
+        name: str | None,
+        query: str | None,
+        filter: dict[str, Any] | None,
+        sorts: list[FilterSort] | None,
+        fields: list[str] | None,
+    ) -> dict[str, Any]:
+        """Tracker answers `query` and `filter` together with a 409."""
+        if query is not None and filter is not None:
+            raise FilterConditionsConflict()
+        body: dict[str, Any] = {}
+        if name is not None:
+            body["name"] = name
+        if query is not None:
+            body["query"] = query
+        if filter is not None:
+            body["filter"] = filter
+        if sorts is not None:
+            body["sorts"] = [sort.model_dump() for sort in sorts]
+        if fields is not None:
+            body["fields"] = fields
+        return body
+
+    async def filter_create(
+        self,
+        *,
+        name: str,
+        query: str | None = None,
+        filter: dict[str, Any] | None = None,
+        sorts: list[FilterSort] | None = None,
+        fields: list[str] | None = None,
+        auth: YandexAuth | None = None,
+    ) -> IssueFilter:
+        body = self._filter_body(
+            name=name, query=query, filter=filter, sorts=sorts, fields=fields
+        )
+        return IssueFilter.model_validate_json(
+            await self._read("POST", "v3/filters", auth=auth, json=body)
+        )
+
+    async def filter_update(
+        self,
+        filter_id: int,
+        *,
+        name: str | None = None,
+        query: str | None = None,
+        filter: dict[str, Any] | None = None,
+        sorts: list[FilterSort] | None = None,
+        fields: list[str] | None = None,
+        auth: YandexAuth | None = None,
+    ) -> IssueFilter:
+        """Change what is passed; no `version`. An empty body answers 200 and
+        changes nothing, so it is refused here."""
+        body = self._filter_body(
+            name=name, query=query, filter=filter, sorts=sorts, fields=fields
+        )
+        if not body:
+            raise FilterEmptyUpdate()
+        return IssueFilter.model_validate_json(
+            await self._read(
+                "PATCH",
+                f"v3/filters/{filter_id}",
+                auth=auth,
+                json=body,
+                not_found=FilterNotFound(filter_id),
+            )
+        )
+
+    async def filter_delete(
+        self, filter_id: int, *, auth: YandexAuth | None = None
+    ) -> None:
+        # The reference gives the v2 path; v3 answers the same 204 (2026-10-26).
+        await self._read(
+            "DELETE",
+            f"v3/filters/{filter_id}",
+            auth=auth,
+            not_found=FilterNotFound(filter_id),
+        )
 
     async def issue_create(
         self,

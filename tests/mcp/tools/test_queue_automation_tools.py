@@ -11,6 +11,7 @@ from mcp_tracker.tracker.proto.types.queue_automation import (
     QueueAutoaction,
     QueueAutoactionRun,
     QueueAutoactionRunIssue,
+    QueueForms,
     QueueIssueTypeConfigInput,
     QueueMacro,
     QueueTriggerLog,
@@ -960,3 +961,69 @@ class TestQueueRemoveIssueType:
 
         assert result.is_error
         mock_queues_protocol.queue_update_issue_types_config.assert_not_called()
+
+
+class TestQueueDeleteTrigger:
+    async def test_deletes_a_trigger(
+        self, client_session: Client, mock_queues_protocol: AsyncMock
+    ) -> None:
+        result = await client_session.call_tool(
+            "queue_delete_trigger", {"queue_id": "DESIGN", "trigger_id": 16}
+        )
+
+        assert not result.is_error
+        assert mock_queues_protocol.queue_delete_trigger.call_args.args == (
+            "DESIGN",
+            16,
+        )
+
+    async def test_read_only_queue_is_refused(
+        self,
+        client_session_with_read_only_queues: Client,
+        mock_queues_protocol: AsyncMock,
+    ) -> None:
+        result = await client_session_with_read_only_queues.call_tool(
+            "queue_delete_trigger", {"queue_id": "READONLY", "trigger_id": 16}
+        )
+
+        assert result.is_error
+        mock_queues_protocol.queue_delete_trigger.assert_not_called()
+
+    async def test_not_registered_read_only(
+        self, client_session_read_only: Client
+    ) -> None:
+        tools = await client_session_read_only.list_tools()
+
+        assert "queue_delete_trigger" not in {tool.name for tool in tools.tools}
+
+
+class TestQueueGetForms:
+    async def test_returns_the_forms(
+        self, client_session: Client, mock_queues_protocol: AsyncMock
+    ) -> None:
+        mock_queues_protocol.queue_get_forms.return_value = QueueForms.model_validate(
+            {
+                "queue": {"key": "DESIGN"},
+                "forms": [{"id": 7, "name": "Заявка", "path": "abc"}],
+                "showDefaultCreationForm": True,
+            }
+        )
+
+        result = await client_session.call_tool(
+            "queue_get_forms", {"queue_id": "DESIGN"}
+        )
+
+        assert not result.is_error
+        content = get_tool_result_content(result)
+        assert content["forms"] == [{"id": 7, "name": "Заявка", "path": "abc"}]
+        assert mock_queues_protocol.queue_get_forms.call_args.args == ("DESIGN",)
+
+    async def test_restricted_queue(
+        self, client_session_with_limits: Client, mock_queues_protocol: AsyncMock
+    ) -> None:
+        result = await client_session_with_limits.call_tool(
+            "queue_get_forms", {"queue_id": "DESIGN"}
+        )
+
+        assert result.is_error
+        mock_queues_protocol.queue_get_forms.assert_not_called()

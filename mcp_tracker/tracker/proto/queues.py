@@ -15,6 +15,7 @@ from .types.queue_automation import (
     QueueAutoaction,
     QueueAutoactionRun,
     QueueAutoactionRunIssue,
+    QueueForms,
     QueueIssueTypeConfigInput,
     QueueMacro,
     QueueTriggerLog,
@@ -49,6 +50,10 @@ class QueuesProtocol(Protocol):
     async def queues_get_tags(
         self, queue_id: str, *, auth: YandexAuth | None = None
     ) -> list[str]: ...
+
+    async def queue_get_forms(
+        self, queue_id: str, *, auth: YandexAuth | None = None
+    ) -> QueueForms: ...
 
     # A local field is addressed by its key; none can be deleted.
     async def queue_get_local_field(
@@ -191,6 +196,10 @@ class QueuesProtocol(Protocol):
         before: int | None = None,
         auth: YandexAuth | None = None,
     ) -> QueueTrigger: ...
+
+    async def queue_delete_trigger(
+        self, queue_id: str, trigger_id: int, *, auth: YandexAuth | None = None
+    ) -> None: ...
 
     async def queue_get_trigger_logs(
         self,
