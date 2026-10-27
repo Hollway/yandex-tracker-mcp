@@ -3,11 +3,18 @@ from unittest.mock import ANY, AsyncMock
 
 import pytest
 from mcp import Client
+from mcp.types import TextContent
 
 from mcp_tracker.tracker.proto.types.inputs import ChecklistItemInput
 from mcp_tracker.tracker.proto.types.issues import Issue
 from mcp_tracker.tracker.proto.types.templates import CommentTemplate, IssueTemplate
 from tests.mcp.conftest import get_tool_result_content
+
+
+def text(result: Any) -> str:
+    content = result.content[0]
+    assert isinstance(content, TextContent)
+    return content.text
 
 
 def issue_template(queue: str | None = "TEST", **extra: Any) -> IssueTemplate:
@@ -130,7 +137,7 @@ class TestIssueTemplateUpdate:
         )
 
         assert result.is_error
-        assert "read-only" in result.content[0].text  # type: ignore[union-attr]
+        assert "read-only" in text(result)
         mock_templates_protocol.issue_template_update.assert_not_called()
 
 
@@ -353,7 +360,7 @@ class TestIssueCreateFromTemplate:
         result = await client_session.call_tool("issue_create", {"queue": "TEST"})
 
         assert result.is_error
-        assert "summary" in result.content[0].text  # type: ignore[union-attr]
+        assert "summary" in text(result)
         mock_issues_protocol.issue_create.assert_not_called()
 
     async def test_without_a_template_no_checklist_is_added(

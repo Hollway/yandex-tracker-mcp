@@ -719,8 +719,19 @@ WORKFLOW_READ_TOOL_NAMES = [
 ]
 
 
-async def _tool_names(**settings: bool) -> set[str]:
-    server = create_mcp_server(settings=create_test_settings(**settings))
+async def _tool_names(
+    *,
+    read_only: bool = False,
+    admin_enabled: bool = True,
+    workflows_write_enabled: bool = True,
+) -> set[str]:
+    server = create_mcp_server(
+        settings=create_test_settings(
+            read_only=read_only,
+            admin_enabled=admin_enabled,
+            workflows_write_enabled=workflows_write_enabled,
+        )
+    )
     return {tool.name for tool in await server.list_tools()}
 
 
