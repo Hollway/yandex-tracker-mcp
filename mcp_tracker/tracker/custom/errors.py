@@ -705,3 +705,51 @@ class EntityItemEmptyUpdate(YandexTrackerError):
             f"A {item} update must change something: pass at least one field. "
             f"An omitted field keeps its current value."
         )
+
+
+class EntityPermissionsEmptyUpdate(YandexTrackerError):
+    """Raised for an entity permissions change that changes nothing."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            "A permissions change must change something: pass at least one of "
+            "`read`, `write`, `grant` or `inherit`."
+        )
+
+
+class EntityPermissionsInherited(YandexTrackerError):
+    """Raised for a change to the permissions of an entity that inherits them.
+
+    Verified against the live API: while an entity inherits its permissions
+    from its parent, Tracker answers a change to them 200 and drops it.
+    """
+
+    def __init__(self, entity_id: str, source: str) -> None:
+        super().__init__(
+            f"'{entity_id}' inherits its permissions from '{source}', and Tracker ignores "
+            "changes to them until it stops: pass `inherit=false` in the same call "
+            "to give it permissions of its own, starting from the inherited ones."
+        )
+        self.entity_id = entity_id
+
+
+class EntityHasNoParent(YandexTrackerError):
+    """Raised for `inherit=true` on an entity that has no parent to inherit from."""
+
+    def __init__(self, entity_id: str) -> None:
+        super().__init__(
+            f"'{entity_id}' has no parent to inherit permissions from: set "
+            "`parent_entity` with the entity's update tool first."
+        )
+        self.entity_id = entity_id
+
+
+class EntityPermissionsChangeWhileInheriting(YandexTrackerError):
+    """Raised for `inherit=true` together with permission changes, which
+    Tracker would drop: an inheriting entity takes its parent's permissions."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            "`inherit=true` takes the parent's permissions and Tracker ignores "
+            "`read` / `write` / `grant` alongside it: pass one or the other."
+        )

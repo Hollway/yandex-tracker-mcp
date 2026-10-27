@@ -25,6 +25,11 @@ from mcp_tracker.tracker.proto.types.inputs import (
     ProjectPortfolioLinkInput,
 )
 from mcp_tracker.tracker.proto.types.issues import CommentsPage, IssueComment
+from mcp_tracker.tracker.proto.types.permissions import (
+    EntityPermissionAction,
+    EntityPermissionChange,
+    EntityPermissions,
+)
 
 
 @runtime_checkable
@@ -584,6 +589,24 @@ class EntitiesProtocol(Protocol):
         *,
         auth: YandexAuth | None = None,
     ) -> list[EntityMetricItem]: ...
+
+    async def entity_get_permissions(
+        self,
+        entity_type: EntityType,
+        entity_id: str,
+        *,
+        auth: YandexAuth | None = None,
+    ) -> EntityPermissions: ...
+
+    async def entity_update_permissions(
+        self,
+        entity_type: EntityType,
+        entity_id: str,
+        changes: dict[EntityPermissionAction, EntityPermissionChange],
+        *,
+        inherit: bool | None = None,
+        auth: YandexAuth | None = None,
+    ) -> EntityPermissions: ...
 
     async def entity_get_attachments(
         self,

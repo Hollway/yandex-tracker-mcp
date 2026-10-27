@@ -86,18 +86,21 @@ ENTITY_READ_ONLY_TOOL_NAMES = [
     "project_get_comments",
     "project_get_links",
     "project_get_attachments",
+    "project_get_permissions",
     # Portfolio entity tools
     "portfolio_get",
     "portfolio_find",
     "portfolio_get_comments",
     "portfolio_get_links",
     "portfolio_get_attachments",
+    "portfolio_get_permissions",
     # Goal entity tools
     "goal_get",
     "goal_find",
     "goal_get_comments",
     "goal_get_links",
     "goal_get_attachments",
+    "goal_get_permissions",
 ]
 
 # Write tool names - only registered when not in read-only mode
@@ -168,6 +171,7 @@ ENTITY_WRITE_TOOL_NAMES = [
     "project_add_metric",
     "project_update_metric",
     "project_delete_metric",
+    "project_update_permissions",
     "portfolio_create",
     "portfolio_update",
     "portfolio_delete",
@@ -185,6 +189,7 @@ ENTITY_WRITE_TOOL_NAMES = [
     "portfolio_add_metric",
     "portfolio_update_metric",
     "portfolio_delete_metric",
+    "portfolio_update_permissions",
     "goal_create",
     "goal_update",
     "goal_delete",
@@ -196,6 +201,7 @@ ENTITY_WRITE_TOOL_NAMES = [
     "goal_add_metric",
     "goal_update_metric",
     "goal_delete_metric",
+    "goal_update_permissions",
     "goal_add_key_result",
     "goal_update_key_result",
     "goal_move_key_result",

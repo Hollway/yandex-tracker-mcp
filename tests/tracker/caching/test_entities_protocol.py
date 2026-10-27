@@ -21,6 +21,11 @@ from mcp_tracker.tracker.proto.types.inputs import (
     GoalKeyResultProgressInput,
 )
 from mcp_tracker.tracker.proto.types.issues import CommentsPage, IssueComment
+from mcp_tracker.tracker.proto.types.permissions import (
+    EntityGranteeChange,
+    EntityPermissionChange,
+    EntityPermissions,
+)
 
 ENTITY_COMMENT_METHOD_PREFIXES = ["project", "portfolio", "goal"]
 ENTITY_CHECKLIST_METHOD_PREFIXES = ["project", "portfolio"]
@@ -736,3 +741,38 @@ class TestCachingEntitiesProtocol:
             *args, **kwargs, auth=yandex_auth
         )
         assert result == metrics
+
+    async def test_get_permissions_is_not_cached(
+        self,
+        caching_entities_protocol: Any,
+        mock_original: AsyncMock,
+    ) -> None:
+        permissions = EntityPermissions(accessType="public")
+        mock_original.entity_get_permissions.return_value = permissions
+
+        await caching_entities_protocol.entity_get_permissions("goal", "g1")
+        result = await caching_entities_protocol.entity_get_permissions("goal", "g1")
+
+        assert mock_original.entity_get_permissions.call_count == 2
+        assert result == permissions
+
+    async def test_update_permissions_calls_original(
+        self,
+        caching_entities_protocol: Any,
+        mock_original: AsyncMock,
+        yandex_auth: YandexAuth,
+    ) -> None:
+        permissions = EntityPermissions(accessType="custom")
+        mock_original.entity_update_permissions.return_value = permissions
+        changes = {
+            "GRANT": EntityPermissionChange(users=EntityGranteeChange(add=["u1"]))
+        }
+
+        result = await caching_entities_protocol.entity_update_permissions(
+            "project", "p1", changes, inherit=False, auth=yandex_auth
+        )
+
+        mock_original.entity_update_permissions.assert_called_once_with(
+            "project", "p1", changes, inherit=False, auth=yandex_auth
+        )
+        assert result == permissions

@@ -41,9 +41,13 @@ from mcp_tracker.tracker.custom.errors import (
     ComponentEmptyUpdate,
     ComponentNotFound,
     ComponentVersionConflict,
+    EntityHasNoParent,
     EntityItemEmptyUpdate,
     EntityItemNotFound,
     EntityLinksOnlyUpdate,
+    EntityPermissionsChangeWhileInheriting,
+    EntityPermissionsEmptyUpdate,
+    EntityPermissionsInherited,
     FieldClearConflict,
     IssueNotFound,
     IssueTemplateNotFound,
@@ -143,6 +147,9 @@ from mcp_tracker.tracker.proto.types.issues import (
 )
 from mcp_tracker.tracker.proto.types.pagination import ItemT, PaginatedResult
 from mcp_tracker.tracker.proto.types.permissions import (
+    EntityPermissionAction,
+    EntityPermissionChange,
+    EntityPermissions,
     Group,
     PermissionAction,
     PermissionChange,
@@ -4851,6 +4858,73 @@ class TrackerClient(
             entity_id,
             {"remove": {"id": metric.id, "text": metric.text, "url": metric.url}},
             auth=auth,
+        )
+
+    async def entity_get_permissions(
+        self,
+        entity_type: EntityType,
+        entity_id: str,
+        *,
+        auth: YandexAuth | None = None,
+    ) -> EntityPermissions:
+        # `extendedPermissions` is `permissions` plus where the rights come
+        # from, so the plain read is not used.
+        return EntityPermissions.model_validate_json(
+            await self._read(
+                "GET",
+                f"v3/entities/{entity_type}/{entity_id}/extendedPermissions",
+                auth=auth,
+            )
+        )
+
+    async def entity_update_permissions(
+        self,
+        entity_type: EntityType,
+        entity_id: str,
+        changes: dict[EntityPermissionAction, EntityPermissionChange],
+        *,
+        inherit: bool | None = None,
+        auth: YandexAuth | None = None,
+    ) -> EntityPermissions:
+        if not changes and inherit is None:
+            raise EntityPermissionsEmptyUpdate()
+        if changes and inherit:
+            raise EntityPermissionsChangeWhileInheriting()
+        body: dict[str, Any] = {}
+        if inherit is False:
+            body["permissionSources"] = []
+        else:
+            # Tracker answers a change to inherited permissions 200 and drops
+            # it, and inheriting takes the parent's id - both need a read.
+            current = await self.entity_get_permissions(
+                entity_type, entity_id, auth=auth
+            )
+            sources = current.permissionSources or []
+            if changes and sources:
+                source = sources[0].display or str(sources[0].id)
+                raise EntityPermissionsInherited(entity_id, source)
+            if inherit:
+                parents = current.parentEntities
+                primary = parents.primary if parents is not None else None
+                if primary is None:
+                    raise EntityHasNoParent(entity_id)
+                body["permissionSources"] = [primary.id]
+        grants = {a: p for a, c in changes.items() if (p := c.part("add"))}
+        revokes = {a: p for a, c in changes.items() if (p := c.part("remove"))}
+        acl = {
+            side: actions
+            for side, actions in (("grant", grants), ("revoke", revokes))
+            if actions
+        }
+        if acl:
+            body["acl"] = acl
+        return EntityPermissions.model_validate_json(
+            await self._read(
+                "PATCH",
+                f"v3/entities/{entity_type}/{entity_id}/extendedPermissions",
+                auth=auth,
+                json=body,
+            )
         )
 
     async def entity_get_attachments(

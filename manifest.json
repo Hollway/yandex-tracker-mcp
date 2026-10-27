@@ -232,6 +232,10 @@
       "description": "List the files attached to a project (requires TRACKER_ENTITIES_ENABLED)"
     },
     {
+      "name": "project_get_permissions",
+      "description": "Get who may read, change and manage access to a project (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
       "name": "portfolio_get",
       "description": "Get a portfolio by its id or shortId (requires TRACKER_ENTITIES_ENABLED)"
     },
@@ -252,6 +256,10 @@
       "description": "List the files attached to a portfolio (requires TRACKER_ENTITIES_ENABLED)"
     },
     {
+      "name": "portfolio_get_permissions",
+      "description": "Get who may read, change and manage access to a portfolio (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
       "name": "goal_get",
       "description": "Get a goal by its id or shortId (requires TRACKER_ENTITIES_ENABLED)"
     },
@@ -270,6 +278,10 @@
     {
       "name": "goal_get_attachments",
       "description": "List the files attached to a goal (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "goal_get_permissions",
+      "description": "Get who may read, change and manage access to a goal (requires TRACKER_ENTITIES_ENABLED)"
     },
     {
       "name": "project_create",
@@ -340,6 +352,10 @@
       "description": "Delete a metric of a project (requires TRACKER_ENTITIES_ENABLED)"
     },
     {
+      "name": "project_update_permissions",
+      "description": "Grant or revoke access to a project, or switch inheriting it, with user confirmation (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
       "name": "portfolio_create",
       "description": "Create a new portfolio (requires TRACKER_ENTITIES_ENABLED)"
     },
@@ -408,6 +424,10 @@
       "description": "Delete a metric of a portfolio (requires TRACKER_ENTITIES_ENABLED)"
     },
     {
+      "name": "portfolio_update_permissions",
+      "description": "Grant or revoke access to a portfolio, or switch inheriting it, with user confirmation (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
       "name": "goal_create",
       "description": "Create a new goal (requires TRACKER_ENTITIES_ENABLED)"
     },
@@ -450,6 +470,10 @@
     {
       "name": "goal_delete_metric",
       "description": "Delete a metric of a goal (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "goal_update_permissions",
+      "description": "Grant or revoke access to a goal, or switch inheriting it, with user confirmation (requires TRACKER_ENTITIES_ENABLED)"
     },
     {
       "name": "goal_add_key_result",

@@ -72,6 +72,9 @@ from mcp_tracker.tracker.proto.types.issues import (
 )
 from mcp_tracker.tracker.proto.types.pagination import PaginatedResult
 from mcp_tracker.tracker.proto.types.permissions import (
+    EntityPermissionAction,
+    EntityPermissionChange,
+    EntityPermissions,
     Group,
     PermissionAction,
     PermissionChange,
@@ -2456,6 +2459,32 @@ def make_cached_protocols(
         ) -> list[EntityMetricItem]:
             return await self._original.entity_delete_metric(
                 entity_type, entity_id, metric_id, auth=auth
+            )
+
+        # Not cached: the update reads the permissions to tell whether they
+        # are inherited, and a stale answer would decide that wrongly.
+        async def entity_get_permissions(
+            self,
+            entity_type: EntityType,
+            entity_id: str,
+            *,
+            auth: YandexAuth | None = None,
+        ) -> EntityPermissions:
+            return await self._original.entity_get_permissions(
+                entity_type, entity_id, auth=auth
+            )
+
+        async def entity_update_permissions(
+            self,
+            entity_type: EntityType,
+            entity_id: str,
+            changes: dict[EntityPermissionAction, EntityPermissionChange],
+            *,
+            inherit: bool | None = None,
+            auth: YandexAuth | None = None,
+        ) -> EntityPermissions:
+            return await self._original.entity_update_permissions(
+                entity_type, entity_id, changes, inherit=inherit, auth=auth
             )
 
         async def entity_get_attachments(
