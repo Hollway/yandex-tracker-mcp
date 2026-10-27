@@ -1,7 +1,7 @@
 from typing import Protocol, runtime_checkable
 
 from .common import YandexAuth
-from .types.fields import FieldCategory, FieldType, GlobalField
+from .types.fields import FieldCategory, FieldLanguage, FieldType, GlobalField
 from .types.issue_types import IssueType
 from .types.priorities import Priority
 from .types.resolutions import Resolution
@@ -12,7 +12,10 @@ from .types.workflows import LocalizedText
 @runtime_checkable
 class GlobalDataProtocol(Protocol):
     async def get_global_fields(
-        self, *, auth: YandexAuth | None = None
+        self,
+        *,
+        language: FieldLanguage | None = None,
+        auth: YandexAuth | None = None,
     ) -> list[GlobalField]: ...
     async def get_statuses(self, *, auth: YandexAuth | None = None) -> list[Status]: ...
     async def get_issue_types(

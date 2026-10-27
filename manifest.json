@@ -404,6 +404,14 @@
       "description": "List the categories that group the organization's issue fields"
     },
     {
+      "name": "fields_find",
+      "description": "Find an issue field by the name a user says, in Russian or English, with the id to write and its name in issue queries"
+    },
+    {
+      "name": "field_get_values",
+      "description": "List the values an issue field accepts: drop-down options, priorities, types, resolutions, components or versions"
+    },
+    {
       "name": "get_statuses",
       "description": "Get all available issue statuses"
     },

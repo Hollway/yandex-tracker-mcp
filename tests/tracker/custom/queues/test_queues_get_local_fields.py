@@ -1,5 +1,6 @@
-from typing import Any
+from typing import Any, Literal
 
+import pytest
 from aioresponses import aioresponses
 
 from mcp_tracker.tracker.custom.client import TrackerClient
@@ -56,3 +57,22 @@ class TestQueuesGetLocalFields:
                 "X-Org-ID": "auth-org",
             }
         )
+
+    @pytest.mark.parametrize(("language", "header"), [("en", "en"), (None, None)])
+    async def test_language(
+        self,
+        tracker_client: TrackerClient,
+        sample_local_field_data: dict[str, Any],
+        language: Literal["ru", "en"] | None,
+        header: str | None,
+    ) -> None:
+        capture = RequestCapture(payload=[sample_local_field_data])
+
+        with aioresponses() as m:
+            m.get(
+                "https://api.tracker.yandex.net/v3/queues/TEST/localFields",
+                callback=capture.callback,
+            )
+            await tracker_client.queues_get_local_fields("TEST", language=language)
+
+        assert capture.last_request.headers.get("Accept-Language") == header

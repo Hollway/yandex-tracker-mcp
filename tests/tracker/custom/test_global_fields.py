@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Literal
 
 import pytest
 from aioresponses import aioresponses
@@ -143,3 +143,21 @@ class TestGlobalFields:
 
             assert isinstance(result, list)
             assert len(result) == 0
+
+    @pytest.mark.parametrize(
+        ("language", "header"), [("en", "en"), ("ru", "ru"), (None, None)]
+    )
+    async def test_get_global_fields_language(
+        self,
+        tracker_client: TrackerClient,
+        sample_global_field_data: dict[str, Any],
+        language: Literal["ru", "en"] | None,
+        header: str | None,
+    ) -> None:
+        capture = RequestCapture(payload=[sample_global_field_data])
+
+        with aioresponses() as m:
+            m.get("https://api.tracker.yandex.net/v3/fields", callback=capture.callback)
+            await tracker_client.get_global_fields(language=language)
+
+        assert capture.last_request.headers.get("Accept-Language") == header

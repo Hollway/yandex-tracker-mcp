@@ -609,12 +609,16 @@ tool does, the columns which name to call:
 | `get_global_fields` | Every global field of the organization, with its schema and type | - |
 | `field_get` | One field of the organization: type, category, drop-down values and its current `version` | `field_id` |
 | `fields_get_categories` | The categories that group the organization's fields | - |
+| `fields_find` | Find a field by the name a user says, in Russian or English, or by part of its id: the `id` to write, the name for an `issues_find` query (`"Story Points"`, `SAP."System ID"`) and how its values are given | `query`, `queue` (adds its local fields) |
+| `field_get_values` | The values a field accepts: drop-down options, priorities, issue types, resolutions, components or versions; `truncated` when more match than `limit` | `field`, `queue` or `issue_id`, `query` |
 | `field_create` | Create a field for every queue; a drop-down list is a `string`, `integer` or `user` field with `options` | `field_id`, `name`, `category`, `type`, `options` |
 | `field_update` | Change a field's name, description, category, drop-down values or display flags; `options` replaces the whole list | `field_id` |
 | `field_create_category` | Create a field category | `name`, `order` |
 | `field_update_category` | Change a category's name, description or order | `category_id` |
 
-Queue-local fields are not here - `queue_get_fields` returns them together with the global ones.
+Queue-local fields are not here - `queue_get_fields` returns them together with the global ones, and `fields_find` with a `queue` searches them.
+
+An issues query names a field by its name, not its id: `storyPoints: 3` is refused, `"Story Points": 3` works - take it from `ql_name` of `fields_find`. People, statuses, sprints and issues are not listed by `field_get_values`: its error names the tool that lists them.
 
 The four write tools need `TRACKER_WORKFLOWS_WRITE_ENABLED=true` on a writable server, like the status and resolution catalogue: a field belongs to the whole organization, so an update is refused while `TRACKER_LIMIT_QUEUES` or `TRACKER_READ_ONLY_QUEUES` is set (a create is not). Neither a field nor a category can be deleted through the API.
 

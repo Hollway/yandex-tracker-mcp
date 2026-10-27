@@ -68,6 +68,11 @@ class LocalField(GlobalField):
     """Queue-specific local field"""
 
 
+# The language Tracker names fields in, sent as `Accept-Language`; without one
+# the API answers in the organization's own language.
+FieldLanguage = Literal["ru", "en"]
+
+
 class FieldCategory(BaseTrackerEntity):
     """A category that groups the organization's issue fields."""
 
