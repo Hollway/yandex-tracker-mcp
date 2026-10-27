@@ -183,6 +183,12 @@ WRITE_TOOL_NAMES = [
     "dashboard_create",
     "dashboard_delete",
     "dashboard_add_cycle_time_widget",
+    "issue_template_create",
+    "issue_template_update",
+    "issue_template_delete",
+    "comment_template_create",
+    "comment_template_update",
+    "comment_template_delete",
 ]
 
 # Entity write tools - require both write mode and TRACKER_ENTITIES_ENABLED

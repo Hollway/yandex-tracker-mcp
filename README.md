@@ -700,8 +700,15 @@ A workflow ('рабочий процесс') is the set of statuses an issue typ
 | `issue_template_get` | One issue template by id | `template_id` |
 | `comment_templates_get_all` | The comment templates, with the `template` text and its `summonees` / `maillistSummonees` | `queue`, `page`, `per_page` |
 | `comment_template_get` | One comment template by id | `template_id` |
+| `issue_template_create` | Create an issue template: the field values and checklist an issue starts with | `name`, `queue`, `field_templates`, `checklist_items` |
+| `issue_template_update` | Change an issue template | `template_id`, `version`, `name`, `field_templates`, `checklist_items` |
+| `issue_template_delete` | Delete an issue template | `template_id`, `version` |
+| `comment_template_create` | Create a comment template | `name`, `queue`, `text`, `summonees`, `maillist_summonees` |
+| `comment_template_update` | Change a comment template | `template_id`, `version`, and the arguments the create takes |
+| `comment_template_delete` | Delete a comment template | `template_id`, `version` |
 
-- **Templates are read-only helpers.** The API cannot create an issue or a comment *from* a template, so `issue_create` and `issue_add_comment` take no `template_id`: read the template and pass its values as the write tool's own arguments. Macros such as `{{today}}` arrive literally.
+- **`issue_create` takes `template_id`**: the template's values fill the arguments left out (an argument passed wins) and its checklist is added to the new issue. A comment template is read and its text passed to `issue_add_comment`. Macros such as `{{today}}` arrive literally.
+- **An update replaces whole sets**: `field_templates`, `checklist_items` and the summonee lists replace the template's own. Without `version` the current one is read and used.
 - The issue body a template prefills is in `fieldTemplates.description`; the template's own `description` describes the template.
 - `queue` returns that queue's templates plus the ones bound to no queue, which are usable everywhere. `TRACKER_LIMIT_QUEUES` applies: templates of a restricted queue are omitted from the listings and rejected on direct access, while templates without a queue stay visible.
 
@@ -779,8 +786,8 @@ A workflow ('рабочий процесс') is the set of statuses an issue typ
 | `issue_execute_transition` | Run a transition, returning the transitions available afterwards | `issue_id`, `transition_id`, `comment`, `fields` |
 | `issue_close` | Find a transition to a done status and run it with a resolution | `issue_id`, `resolution_id`, `comment`, `fields` |
 | `issue_get_changelog` | Field edits, status transitions, comment changes and fired triggers; returns `{entries, next_cursor}` | `issue_id`, `cursor`, `per_page`, `field`, `type` |
-| `issue_create` | Create an issue, returning it | `queue`, `summary`, `type`, `description`, `markup_type`, `assignee`, `priority`, `parent`, `sprint`, `followers`, `components`, `tags`, `project`, `fields` |
-| `issue_update` | Change any of those fields; the ones you omit stay as they are | `issue_id`, `version`, and the arguments `issue_create` takes |
+| `issue_create` | Create an issue, returning it, optionally from an issue template | `queue`, `summary`, `type`, `description`, `markup_type`, `assignee`, `priority`, `parent`, `sprint`, `followers`, `components`, `tags`, `project`, `fields`, `template_id` |
+| `issue_update` | Change any of those fields; the ones you omit stay as they are | `issue_id`, `version`, and the arguments `issue_create` takes but `template_id` |
 | `issue_move` | Move an issue to another queue, which changes its key (`TASKS-1` → `NEWQUEUE-42`) | `issue_id`, `queue`, `notify`, `notify_author`, `move_all_fields`, `initial_status` |
 | `issues_bulk_update` | Set the same fields on up to 10 000 issues; returns the change `id` | `issues`, `values`, `notify` |
 | `issues_bulk_transition` | Run one transition on many issues | `issues`, `transition`, `values` (a resolution for closing), `notify` |

@@ -137,3 +137,92 @@ class TestCachingTemplatesProtocol:
             "1", auth=yandex_auth
         )
         assert result == mock_original.get_comment_template.return_value
+
+    @pytest.mark.parametrize("method", ["get_issue_template", "get_comment_template"])
+    async def test_a_single_read_is_not_cached(
+        self, caching_templates_protocol: Any, mock_original: AsyncMock, method: str
+    ) -> None:
+        # The write tools read a template for the version they must send.
+        await getattr(caching_templates_protocol, method)("1")
+        await getattr(caching_templates_protocol, method)("1")
+
+        assert getattr(mock_original, method).await_count == 2
+
+    @pytest.mark.parametrize(
+        ("method", "args", "kwargs"),
+        [
+            pytest.param(
+                "issue_template_create",
+                (),
+                {
+                    "name": "n",
+                    "queue": "Q",
+                    "field_templates": {"summary": "s"},
+                    "checklist_items": None,
+                    "auth": None,
+                },
+                id="issue-create",
+            ),
+            pytest.param(
+                "issue_template_update",
+                ("1",),
+                {
+                    "version": 2,
+                    "name": "n",
+                    "field_templates": None,
+                    "checklist_items": None,
+                    "auth": None,
+                },
+                id="issue-update",
+            ),
+            pytest.param(
+                "issue_template_delete",
+                ("1",),
+                {"version": 2, "auth": None},
+                id="issue-delete",
+            ),
+            pytest.param(
+                "comment_template_create",
+                (),
+                {
+                    "name": "n",
+                    "queue": None,
+                    "text": "t",
+                    "summonees": ["a"],
+                    "maillist_summonees": None,
+                    "auth": None,
+                },
+                id="comment-create",
+            ),
+            pytest.param(
+                "comment_template_update",
+                ("1",),
+                {
+                    "version": 2,
+                    "name": None,
+                    "text": "t",
+                    "summonees": None,
+                    "maillist_summonees": None,
+                    "auth": None,
+                },
+                id="comment-update",
+            ),
+            pytest.param(
+                "comment_template_delete",
+                ("1",),
+                {"version": 2, "auth": None},
+                id="comment-delete",
+            ),
+        ],
+    )
+    async def test_a_write_is_passed_through(
+        self,
+        caching_templates_protocol: Any,
+        mock_original: AsyncMock,
+        method: str,
+        args: tuple[Any, ...],
+        kwargs: dict[str, Any],
+    ) -> None:
+        await getattr(caching_templates_protocol, method)(*args, **kwargs)
+
+        getattr(mock_original, method).assert_awaited_once_with(*args, **kwargs)

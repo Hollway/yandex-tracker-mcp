@@ -5,6 +5,8 @@ This package organizes MCP tools by category:
 - queue_write.py: Queue write tools (conditional on read-only mode)
 - field.py: Global field and metadata tools (read-only)
 - template.py: Issue and comment template tools (read-only)
+- template_write.py: Issue and comment template write tools (conditional on
+  read-only mode)
 - application.py: External application tools (read-only)
 - board.py: Board and sprint tools (read-only)
 - board_write.py: Sprint write tools (conditional on read-only mode)
@@ -78,6 +80,7 @@ from mcp_tracker.mcp.tools.queue_write import register_queue_write_tools
 from mcp_tracker.mcp.tools.report import register_report_tools
 from mcp_tracker.mcp.tools.report_write import register_report_write_tools
 from mcp_tracker.mcp.tools.template import register_template_tools
+from mcp_tracker.mcp.tools.template_write import register_template_write_tools
 from mcp_tracker.mcp.tools.user import register_user_tools
 from mcp_tracker.mcp.tools.user_write import register_user_write_tools
 from mcp_tracker.mcp.tools.workflow import register_workflow_tools
@@ -132,6 +135,7 @@ def register_all_tools(settings: Settings, mcp: MCPServer[AppContext]) -> None:
         register_user_write_tools(settings, mcp)
         register_report_write_tools(settings, mcp)
         register_dashboard_write_tools(settings, mcp)
+        register_template_write_tools(settings, mcp)
 
         if settings.tracker_bulk_enabled:
             register_issue_bulk_tools(settings, mcp)

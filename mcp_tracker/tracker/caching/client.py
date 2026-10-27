@@ -1632,7 +1632,8 @@ def make_cached_protocols(
                 queue=queue, per_page=per_page, page=page, auth=auth
             )
 
-        @cached(**cache_config)
+        # The single reads are not cached: the write tools read a template for
+        # the `version` its update and delete demand.
         async def get_issue_template(
             self, template_id: str, *, auth: YandexAuth | None = None
         ) -> IssueTemplate:
@@ -1651,11 +1652,100 @@ def make_cached_protocols(
                 queue=queue, per_page=per_page, page=page, auth=auth
             )
 
-        @cached(**cache_config)
         async def get_comment_template(
             self, template_id: str, *, auth: YandexAuth | None = None
         ) -> CommentTemplate:
             return await self._original.get_comment_template(template_id, auth=auth)
+
+        async def issue_template_create(
+            self,
+            *,
+            name: str,
+            queue: str | None = None,
+            field_templates: dict[str, Any] | None = None,
+            checklist_items: list[ChecklistItemInput] | None = None,
+            auth: YandexAuth | None = None,
+        ) -> IssueTemplate:
+            return await self._original.issue_template_create(
+                name=name,
+                queue=queue,
+                field_templates=field_templates,
+                checklist_items=checklist_items,
+                auth=auth,
+            )
+
+        async def issue_template_update(
+            self,
+            template_id: str,
+            *,
+            version: int,
+            name: str | None = None,
+            field_templates: dict[str, Any] | None = None,
+            checklist_items: list[ChecklistItemInput] | None = None,
+            auth: YandexAuth | None = None,
+        ) -> IssueTemplate:
+            return await self._original.issue_template_update(
+                template_id,
+                version=version,
+                name=name,
+                field_templates=field_templates,
+                checklist_items=checklist_items,
+                auth=auth,
+            )
+
+        async def issue_template_delete(
+            self, template_id: str, *, version: int, auth: YandexAuth | None = None
+        ) -> None:
+            await self._original.issue_template_delete(
+                template_id, version=version, auth=auth
+            )
+
+        async def comment_template_create(
+            self,
+            *,
+            name: str,
+            queue: str | None = None,
+            text: str | None = None,
+            summonees: list[str] | None = None,
+            maillist_summonees: list[str] | None = None,
+            auth: YandexAuth | None = None,
+        ) -> CommentTemplate:
+            return await self._original.comment_template_create(
+                name=name,
+                queue=queue,
+                text=text,
+                summonees=summonees,
+                maillist_summonees=maillist_summonees,
+                auth=auth,
+            )
+
+        async def comment_template_update(
+            self,
+            template_id: str,
+            *,
+            version: int,
+            name: str | None = None,
+            text: str | None = None,
+            summonees: list[str] | None = None,
+            maillist_summonees: list[str] | None = None,
+            auth: YandexAuth | None = None,
+        ) -> CommentTemplate:
+            return await self._original.comment_template_update(
+                template_id,
+                version=version,
+                name=name,
+                text=text,
+                summonees=summonees,
+                maillist_summonees=maillist_summonees,
+                auth=auth,
+            )
+
+        async def comment_template_delete(
+            self, template_id: str, *, version: int, auth: YandexAuth | None = None
+        ) -> None:
+            await self._original.comment_template_delete(
+                template_id, version=version, auth=auth
+            )
 
     class CachingUsersProtocol(UsersProtocolWrap):
         @cached(**cache_config)

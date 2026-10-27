@@ -720,6 +720,30 @@
       "description": "Get a single Yandex Tracker comment template by its id"
     },
     {
+      "name": "issue_template_create",
+      "description": "Create an issue template with the field values and checklist an issue created from it starts with"
+    },
+    {
+      "name": "issue_template_update",
+      "description": "Change an issue template; its field values and checklist are replaced as a whole"
+    },
+    {
+      "name": "issue_template_delete",
+      "description": "Delete an issue template"
+    },
+    {
+      "name": "comment_template_create",
+      "description": "Create a comment template with its text and the users and mailing lists it summons"
+    },
+    {
+      "name": "comment_template_update",
+      "description": "Change a comment template"
+    },
+    {
+      "name": "comment_template_delete",
+      "description": "Delete a comment template"
+    },
+    {
       "name": "boards_get_all",
       "description": "Get the agile boards available in the organization, optionally only those collecting issues of a given queue"
     },

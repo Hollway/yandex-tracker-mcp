@@ -69,6 +69,8 @@ from mcp_tracker.tracker.custom.errors import (
     SprintEmptyUpdate,
     SprintNotFound,
     SprintVersionConflict,
+    TemplateEmptyUpdate,
+    TemplateVersionConflict,
     TrackerAPIConnectionError,
     TrackerAPIError,
     TrackerAPITimeout,
@@ -2123,6 +2125,177 @@ class TrackerClient(
                 auth=auth,
                 not_found=CommentTemplateNotFound(template_id),
             )
+        )
+
+    def _template_checklist_body(
+        self, items: list[ChecklistItemInput]
+    ) -> list[dict[str, Any]]:
+        return [
+            self._build_checklist_item_body(
+                text=item.text,
+                checked=item.checked,
+                assignee=item.assignee,
+                deadline=self._checklist_item_deadline_body(item.deadline),
+            )
+            for item in items
+        ]
+
+    async def issue_template_create(
+        self,
+        *,
+        name: str,
+        queue: str | None = None,
+        field_templates: dict[str, Any] | None = None,
+        checklist_items: list[ChecklistItemInput] | None = None,
+        auth: YandexAuth | None = None,
+    ) -> IssueTemplate:
+        """Undocumented, verified 2026-10-27: 201. Without `queue` the template
+        is the user's own, usable in every queue."""
+        body: dict[str, Any] = {"name": name}
+        if queue is not None:
+            body["queue"] = queue
+        if field_templates is not None:
+            body["fieldTemplates"] = field_templates
+        if checklist_items is not None:
+            body["checklistItems"] = self._template_checklist_body(checklist_items)
+        return IssueTemplate.model_validate_json(
+            await self._read(
+                "POST",
+                "v3/issueTemplates",
+                auth=auth,
+                json=body,
+                not_found=QueueNotFound(queue) if queue is not None else None,
+            )
+        )
+
+    async def issue_template_update(
+        self,
+        template_id: str,
+        *,
+        version: int,
+        name: str | None = None,
+        field_templates: dict[str, Any] | None = None,
+        checklist_items: list[ChecklistItemInput] | None = None,
+        auth: YandexAuth | None = None,
+    ) -> IssueTemplate:
+        """Undocumented, verified 2026-10-27: `version` is required (428 without
+        it, 412 for a stale one); `fieldTemplates` replaces the whole map."""
+        body: dict[str, Any] = {}
+        if name is not None:
+            body["name"] = name
+        if field_templates is not None:
+            body["fieldTemplates"] = field_templates
+        if checklist_items is not None:
+            body["checklistItems"] = self._template_checklist_body(checklist_items)
+        if not body:
+            raise TemplateEmptyUpdate("`name`, `field_templates` or `checklist_items`")
+        return IssueTemplate.model_validate_json(
+            await self._read(
+                "PATCH",
+                f"v3/issueTemplates/{template_id}",
+                auth=auth,
+                params={"version": version},
+                json=body,
+                not_found=IssueTemplateNotFound(template_id),
+                conflict=TemplateVersionConflict("issue", template_id, version),
+            )
+        )
+
+    async def issue_template_delete(
+        self, template_id: str, *, version: int, auth: YandexAuth | None = None
+    ) -> None:
+        """Undocumented, verified 2026-10-27: 204, `version` required."""
+        await self._read(
+            "DELETE",
+            f"v3/issueTemplates/{template_id}",
+            auth=auth,
+            params={"version": version},
+            not_found=IssueTemplateNotFound(template_id),
+            conflict=TemplateVersionConflict("issue", template_id, version),
+        )
+
+    @staticmethod
+    def _comment_template_body(
+        text: str | None,
+        summonees: list[str] | None,
+        maillist_summonees: list[str] | None,
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {}
+        if text is not None:
+            body["template"] = text
+        if summonees is not None:
+            body["summonees"] = summonees
+        if maillist_summonees is not None:
+            body["maillistSummonees"] = maillist_summonees
+        return body
+
+    async def comment_template_create(
+        self,
+        *,
+        name: str,
+        queue: str | None = None,
+        text: str | None = None,
+        summonees: list[str] | None = None,
+        maillist_summonees: list[str] | None = None,
+        auth: YandexAuth | None = None,
+    ) -> CommentTemplate:
+        """Undocumented, verified 2026-10-27: 201, like the issue templates."""
+        body: dict[str, Any] = {
+            "name": name,
+            **self._comment_template_body(text, summonees, maillist_summonees),
+        }
+        if queue is not None:
+            body["queue"] = queue
+        return CommentTemplate.model_validate_json(
+            await self._read(
+                "POST",
+                "v3/commentTemplates",
+                auth=auth,
+                json=body,
+                not_found=QueueNotFound(queue) if queue is not None else None,
+            )
+        )
+
+    async def comment_template_update(
+        self,
+        template_id: str,
+        *,
+        version: int,
+        name: str | None = None,
+        text: str | None = None,
+        summonees: list[str] | None = None,
+        maillist_summonees: list[str] | None = None,
+        auth: YandexAuth | None = None,
+    ) -> CommentTemplate:
+        body = self._comment_template_body(text, summonees, maillist_summonees)
+        if name is not None:
+            body["name"] = name
+        if not body:
+            raise TemplateEmptyUpdate(
+                "`name`, `text`, `summonees` or `maillist_summonees`"
+            )
+        return CommentTemplate.model_validate_json(
+            await self._read(
+                "PATCH",
+                f"v3/commentTemplates/{template_id}",
+                auth=auth,
+                params={"version": version},
+                json=body,
+                not_found=CommentTemplateNotFound(template_id),
+                conflict=TemplateVersionConflict("comment", template_id, version),
+            )
+        )
+
+    async def comment_template_delete(
+        self, template_id: str, *, version: int, auth: YandexAuth | None = None
+    ) -> None:
+        await self._read(
+            "DELETE",
+            f"v3/commentTemplates/{template_id}",
+            auth=auth,
+            params={"version": version},
+            not_found=CommentTemplateNotFound(template_id),
+            conflict=TemplateVersionConflict("comment", template_id, version),
         )
 
     async def issue_get(

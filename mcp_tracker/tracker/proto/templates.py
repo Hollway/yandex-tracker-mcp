@@ -1,6 +1,7 @@
-from typing import Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 from .common import YandexAuth
+from .types.inputs import ChecklistItemInput
 from .types.pagination import PaginatedResult
 from .types.templates import CommentTemplate, IssueTemplate
 
@@ -29,6 +30,53 @@ class TemplatesProtocol(Protocol):
     async def get_comment_template(
         self, template_id: str, *, auth: YandexAuth | None = None
     ) -> CommentTemplate: ...
+
+    async def issue_template_create(
+        self,
+        *,
+        name: str,
+        queue: str | None = None,
+        field_templates: dict[str, Any] | None = None,
+        checklist_items: list[ChecklistItemInput] | None = None,
+        auth: YandexAuth | None = None,
+    ) -> IssueTemplate: ...
+    async def issue_template_update(
+        self,
+        template_id: str,
+        *,
+        version: int,
+        name: str | None = None,
+        field_templates: dict[str, Any] | None = None,
+        checklist_items: list[ChecklistItemInput] | None = None,
+        auth: YandexAuth | None = None,
+    ) -> IssueTemplate: ...
+    async def issue_template_delete(
+        self, template_id: str, *, version: int, auth: YandexAuth | None = None
+    ) -> None: ...
+    async def comment_template_create(
+        self,
+        *,
+        name: str,
+        queue: str | None = None,
+        text: str | None = None,
+        summonees: list[str] | None = None,
+        maillist_summonees: list[str] | None = None,
+        auth: YandexAuth | None = None,
+    ) -> CommentTemplate: ...
+    async def comment_template_update(
+        self,
+        template_id: str,
+        *,
+        version: int,
+        name: str | None = None,
+        text: str | None = None,
+        summonees: list[str] | None = None,
+        maillist_summonees: list[str] | None = None,
+        auth: YandexAuth | None = None,
+    ) -> CommentTemplate: ...
+    async def comment_template_delete(
+        self, template_id: str, *, version: int, auth: YandexAuth | None = None
+    ) -> None: ...
 
 
 class TemplatesProtocolWrap(TemplatesProtocol):

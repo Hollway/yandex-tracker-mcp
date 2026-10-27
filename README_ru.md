@@ -697,8 +697,15 @@ claude mcp add yandex-tracker docker "run --rm -i -e TRACKER_TOKEN=ваш_ток
 | `issue_template_get` | Один шаблон задачи по id | `template_id` |
 | `comment_templates_get_all` | Шаблоны комментариев с текстом `template` и его `summonees` / `maillistSummonees` | `queue`, `page`, `per_page` |
 | `comment_template_get` | Один шаблон комментария по id | `template_id` |
+| `issue_template_create` | Создать шаблон задачи: значения полей и чек-лист, с которыми задача начинается | `name`, `queue`, `field_templates`, `checklist_items` |
+| `issue_template_update` | Изменить шаблон задачи | `template_id`, `version`, `name`, `field_templates`, `checklist_items` |
+| `issue_template_delete` | Удалить шаблон задачи | `template_id`, `version` |
+| `comment_template_create` | Создать шаблон комментария | `name`, `queue`, `text`, `summonees`, `maillist_summonees` |
+| `comment_template_update` | Изменить шаблон комментария | `template_id`, `version` и аргументы создания |
+| `comment_template_delete` | Удалить шаблон комментария | `template_id`, `version` |
 
-- **Шаблоны доступны только на чтение.** API не умеет создавать задачу или комментарий *из* шаблона, поэтому у `issue_create` и `issue_add_comment` нет `template_id`: прочитайте шаблон и передайте его значения аргументами самого инструмента записи. Макросы вроде `{{today}}` приходят как есть.
+- **`issue_create` принимает `template_id`**: значения шаблона заполняют непереданные аргументы (переданный аргумент важнее), а его чек-лист добавляется в новую задачу. Шаблон комментария читается, и его текст передаётся в `issue_add_comment`. Макросы вроде `{{today}}` приходят как есть.
+- **Изменение заменяет наборы целиком**: `field_templates`, `checklist_items` и списки призываемых заменяют те, что были в шаблоне. Без `version` берётся текущая.
 - Текст задачи, который подставляет шаблон, лежит в `fieldTemplates.description`; собственный `description` шаблона описывает сам шаблон.
 - `queue` возвращает шаблоны этой очереди плюс те, что не привязаны ни к одной и годятся везде. `TRACKER_LIMIT_QUEUES` учитывается: шаблоны закрытой очереди не попадают в списки и отклоняются при прямом обращении, а шаблоны без очереди остаются видимыми.
 
@@ -776,8 +783,8 @@ claude mcp add yandex-tracker docker "run --rm -i -e TRACKER_TOKEN=ваш_ток
 | `issue_execute_transition` | Выполнить переход; возвращает переходы, доступные после него | `issue_id`, `transition_id`, `comment`, `fields` |
 | `issue_close` | Найти переход в статус «готово» и выполнить его с резолюцией | `issue_id`, `resolution_id`, `comment`, `fields` |
 | `issue_get_changelog` | Изменения полей, переходы по статусам, правки комментариев и сработавшие триггеры; возвращает `{entries, next_cursor}` | `issue_id`, `cursor`, `per_page`, `field`, `type` |
-| `issue_create` | Создать задачу и вернуть её | `queue`, `summary`, `type`, `description`, `markup_type`, `assignee`, `priority`, `parent`, `sprint`, `followers`, `components`, `tags`, `project`, `fields` |
-| `issue_update` | Изменить любое из этих полей; непереданные остаются как были | `issue_id`, `version` и аргументы `issue_create` |
+| `issue_create` | Создать задачу и вернуть её, при желании по шаблону задачи | `queue`, `summary`, `type`, `description`, `markup_type`, `assignee`, `priority`, `parent`, `sprint`, `followers`, `components`, `tags`, `project`, `fields`, `template_id` |
+| `issue_update` | Изменить любое из этих полей; непереданные остаются как были | `issue_id`, `version` и аргументы `issue_create`, кроме `template_id` |
 | `issue_move` | Перенести задачу в другую очередь, что меняет её ключ (`TASKS-1` → `NEWQUEUE-42`) | `issue_id`, `queue`, `notify`, `notify_author`, `move_all_fields`, `initial_status` |
 | `issues_bulk_update` | Задать одни и те же поля до 10 000 задач; возвращает `id` операции | `issues`, `values`, `notify` |
 | `issues_bulk_transition` | Выполнить один переход для многих задач | `issues`, `transition`, `values` (резолюция при закрытии), `notify` |

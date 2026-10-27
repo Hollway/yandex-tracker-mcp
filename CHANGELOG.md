@@ -19,6 +19,8 @@ All notable changes to this project will be documented in this file.
 - **`issue_delete_checklist`** - delete the whole checklist of an issue at once
 - **Reports** - `report_create` exports the issues a query matches to an xlsx, csv or xml file in Tracker, `report_get`, `reports_find` and `report_delete` read and remove reports; the file itself is downloaded in Tracker's web interface
 - **Dashboards** - `dashboards_get_all` and `dashboard_get` read dashboards, `dashboard_create` and `dashboard_delete` create and remove them, and `dashboard_add_cycle_time_widget` adds a cycle time chart, the one widget the API can create
+- **Issues from a template** - `issue_create` takes `template_id`: the issue template's values fill the arguments left out and its checklist is added to the new issue; `summary` may now be omitted when the template sets one
+- **Template management** - `issue_template_create`, `issue_template_update` and `issue_template_delete`, and the same three for comment templates
 - **`issue_delete_attachment`** - delete a file attached to an issue
 - **`queue_get_triggers`** - the automation triggers of a queue with their conditions and actions; webhook credentials are left out
 - **`queue_update_version`, `queue_delete_version`** - change or delete a queue version; versions could only be listed and created

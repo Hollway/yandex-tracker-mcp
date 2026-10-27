@@ -56,6 +56,7 @@ from mcp_tracker.mcp.tools._issue_access import check_issue
 from mcp_tracker.mcp.utils import get_yandex_auth
 from mcp_tracker.settings import Settings
 from mcp_tracker.tracker.proto.types.inputs import (
+    ChecklistItemInput,
     IssuePriorityRef,
     IssueTypeRef,
 )
@@ -73,6 +74,7 @@ from mcp_tracker.tracker.proto.types.issues import (
     RemoteLink,
     Worklog,
 )
+from mcp_tracker.tracker.proto.types.templates import IssueTemplate
 
 
 class IssueMoveOptions(BaseModel):
@@ -270,10 +272,9 @@ def register_issue_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -
     @mcp.tool(
         title="Create Issue",
         description="Create an issue (in russian - 'задача') in a Yandex Tracker "
-        "queue. There is no template argument: read a template with "
-        "`issue_templates_get_all` and copy its `fieldTemplates` values into these "
-        "arguments field by field. The returned `version` goes stale at once, as queue "
-        "triggers bump it - re-read it with `issue_get`.",
+        "queue, optionally from an issue template ('шаблон'), whose values and "
+        "checklist fill what the arguments leave out. The returned `version` goes "
+        "stale at once, as queue triggers bump it - re-read it with `issue_get`.",
         annotations=ToolAnnotations(read_only_hint=False),
     )
     async def issue_create(
@@ -282,7 +283,13 @@ def register_issue_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -
             str,
             Field(description="Queue key where to create the issue (e.g., 'MYQUEUE')"),
         ],
-        summary: Annotated[str, Field(description="Issue title/summary")],
+        summary: Annotated[
+            str | None,
+            Field(
+                description="Issue title/summary; may be omitted only when the "
+                "template sets one."
+            ),
+        ] = None,
         type: Annotated[
             IssueTypeRef | str | int | None,
             Field(
@@ -324,9 +331,58 @@ def register_issue_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -
                 "since a bare string may be read as a name."
             ),
         ] = None,
+        template_id: Annotated[
+            str | None,
+            Field(
+                description="Issue template id from `issue_templates_get_all`. Its "
+                "field values fill what is not passed here, and its checklist is "
+                "added to the new issue; it must belong to this queue or to none."
+            ),
+        ] = None,
     ) -> Issue:
         check_queue_access(settings, queue, write=True)
-        return await ctx.request_context.lifespan_context.issues.issue_create(
+        app = ctx.request_context.lifespan_context
+        auth = get_yandex_auth(ctx)
+
+        checklist: list[ChecklistItemInput] = []
+        if template_id is not None:
+            template = await app.templates.get_issue_template(template_id, auth=auth)
+            template_queue = template.queue.key if template.queue else None
+            if template_queue is not None and template_queue.upper() != queue.upper():
+                raise TrackerError(
+                    f"Issue template `{template_id}` belongs to another queue; "
+                    f"use one of queue `{queue}` or one bound to no queue."
+                )
+            # An argument passed here wins over the template's value for the field.
+            passed = {
+                "summary": summary,
+                "type": type,
+                "description": description,
+                "assignee": assignee,
+                "priority": priority,
+                "parent": parent,
+                "sprint": sprint,
+                "followers": followers,
+                "components": components,
+                "tags": tags,
+                "project": project,
+            }
+            prefilled = {
+                key: _template_value(value)
+                for key, value in (template.fieldTemplates or {}).items()
+                if passed.get(key) is None and key not in (fields or {})
+            }
+            if summary is None and isinstance(prefilled.get("summary"), str):
+                summary = prefilled.pop("summary")
+            fields = {**prefilled, **(fields or {})} or None
+            checklist = _template_checklist(template)
+
+        if summary is None:
+            raise TrackerError(
+                "Pass `summary`, or a `template_id` whose template sets one."
+            )
+
+        issue = await app.issues.issue_create(
             queue=queue,
             summary=summary,
             type=type,
@@ -340,9 +396,15 @@ def register_issue_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -
             components=components,
             tags=tags,
             project=project,
-            auth=get_yandex_auth(ctx),
+            auth=auth,
             fields=fields,
         )
+        if checklist and issue.key:
+            # Tracker takes no checklist in the create body.
+            await app.issues.issue_add_checklist_items(
+                issue.key, items=checklist, auth=auth
+            )
+        return issue
 
     @mcp.tool(
         title="Update Issue",
@@ -1089,6 +1151,38 @@ def _bulk_question(
         f"{what} for {count} issue(s). This cannot be undone. Proceed?",
         BulkConfirmation,
     )
+
+
+def _template_value(value: Any) -> Any:
+    """A template field value as a write takes it: a template answers with
+    references as whole objects (`self`, `id`, `key`, `display`), and a write
+    wants them by `id` (or `key`) alone."""
+    if isinstance(value, list):
+        return [_template_value(item) for item in value]
+    if isinstance(value, dict):
+        if "id" in value:
+            return {"id": value["id"]}
+        if "key" in value:
+            return {"key": value["key"]}
+    return value
+
+
+def _template_checklist(template: IssueTemplate) -> list[ChecklistItemInput]:
+    """The checklist of an issue template as items to add to an issue."""
+    items = (template.model_extra or {}).get("checklistItems") or []
+    checklist = []
+    for item in items:
+        if not isinstance(item, dict) or not item.get("text"):
+            continue
+        assignee = item.get("assignee")
+        if isinstance(assignee, dict):
+            assignee = assignee.get("login") or assignee.get("id")
+        checklist.append(
+            ChecklistItemInput(
+                text=item["text"], checked=item.get("checked"), assignee=assignee
+            )
+        )
+    return checklist
 
 
 def _check_bulk_issues(settings: Settings, issues: list[str]) -> None:

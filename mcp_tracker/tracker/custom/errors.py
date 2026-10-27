@@ -54,6 +54,31 @@ class CommentTemplateNotFound(YandexTrackerError):
         self.template_id = template_id
 
 
+class TemplateVersionConflict(YandexTrackerError):
+    """Raised when a template update or delete is rejected (409/412) over its
+    `version`."""
+
+    def __init__(self, kind: str, template_id: str, version: int):
+        super().__init__(
+            f"Editing conflict for {kind} template '{template_id}' with version "
+            f"{version}: the template was changed since that version was read. "
+            f"Re-read it with {kind}_template_get and retry, or omit `version` to "
+            f"act on the current one."
+        )
+        self.template_id = template_id
+        self.version = version
+
+
+class TemplateEmptyUpdate(YandexTrackerError):
+    """Raised for a template update that would change nothing - Tracker answers
+    an empty PATCH body with 200 and leaves the template untouched."""
+
+    def __init__(self, fields: str):
+        super().__init__(
+            f"A template update must change something: pass at least one of {fields}."
+        )
+
+
 class IssueVersionConflict(YandexTrackerError):
     """Raised when an update is rejected because `version` is not current.
 

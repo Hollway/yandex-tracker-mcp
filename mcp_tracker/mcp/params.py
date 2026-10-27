@@ -176,6 +176,53 @@ CommentTemplateID = Annotated[
     ),
 ]
 
+# Parameters of the template write tools, shared by each create/update pair.
+TemplateNameParam = Annotated[
+    str,
+    Field(min_length=1, description="Template name, as the template list shows it."),
+]
+TemplateQueueParam = Annotated[
+    str | None,
+    Field(
+        description="Queue key the template belongs to; omitted, it is your own "
+        "template, offered in every queue.",
+    ),
+]
+TemplateVersionParam = Annotated[
+    int | None,
+    Field(
+        description="The template's `version`, to refuse the change if it was edited "
+        "since; omitted, the current version is read and used.",
+    ),
+]
+IssueTemplateFieldsParam = Annotated[
+    dict[str, Any] | None,
+    Field(
+        description="Issue fields the template prefills, keyed by field id, e.g. "
+        "{'summary': '[Bug] ', 'type': 'bug', 'priority': 'critical', 'followers': "
+        "['login'], 'tags': ['triage']}; references by key, id or login. On update it "
+        "replaces the whole set. `deadline` is not accepted.",
+    ),
+]
+IssueTemplateChecklistParam = Annotated[
+    list[ChecklistItemInput] | None,
+    Field(
+        description="Checklist items an issue created from the template starts with; "
+        "on update they replace the template's whole checklist.",
+    ),
+]
+CommentTemplateTextParam = Annotated[
+    str | None, Field(description="Comment text the template inserts.")
+]
+CommentTemplateSummoneesParam = Annotated[
+    list[str] | None,
+    Field(description="Logins or uids a comment from the template summons."),
+]
+CommentTemplateMaillistParam = Annotated[
+    list[str] | None,
+    Field(description="Mailing list addresses a comment from the template summons."),
+]
+
 # Write parameters shared by issue_create and issue_update. The update tool
 # replaces list-valued fields instead of adding to them, so its variants append
 # that clause to the same base description rather than restating it.
@@ -1146,7 +1193,7 @@ Boards have no queue field - a board collects whatever its own filter matches. T
 
 Writing:
 - `issue_update` takes an optional `version` for optimistic locking. Every change bumps it, including the queue triggers that fire right after creation, so the version returned by `issue_create` is routinely stale - re-read it with `issue_get`, or omit `version` to update the latest version unconditionally.
-- Templates are read-only helpers: no write tool takes a template id. Read the template with `issue_template_get` / `comment_template_get` and pass its values as the write tool's own arguments.
+- `issue_create` can start from an issue template (pass its id): the template's values fill the arguments left out, and its checklist is added. A comment template is read with `comment_template_get` and its text passed to the comment tool.
 - To mention or call users, use the `summonees` argument of the comment tools - a plain `@login` in the text notifies nobody.
 
 Tools that accept a `fields` argument return only the fields you select. Use it to keep a large listing out of the context window while searching, then re-read the one record you need in full.
