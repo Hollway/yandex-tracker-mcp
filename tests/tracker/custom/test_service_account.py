@@ -356,7 +356,13 @@ class TestServiceAccountStore:
         store = ServiceAccountStore(mock_settings, refresh_interval=0.01)
 
         # Mock get_iam_token to track calls
-        mock_get_iam_token = AsyncMock(return_value="test-token")
+        called = asyncio.Event()
+
+        async def get_iam_token(*, force_refresh: bool = False) -> str:
+            called.set()
+            return "test-token"
+
+        mock_get_iam_token = AsyncMock(side_effect=get_iam_token)
         mocker.patch.object(store, "get_iam_token", mock_get_iam_token)
 
         # Mock random to return 0 for predictable timing
@@ -364,8 +370,9 @@ class TestServiceAccountStore:
 
         await store.prepare()
 
-        # Allow the refresher to run at least once
-        await asyncio.sleep(0.05)
+        # Wait for the refresher to run at least once - an event rather than a
+        # fixed sleep, which a loaded machine overruns
+        await asyncio.wait_for(called.wait(), timeout=5)
 
         await store.close()
 
@@ -388,10 +395,13 @@ class TestServiceAccountStore:
 
         # Mock get_iam_token to track calls
         call_count = 0
+        called_twice = asyncio.Event()
 
         async def mock_get_iam_token(*, force_refresh: bool = False) -> str:
             nonlocal call_count
             call_count += 1
+            if call_count >= 2:
+                called_twice.set()
             return f"token-{call_count}"
 
         mocker.patch.object(store, "get_iam_token", mock_get_iam_token)
@@ -400,8 +410,8 @@ class TestServiceAccountStore:
 
         await store.prepare()
 
-        # Allow the refresher to run multiple times
-        await asyncio.sleep(0.05)
+        # Wait for the refresher to run twice
+        await asyncio.wait_for(called_twice.wait(), timeout=5)
 
         await store.close()
 
@@ -423,12 +433,14 @@ class TestServiceAccountStore:
         )
 
         call_count = 0
+        recovered = asyncio.Event()
 
         async def mock_get_iam_token(*, force_refresh: bool = False) -> str:
             nonlocal call_count
             call_count += 1
             if call_count <= 2:
                 raise RuntimeError("Network error")
+            recovered.set()
             return "token"
 
         mocker.patch.object(store, "get_iam_token", mock_get_iam_token)
@@ -436,8 +448,8 @@ class TestServiceAccountStore:
 
         await store.prepare()
 
-        # Allow time for the refresher to run multiple times
-        await asyncio.sleep(0.05)
+        # Wait for the call that follows the two failures
+        await asyncio.wait_for(recovered.wait(), timeout=5)
 
         # The refresh task should still be running (not crashed)
         assert store._refresh_task is not None
