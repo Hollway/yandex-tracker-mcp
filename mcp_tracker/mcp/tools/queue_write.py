@@ -225,6 +225,62 @@ def register_queue_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -
 
         await queues.queue_delete_version(version_id, auth=auth)
 
+
+def _config_inputs(
+    queue_id: str, config: list[QueueIssueTypeConfig]
+) -> list[QueueIssueTypeConfigInput]:
+    """The queue's `issueTypesConfig` in the form the PATCH sends back.
+
+    The PATCH replaces the whole list, so an entry that cannot be rebuilt would
+    be dropped - such a queue is refused rather than half-written.
+    """
+    inputs: list[QueueIssueTypeConfigInput] = []
+    for item in config:
+        type_key = item.issueType.key if item.issueType is not None else None
+        workflow = item.workflow.id if item.workflow is not None else None
+        if type_key is None or workflow is None:
+            raise TrackerError(
+                f"An issue type of queue `{queue_id}` came back without its key or "
+                f"workflow, so the list cannot be written back safely; refusing."
+            )
+        inputs.append(
+            QueueIssueTypeConfigInput(
+                issue_type=type_key,
+                workflow=workflow,
+                resolutions=[r.key for r in item.resolutions or []],
+            )
+        )
+    return inputs
+
+
+def _workflow_resolutions(workflow: Workflow) -> list[str]:
+    """The resolution keys a workflow's transitions set, in order of appearance."""
+    actions: list[WorkflowAction] = []
+    if workflow.initial_action is not None:
+        actions.append(workflow.initial_action)
+    for step in workflow.steps:
+        actions.extend(step.actions or [])
+        if step.meta_action is not None:
+            actions.append(step.meta_action)
+
+    keys: list[str] = []
+    for action in actions:
+        for function in action.post_functions or []:
+            if function.get("type") != "SetResolutionFunction":
+                continue
+            resolution = function.get("resolution")
+            key = resolution.get("key") if isinstance(resolution, dict) else None
+            if isinstance(key, str) and key not in keys:
+                keys.append(key)
+    return keys
+
+
+def register_queue_admin_write_tools(
+    settings: Settings, mcp: MCPServer[AppContext]
+) -> None:
+    """Register the queue administration writes (``TRACKER_ADMIN_ENABLED`` on a
+    writable server)."""
+
     @mcp.tool(
         title="Create Queue Trigger",
         description="Create an automation trigger in a Yandex Tracker queue "
@@ -868,52 +924,3 @@ def register_queue_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -
             default_type=new_default_type,
             auth=auth,
         )
-
-
-def _config_inputs(
-    queue_id: str, config: list[QueueIssueTypeConfig]
-) -> list[QueueIssueTypeConfigInput]:
-    """The queue's `issueTypesConfig` in the form the PATCH sends back.
-
-    The PATCH replaces the whole list, so an entry that cannot be rebuilt would
-    be dropped - such a queue is refused rather than half-written.
-    """
-    inputs: list[QueueIssueTypeConfigInput] = []
-    for item in config:
-        type_key = item.issueType.key if item.issueType is not None else None
-        workflow = item.workflow.id if item.workflow is not None else None
-        if type_key is None or workflow is None:
-            raise TrackerError(
-                f"An issue type of queue `{queue_id}` came back without its key or "
-                f"workflow, so the list cannot be written back safely; refusing."
-            )
-        inputs.append(
-            QueueIssueTypeConfigInput(
-                issue_type=type_key,
-                workflow=workflow,
-                resolutions=[r.key for r in item.resolutions or []],
-            )
-        )
-    return inputs
-
-
-def _workflow_resolutions(workflow: Workflow) -> list[str]:
-    """The resolution keys a workflow's transitions set, in order of appearance."""
-    actions: list[WorkflowAction] = []
-    if workflow.initial_action is not None:
-        actions.append(workflow.initial_action)
-    for step in workflow.steps:
-        actions.extend(step.actions or [])
-        if step.meta_action is not None:
-            actions.append(step.meta_action)
-
-    keys: list[str] = []
-    for action in actions:
-        for function in action.post_functions or []:
-            if function.get("type") != "SetResolutionFunction":
-                continue
-            resolution = function.get("resolution")
-            key = resolution.get("key") if isinstance(resolution, dict) else None
-            if isinstance(key, str) and key not in keys:
-                keys.append(key)
-    return keys

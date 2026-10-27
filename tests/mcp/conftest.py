@@ -110,11 +110,13 @@ def create_test_settings(
     attachment_download_enabled: bool = True,
     bulk_enabled: bool = True,
     workflows_write_enabled: bool = True,
+    admin_enabled: bool = True,
     attachments_dir: str | None = None,
 ) -> Settings:
     """Create Settings for testing with minimal required configuration.
 
     The opt-in groups (entity tools, file upload, attachment download, bulk,
+    administration,
     workflow writes) default
     to on, so the default server exposes the whole tool surface the docs have
     to cover.
@@ -135,6 +137,7 @@ def create_test_settings(
         tracker_attachment_download_enabled=attachment_download_enabled,
         tracker_bulk_enabled=bulk_enabled,
         tracker_workflows_write_enabled=workflows_write_enabled,
+        tracker_admin_enabled=admin_enabled,
         tracker_attachments_dir=attachments_dir,
         tracker_max_attachment_bytes=50 * 1024 * 1024,
         tools_cache_enabled=False,

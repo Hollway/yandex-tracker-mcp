@@ -456,6 +456,8 @@ claude mcp add yandex-tracker docker "run --rm -i -e TRACKER_TOKEN=ваш_ток
 <details>
 <summary><strong>Управление очередями</strong></summary>
 
+> `queue_get_triggers`, `queue_delete_tag` и запись локальных полей требуют `TRACKER_ADMIN_ENABLED=true`; `queue_get_workflows` появляется с ним или с `TRACKER_WORKFLOWS_WRITE_ENABLED`.
+
 | Инструмент | Что делает | Ключевые аргументы |
 | --- | --- | --- |
 | `queues_get_all` | Все очереди, доступные токену; возвращает `{values, hits, pages}` | `fields`, `page` (не указывать — обойти все страницы), `per_page` |
@@ -485,6 +487,8 @@ claude mcp add yandex-tracker docker "run --rm -i -e TRACKER_TOKEN=ваш_ток
 <details>
 <summary><strong>Автоматизация очередей</strong></summary>
 
+> **Включаются явно:** эти инструменты регистрируются только при `TRACKER_ADMIN_ENABLED=true` (запись - на сервере с записью).
+
 Триггеры срабатывают на события задач, автодействия по расписанию обрабатывают задачи, отобранные фильтром, а макросы применяют вручную. Действия и условия передаются собственными объектами Трекера с ключом `type`.
 
 | Инструмент | Что делает | Ключевые аргументы |
@@ -513,6 +517,8 @@ claude mcp add yandex-tracker docker "run --rm -i -e TRACKER_TOKEN=ваш_ток
 <details>
 <summary><strong>Администрирование очередей</strong></summary>
 
+> **Включаются явно:** эти инструменты регистрируются только при `TRACKER_ADMIN_ENABLED=true` (запись - на сервере с записью).
+
 | Инструмент | Что делает | Ключевые аргументы |
 | --- | --- | --- |
 | `queue_create` | Создать очередь с владельцем, типом и приоритетом по умолчанию и типами задач | `key`, `name`, `lead`, `default_type`, `default_priority`, `issue_types_config` (`[{issue_type, workflow, resolutions}]`) |
@@ -533,6 +539,8 @@ claude mcp add yandex-tracker docker "run --rm -i -e TRACKER_TOKEN=ваш_ток
 
 <details>
 <summary><strong>Компоненты</strong></summary>
+
+> Всё здесь, кроме `component_get`, требует `TRACKER_ADMIN_ENABLED=true`.
 
 Компонент — метка, группирующая задачи очереди по продукту, процессу или ответственному. Его числовой id — то, что `issue_create` / `issue_update` принимают в `components`.
 
@@ -602,6 +610,8 @@ claude mcp add yandex-tracker docker "run --rm -i -e TRACKER_TOKEN=ваш_ток
 <details>
 <summary><strong>Управление пользователями</strong></summary>
 
+> `users_create_absences`, `users_delete_absences` и `groups_get_all` требуют `TRACKER_ADMIN_ENABLED=true`.
+
 | Инструмент | Что делает | Ключевые аргументы |
 | --- | --- | --- |
 | `users_get_all` | Страница пользователей организации; возвращает `{values, hits, pages}` | `page`, `per_page`, `fields` |
@@ -659,6 +669,8 @@ claude mcp add yandex-tracker docker "run --rm -i -e TRACKER_TOKEN=ваш_ток
 <details>
 <summary><strong>Рабочие процессы</strong></summary>
 
+> Чтение регистрируется при `TRACKER_ADMIN_ENABLED=true` или вместе с записью.
+
 Рабочий процесс (workflow) — набор статусов, через которые проходит задача определённого типа, и переходов между ними; переход может открывать экран перехода (screen), запрашивающий поля.
 
 | Инструмент | Что делает | Ключевые аргументы |
@@ -693,6 +705,8 @@ claude mcp add yandex-tracker docker "run --rm -i -e TRACKER_TOKEN=ваш_ток
 <details>
 <summary><strong>Шаблоны</strong></summary>
 
+> Запись шаблонов требует `TRACKER_ADMIN_ENABLED=true`.
+
 | Инструмент | Что делает | Ключевые аргументы |
 | --- | --- | --- |
 | `issue_templates_get_all` | Шаблоны задач вместе со значениями `fieldTemplates`, которые они подставляют; возвращает `{values, hits, pages}` | `queue`, `page` (не указывать — обойти все страницы), `per_page` |
@@ -715,6 +729,8 @@ claude mcp add yandex-tracker docker "run --rm -i -e TRACKER_TOKEN=ваш_ток
 
 <details>
 <summary><strong>Доски и спринты</strong></summary>
+
+> Запись досок и колонок требует `TRACKER_ADMIN_ENABLED=true`; запись спринтов - нет.
 
 | Инструмент | Что делает | Ключевые аргументы |
 | --- | --- | --- |
@@ -1227,6 +1243,7 @@ TRACKER_ENTITIES_ENABLED=true             # По умолчанию: false - р�
 TRACKER_AI_ACCESS_IGNORED_QUEUES=SAP      # Очереди, для которых настройка «Доступ для AI инструментов» игнорируется (по умолчанию из запрещающей очереди отдаются только ключи задач)
 TRACKER_FILE_UPLOAD_ENABLED=true          # По умолчанию: false - регистрировать issue_add_attachment и attachment_create, загружающие локальные файлы (только stdio: с сетевым транспортом или OAUTH_ENABLED сервер не запустится)
 TRACKER_BULK_ENABLED=true                 # По умолчанию: false - регистрировать пакетные инструменты (до 10 000 задач за раз, необратимо)
+TRACKER_ADMIN_ENABLED=true                # По умолчанию: false - регистрировать инструменты настройки Трекера: администрирование очередей, триггеры, права, компоненты, доски, отсутствия, шаблоны, чтение процессов
 TRACKER_WORKFLOWS_WRITE_ENABLED=true      # По умолчанию: false - регистрировать инструменты записи рабочих процессов (изменение действует во всех очередях на этом процессе; экраны получают новые id при каждой записи)
 TRACKER_ATTACHMENT_DOWNLOAD_ENABLED=true  # По умолчанию: false - регистрировать issue_download_attachment, сохраняющий вложения на эту машину (только stdio, как флаг выше)
 TRACKER_ATTACHMENTS_DIR=/path/to/dir      # По умолчанию: <системный temp>/yandex-tracker-mcp/attachments - куда сохраняются скачанные вложения

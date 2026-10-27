@@ -123,57 +123,6 @@ def register_queue_tools(settings: Settings, mcp: MCPServer[AppContext]) -> None
         )
 
     @mcp.tool(
-        title="Get Queue Permissions",
-        description="Get who may create, read and change issues of a Yandex Tracker "
-        "queue, who may change its settings and who is denied access ('права "
-        "доступа к очереди'): users, groups and roles for each.",
-        annotations=ToolAnnotations(read_only_hint=True),
-    )
-    async def queue_get_permissions(
-        ctx: Context[AppContext],
-        queue_id: QueueID,
-    ) -> QueuePermissions:
-        check_queue_access(settings, queue_id)
-        return await ctx.request_context.lifespan_context.queues.queue_get_permissions(
-            queue_id, auth=get_yandex_auth(ctx)
-        )
-
-    @mcp.tool(
-        title="Get Queue User Permissions",
-        description="Get the permissions one user has in a Yandex Tracker queue "
-        "('права пользователя в очереди'), each with the group, role or direct "
-        "grant it comes through.",
-        annotations=ToolAnnotations(read_only_hint=True),
-    )
-    async def queue_get_user_permissions(
-        ctx: Context[AppContext],
-        queue_id: QueueID,
-        user: PermissionUserParam,
-    ) -> SubjectPermissions:
-        check_queue_access(settings, queue_id)
-        queues = ctx.request_context.lifespan_context.queues
-        return await queues.queue_get_user_permissions(
-            queue_id, user, auth=get_yandex_auth(ctx)
-        )
-
-    @mcp.tool(
-        title="Get Queue Group Permissions",
-        description="Get the permissions one user group has in a Yandex Tracker "
-        "queue ('права группы в очереди'), each with the grant it comes through.",
-        annotations=ToolAnnotations(read_only_hint=True),
-    )
-    async def queue_get_group_permissions(
-        ctx: Context[AppContext],
-        queue_id: QueueID,
-        group_id: PermissionGroupParam,
-    ) -> SubjectPermissions:
-        check_queue_access(settings, queue_id)
-        queues = ctx.request_context.lifespan_context.queues
-        return await queues.queue_get_group_permissions(
-            queue_id, group_id, auth=get_yandex_auth(ctx)
-        )
-
-    @mcp.tool(
         title="Get Queue Tags",
         description="Get all tags for a specific Yandex Tracker queue",
         annotations=ToolAnnotations(read_only_hint=True),
@@ -206,33 +155,6 @@ def register_queue_tools(settings: Settings, mcp: MCPServer[AppContext]) -> None
         )
 
     @mcp.tool(
-        title="Get Queue Triggers",
-        description="Get the automation triggers of a Yandex Tracker queue "
-        "('триггеры'): conditions and actions, e.g. to explain why an issue changed "
-        "status or assignee by itself - issue_get_changelog names the trigger that "
-        "fired. Webhook credentials and headers are left out.",
-        annotations=ToolAnnotations(read_only_hint=True),
-    )
-    async def queue_get_triggers(
-        ctx: Context[AppContext],
-        queue_id: QueueID,
-        active_only: Annotated[
-            bool,
-            Field(description="Leave out the triggers that are switched off."),
-        ] = False,
-    ) -> list[QueueTrigger]:
-        check_queue_access(settings, queue_id)
-        triggers = (
-            await ctx.request_context.lifespan_context.queues.queues_get_triggers(
-                queue_id,
-                auth=get_yandex_auth(ctx),
-            )
-        )
-        if active_only:
-            triggers = [t for t in triggers if t.active is not False]
-        return triggers
-
-    @mcp.tool(
         title="Get Queue Versions",
         description="Get all versions for a specific Yandex Tracker queue",
         annotations=ToolAnnotations(read_only_hint=True),
@@ -263,25 +185,6 @@ def register_queue_tools(settings: Settings, mcp: MCPServer[AppContext]) -> None
         return await ctx.request_context.lifespan_context.queues.queues_get_components(
             queue_id,
             auth=get_yandex_auth(ctx),
-        )
-
-    @mcp.tool(
-        title="Get Queue Workflows",
-        description="Get the workflows (in russian - 'рабочие процессы') a Yandex "
-        "Tracker queue runs: workflow id -> the issue types that follow it. "
-        "`workflow_get` reads a workflow's statuses and transitions.",
-        annotations=ToolAnnotations(read_only_hint=True),
-    )
-    async def queue_get_workflows(
-        ctx: Context[AppContext],
-        queue_id: QueueID,
-    ) -> dict[str, list[IssueTypeReference]]:
-        check_queue_access(settings, queue_id)
-        return (
-            await ctx.request_context.lifespan_context.workflows.queues_get_workflows(
-                queue_id,
-                auth=get_yandex_auth(ctx),
-            )
         )
 
     @mcp.tool(
@@ -360,6 +263,89 @@ def register_queue_tools(settings: Settings, mcp: MCPServer[AppContext]) -> None
                 setattr(queue, option, [])
 
         return queue
+
+
+def register_queue_admin_tools(settings: Settings, mcp: MCPServer[AppContext]) -> None:
+    """Register the queue administration reads: permissions, triggers, autoactions
+    and macros (``TRACKER_ADMIN_ENABLED``)."""
+
+    @mcp.tool(
+        title="Get Queue Permissions",
+        description="Get who may create, read and change issues of a Yandex Tracker "
+        "queue, who may change its settings and who is denied access ('права "
+        "доступа к очереди'): users, groups and roles for each.",
+        annotations=ToolAnnotations(read_only_hint=True),
+    )
+    async def queue_get_permissions(
+        ctx: Context[AppContext],
+        queue_id: QueueID,
+    ) -> QueuePermissions:
+        check_queue_access(settings, queue_id)
+        return await ctx.request_context.lifespan_context.queues.queue_get_permissions(
+            queue_id, auth=get_yandex_auth(ctx)
+        )
+
+    @mcp.tool(
+        title="Get Queue User Permissions",
+        description="Get the permissions one user has in a Yandex Tracker queue "
+        "('права пользователя в очереди'), each with the group, role or direct "
+        "grant it comes through.",
+        annotations=ToolAnnotations(read_only_hint=True),
+    )
+    async def queue_get_user_permissions(
+        ctx: Context[AppContext],
+        queue_id: QueueID,
+        user: PermissionUserParam,
+    ) -> SubjectPermissions:
+        check_queue_access(settings, queue_id)
+        queues = ctx.request_context.lifespan_context.queues
+        return await queues.queue_get_user_permissions(
+            queue_id, user, auth=get_yandex_auth(ctx)
+        )
+
+    @mcp.tool(
+        title="Get Queue Group Permissions",
+        description="Get the permissions one user group has in a Yandex Tracker "
+        "queue ('права группы в очереди'), each with the grant it comes through.",
+        annotations=ToolAnnotations(read_only_hint=True),
+    )
+    async def queue_get_group_permissions(
+        ctx: Context[AppContext],
+        queue_id: QueueID,
+        group_id: PermissionGroupParam,
+    ) -> SubjectPermissions:
+        check_queue_access(settings, queue_id)
+        queues = ctx.request_context.lifespan_context.queues
+        return await queues.queue_get_group_permissions(
+            queue_id, group_id, auth=get_yandex_auth(ctx)
+        )
+
+    @mcp.tool(
+        title="Get Queue Triggers",
+        description="Get the automation triggers of a Yandex Tracker queue "
+        "('триггеры'): conditions and actions, e.g. to explain why an issue changed "
+        "status or assignee by itself - issue_get_changelog names the trigger that "
+        "fired. Webhook credentials and headers are left out.",
+        annotations=ToolAnnotations(read_only_hint=True),
+    )
+    async def queue_get_triggers(
+        ctx: Context[AppContext],
+        queue_id: QueueID,
+        active_only: Annotated[
+            bool,
+            Field(description="Leave out the triggers that are switched off."),
+        ] = False,
+    ) -> list[QueueTrigger]:
+        check_queue_access(settings, queue_id)
+        triggers = (
+            await ctx.request_context.lifespan_context.queues.queues_get_triggers(
+                queue_id,
+                auth=get_yandex_auth(ctx),
+            )
+        )
+        if active_only:
+            triggers = [t for t in triggers if t.active is not False]
+        return triggers
 
     @mcp.tool(
         title="Get Queue Trigger",
@@ -530,4 +516,29 @@ def register_queue_tools(settings: Settings, mcp: MCPServer[AppContext]) -> None
         check_queue_access(settings, queue_id)
         return await ctx.request_context.lifespan_context.queues.queue_get_macro(
             queue_id, macro_id, auth=get_yandex_auth(ctx)
+        )
+
+
+def register_queue_workflow_tools(
+    settings: Settings, mcp: MCPServer[AppContext]
+) -> None:
+    """Register `queue_get_workflows`, which goes with the workflow reads."""
+
+    @mcp.tool(
+        title="Get Queue Workflows",
+        description="Get the workflows (in russian - 'рабочие процессы') a Yandex "
+        "Tracker queue runs: workflow id -> the issue types that follow it. "
+        "`workflow_get` reads a workflow's statuses and transitions.",
+        annotations=ToolAnnotations(read_only_hint=True),
+    )
+    async def queue_get_workflows(
+        ctx: Context[AppContext],
+        queue_id: QueueID,
+    ) -> dict[str, list[IssueTypeReference]]:
+        check_queue_access(settings, queue_id)
+        return (
+            await ctx.request_context.lifespan_context.workflows.queues_get_workflows(
+                queue_id,
+                auth=get_yandex_auth(ctx),
+            )
         )

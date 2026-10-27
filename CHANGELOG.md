@@ -48,6 +48,8 @@ All notable changes to this project will be documented in this file.
 - **Queue access** - `queue_get_permissions`, `queue_get_user_permissions` and `queue_get_group_permissions` show who may do what in a queue, `component_get_user_permissions` and `component_get_group_permissions` the same for a component, and `groups_get_all` lists the user groups; `queue_update_permissions` and `component_update_permissions` grant and revoke them, confirmed by the user where the client can ask
 - **The queue setting 'AI tools access' is honoured** - issues of a queue that forbids AI tools come back as their key and `restricted`, as from Tracker's own MCP server; writes still work, and `TRACKER_AI_ACCESS_IGNORED_QUEUES` lists the queues to read regardless
 - **`issue_move` confirms its options through the SDK's multi-round-trip elicitation** — works on clients speaking the 2026-07-28 protocol revision and on 2025-era clients alike; a client that cannot be asked (no form elicitation, or a 2025-era client over streamable-http, which has no channel for the question) gets the values passed to the tool
+- **`TRACKER_ADMIN_ENABLED`** - the tools that configure Tracker rather than work its issues (queue permissions, triggers, autoactions and macros, local field writes, queue creation and issue type setup, components, boards and columns, absences, templates, user groups) are registered only with it, default `false`; the workflow reads come with it or with `TRACKER_WORKFLOWS_WRITE_ENABLED`
+  - Set `TRACKER_ADMIN_ENABLED=true` to keep these tools
 
 ### Bug Fixes
 

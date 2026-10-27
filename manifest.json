@@ -28,7 +28,8 @@
         "TRACKER_FILE_UPLOAD_ENABLED": "${user_config.tracker_file_upload_enabled}",
         "TRACKER_ATTACHMENT_DOWNLOAD_ENABLED": "${user_config.tracker_attachment_download_enabled}",
         "TRACKER_BULK_ENABLED": "${user_config.tracker_bulk_enabled}",
-        "TRACKER_WORKFLOWS_WRITE_ENABLED": "${user_config.tracker_workflows_write_enabled}"
+        "TRACKER_WORKFLOWS_WRITE_ENABLED": "${user_config.tracker_workflows_write_enabled}",
+        "TRACKER_ADMIN_ENABLED": "${user_config.tracker_admin_enabled}"
       }
     }
   },
@@ -57,7 +58,7 @@
     },
     {
       "name": "queue_get_triggers",
-      "description": "Get the automation triggers of a queue: their conditions and actions"
+      "description": "Get the automation triggers of a queue: their conditions and actions (requires TRACKER_ADMIN_ENABLED)"
     },
     {
       "name": "queue_get_versions",
@@ -93,107 +94,107 @@
     },
     {
       "name": "queue_get_trigger",
-      "description": "Get one automation trigger of a queue with its conditions, actions and version"
+      "description": "Get one automation trigger of a queue with its conditions, actions and version (requires TRACKER_ADMIN_ENABLED)"
     },
     {
       "name": "queue_create_trigger",
-      "description": "Create an automation trigger in a queue"
+      "description": "Create an automation trigger in a queue (requires TRACKER_ADMIN_ENABLED)"
     },
     {
       "name": "queue_update_trigger",
-      "description": "Change a queue trigger: name, actions, conditions, order, or switch it off"
+      "description": "Change a queue trigger: name, actions, conditions, order, or switch it off (requires TRACKER_ADMIN_ENABLED)"
     },
     {
       "name": "queue_delete_trigger",
-      "description": "Permanently delete a queue automation trigger"
+      "description": "Permanently delete a queue automation trigger (requires TRACKER_ADMIN_ENABLED)"
     },
     {
       "name": "queue_get_trigger_logs",
-      "description": "Get the run log of a queue trigger's HTTP request actions"
+      "description": "Get the run log of a queue trigger's HTTP request actions (requires TRACKER_ADMIN_ENABLED)"
     },
     {
       "name": "queue_get_autoactions",
-      "description": "Get the scheduled autoactions of a queue"
+      "description": "Get the scheduled autoactions of a queue (requires TRACKER_ADMIN_ENABLED)"
     },
     {
       "name": "queue_get_autoaction",
-      "description": "Get one autoaction of a queue with its filter, actions and schedule"
+      "description": "Get one autoaction of a queue with its filter, actions and schedule (requires TRACKER_ADMIN_ENABLED)"
     },
     {
       "name": "queue_create_autoaction",
-      "description": "Create a scheduled autoaction in a queue"
+      "description": "Create a scheduled autoaction in a queue (requires TRACKER_ADMIN_ENABLED)"
     },
     {
       "name": "queue_get_autoaction_logs",
-      "description": "Get the launches of a queue autoaction, or the issues of one launch"
+      "description": "Get the launches of a queue autoaction, or the issues of one launch (requires TRACKER_ADMIN_ENABLED)"
     },
     {
       "name": "queue_get_macros",
-      "description": "Get the macros of a queue"
+      "description": "Get the macros of a queue (requires TRACKER_ADMIN_ENABLED)"
     },
     {
       "name": "queue_get_macro",
-      "description": "Get one macro of a queue"
+      "description": "Get one macro of a queue (requires TRACKER_ADMIN_ENABLED)"
     },
     {
       "name": "queue_create_macro",
-      "description": "Create a macro in a queue"
+      "description": "Create a macro in a queue (requires TRACKER_ADMIN_ENABLED)"
     },
     {
       "name": "queue_update_macro",
-      "description": "Change a macro of a queue"
+      "description": "Change a macro of a queue (requires TRACKER_ADMIN_ENABLED)"
     },
     {
       "name": "queue_delete_macro",
-      "description": "Delete a macro of a queue"
+      "description": "Delete a macro of a queue (requires TRACKER_ADMIN_ENABLED)"
     },
     {
       "name": "queue_create_local_field",
-      "description": "Create a local field that only one queue's issues have"
+      "description": "Create a local field that only one queue's issues have (requires TRACKER_ADMIN_ENABLED)"
     },
     {
       "name": "queue_update_local_field",
-      "description": "Change the name, description, category, drop-down values or display flags of a queue's local field"
+      "description": "Change the name, description, category, drop-down values or display flags of a queue's local field (requires TRACKER_ADMIN_ENABLED)"
     },
     {
       "name": "queue_delete_tag",
-      "description": "Remove a tag from a queue's list of tags"
+      "description": "Remove a tag from a queue's list of tags (requires TRACKER_ADMIN_ENABLED)"
     },
     {
       "name": "queue_create",
-      "description": "Create a queue with its owner, defaults and issue types"
+      "description": "Create a queue with its owner, defaults and issue types (requires TRACKER_ADMIN_ENABLED)"
     },
     {
       "name": "queue_delete",
-      "description": "Delete a queue with its issues"
+      "description": "Delete a queue with its issues (requires TRACKER_ADMIN_ENABLED)"
     },
     {
       "name": "queue_restore",
-      "description": "Restore a deleted queue (administrators only)"
+      "description": "Restore a deleted queue (administrators only) (requires TRACKER_ADMIN_ENABLED)"
     },
     {
       "name": "queue_set_issue_type_workflow",
-      "description": "Add an issue type to a queue or change the workflow it follows"
+      "description": "Add an issue type to a queue or change the workflow it follows (requires TRACKER_ADMIN_ENABLED)"
     },
     {
       "name": "queue_remove_issue_type",
-      "description": "Remove an issue type from a queue"
+      "description": "Remove an issue type from a queue (requires TRACKER_ADMIN_ENABLED)"
     },
     {
       "name": "queue_get_permissions",
-      "description": "Get who may create, read and change issues of a queue, change its settings or is denied access"
+      "description": "Get who may create, read and change issues of a queue, change its settings or is denied access (requires TRACKER_ADMIN_ENABLED)"
     },
     {
       "name": "queue_get_user_permissions",
-      "description": "Get the permissions one user has in a queue and what they come through"
+      "description": "Get the permissions one user has in a queue and what they come through (requires TRACKER_ADMIN_ENABLED)"
     },
     {
       "name": "queue_get_group_permissions",
-      "description": "Get the permissions one user group has in a queue and what they come through"
+      "description": "Get the permissions one user group has in a queue and what they come through (requires TRACKER_ADMIN_ENABLED)"
     },
     {
       "name": "queue_update_permissions",
-      "description": "Grant or revoke queue permissions for users, groups and roles, confirmed by the user where the client can ask"
+      "description": "Grant or revoke queue permissions for users, groups and roles, confirmed by the user where the client can ask (requires TRACKER_ADMIN_ENABLED)"
     },
     {
       "name": "component_get",
@@ -201,27 +202,27 @@
     },
     {
       "name": "component_create",
-      "description": "Create a component in a queue"
+      "description": "Create a component in a queue (requires TRACKER_ADMIN_ENABLED)"
     },
     {
       "name": "component_update",
-      "description": "Change the name, description, lead or auto-assign flag of a component"
+      "description": "Change the name, description, lead or auto-assign flag of a component (requires TRACKER_ADMIN_ENABLED)"
     },
     {
       "name": "component_delete",
-      "description": "Permanently delete a component"
+      "description": "Permanently delete a component (requires TRACKER_ADMIN_ENABLED)"
     },
     {
       "name": "component_get_user_permissions",
-      "description": "Get the permissions one user has on a queue component"
+      "description": "Get the permissions one user has on a queue component (requires TRACKER_ADMIN_ENABLED)"
     },
     {
       "name": "component_get_group_permissions",
-      "description": "Get the permissions one user group has on a queue component"
+      "description": "Get the permissions one user group has on a queue component (requires TRACKER_ADMIN_ENABLED)"
     },
     {
       "name": "component_update_permissions",
-      "description": "Grant or revoke the permissions of a queue component for users, groups and roles"
+      "description": "Grant or revoke the permissions of a queue component for users, groups and roles (requires TRACKER_ADMIN_ENABLED)"
     },
     {
       "name": "project_get",
@@ -529,15 +530,15 @@
     },
     {
       "name": "users_create_absences",
-      "description": "Record vacations, trips, duty and other absences of users (needs organization admin rights)"
+      "description": "Record vacations, trips, duty and other absences of users (needs organization admin rights) (requires TRACKER_ADMIN_ENABLED)"
     },
     {
       "name": "users_delete_absences",
-      "description": "Delete user absences by id (needs organization admin rights)"
+      "description": "Delete user absences by id (needs organization admin rights) (requires TRACKER_ADMIN_ENABLED)"
     },
     {
       "name": "groups_get_all",
-      "description": "List the organization's user groups with their numeric ids"
+      "description": "List the organization's user groups with their numeric ids (requires TRACKER_ADMIN_ENABLED)"
     },
     {
       "name": "report_create",
@@ -725,27 +726,27 @@
     },
     {
       "name": "issue_template_create",
-      "description": "Create an issue template with the field values and checklist an issue created from it starts with"
+      "description": "Create an issue template with the field values and checklist an issue created from it starts with (requires TRACKER_ADMIN_ENABLED)"
     },
     {
       "name": "issue_template_update",
-      "description": "Change an issue template; its field values and checklist are replaced as a whole"
+      "description": "Change an issue template; its field values and checklist are replaced as a whole (requires TRACKER_ADMIN_ENABLED)"
     },
     {
       "name": "issue_template_delete",
-      "description": "Delete an issue template"
+      "description": "Delete an issue template (requires TRACKER_ADMIN_ENABLED)"
     },
     {
       "name": "comment_template_create",
-      "description": "Create a comment template with its text and the users and mailing lists it summons"
+      "description": "Create a comment template with its text and the users and mailing lists it summons (requires TRACKER_ADMIN_ENABLED)"
     },
     {
       "name": "comment_template_update",
-      "description": "Change a comment template"
+      "description": "Change a comment template (requires TRACKER_ADMIN_ENABLED)"
     },
     {
       "name": "comment_template_delete",
-      "description": "Delete a comment template"
+      "description": "Delete a comment template (requires TRACKER_ADMIN_ENABLED)"
     },
     {
       "name": "boards_get_all",
@@ -765,27 +766,27 @@
     },
     {
       "name": "board_create",
-      "description": "Create an agile board with its columns and the filter that collects its issues"
+      "description": "Create an agile board with its columns and the filter that collects its issues (requires TRACKER_ADMIN_ENABLED)"
     },
     {
       "name": "board_update",
-      "description": "Rename an agile board, replace its columns or turn sprints on or off"
+      "description": "Rename an agile board, replace its columns or turn sprints on or off (requires TRACKER_ADMIN_ENABLED)"
     },
     {
       "name": "board_delete",
-      "description": "Permanently delete an agile board together with its sprints"
+      "description": "Permanently delete an agile board together with its sprints (requires TRACKER_ADMIN_ENABLED)"
     },
     {
       "name": "board_create_column",
-      "description": "Add a column to an agile board"
+      "description": "Add a column to an agile board (requires TRACKER_ADMIN_ENABLED)"
     },
     {
       "name": "board_update_column",
-      "description": "Rename a board column, change its statuses or its issue limit"
+      "description": "Rename a board column, change its statuses or its issue limit (requires TRACKER_ADMIN_ENABLED)"
     },
     {
       "name": "board_delete_column",
-      "description": "Delete a column of an agile board"
+      "description": "Delete a column of an agile board (requires TRACKER_ADMIN_ENABLED)"
     },
     {
       "name": "board_get_sprint_issues",
@@ -1081,6 +1082,14 @@
       "type": "boolean",
       "title": "Enable Workflow Changes",
       "description": "Register the tools that change workflows, their transitions and statuses. A workflow is often shared by many queues and a change applies to all of them, so they are off by default.",
+      "required": false,
+      "sensitive": false,
+      "default": false
+    },
+    "tracker_admin_enabled": {
+      "type": "boolean",
+      "title": "Enable Administration Tools",
+      "description": "Register the tools that configure Tracker rather than work its issues: queue permissions, triggers, autoactions and macros, components, boards, absences, templates and the workflow reads. Off by default to keep the tool list small.",
       "required": false,
       "sensitive": false,
       "default": false

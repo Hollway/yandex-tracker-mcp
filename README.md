@@ -14,6 +14,7 @@ Documentation in Russian is available [here](README_ru.md) / Документа�
 - **Full Issue Lifecycle**: Create, read, update, and manage issues with support for custom fields, attachments, and workflow transitions
 - **Status Workflow Management**: Execute status transitions, close issues with resolutions, and navigate complex workflows
 - **Workflow Configuration**: Read workflows with their statuses, transitions and transition screens, and change them (writes opt-in via `TRACKER_WORKFLOWS_WRITE_ENABLED`)
+- **Administration** (opt-in via `TRACKER_ADMIN_ENABLED`): queue permissions, triggers, autoactions and macros, components, boards and columns, absences and templates - kept out of the default tool list to keep it small
 - **Field Management**: Access global fields, queue-specific local fields, statuses, issue types, priorities, and resolutions
 - **Boards and Sprints**: List agile boards and their sprints to find sprint IDs for issue planning
 - **Advanced Query Language**: Full Yandex Tracker Query Language support with complex filtering, sorting, and date functions
@@ -459,6 +460,8 @@ The server exposes the following tools through the MCP protocol:
 <details>
 <summary><strong>Queue Management</strong></summary>
 
+> `queue_get_triggers`, `queue_delete_tag` and the local field writes need `TRACKER_ADMIN_ENABLED=true`; `queue_get_workflows` comes with it or with `TRACKER_WORKFLOWS_WRITE_ENABLED`.
+
 | Tool | What it does | Key arguments |
 | --- | --- | --- |
 | `queues_get_all` | Every queue the token may see; returns `{values, hits, pages}` | `fields`, `page` (omit to walk every page), `per_page` |
@@ -488,6 +491,8 @@ The server exposes the following tools through the MCP protocol:
 <details>
 <summary><strong>Queue Automation</strong></summary>
 
+> **Opt-in:** these tools are registered only with `TRACKER_ADMIN_ENABLED=true` (the writes on a writable server).
+
 Triggers react to issue events, autoactions run on a schedule over the issues a filter selects, and macros are applied by hand. Actions and conditions are passed as Tracker's own objects, keyed by `type`.
 
 | Tool | What it does | Key arguments |
@@ -516,6 +521,8 @@ Triggers react to issue events, autoactions run on a schedule over the issues a 
 <details>
 <summary><strong>Queue Administration</strong></summary>
 
+> **Opt-in:** these tools are registered only with `TRACKER_ADMIN_ENABLED=true` (the writes on a writable server).
+
 | Tool | What it does | Key arguments |
 | --- | --- | --- |
 | `queue_create` | Create a queue with its owner, default type and priority, and issue types | `key`, `name`, `lead`, `default_type`, `default_priority`, `issue_types_config` (`[{issue_type, workflow, resolutions}]`) |
@@ -536,6 +543,8 @@ Triggers react to issue events, autoactions run on a schedule over the issues a 
 
 <details>
 <summary><strong>Components</strong></summary>
+
+> Everything here but `component_get` needs `TRACKER_ADMIN_ENABLED=true`.
 
 A component is a label grouping a queue's issues by product, process or owner. Its numeric id is what `issue_create` / `issue_update` take in `components`.
 
@@ -605,6 +614,8 @@ tool does, the columns which name to call:
 <details>
 <summary><strong>User Management</strong></summary>
 
+> `users_create_absences`, `users_delete_absences` and `groups_get_all` need `TRACKER_ADMIN_ENABLED=true`.
+
 | Tool | What it does | Key arguments |
 | --- | --- | --- |
 | `users_get_all` | A page of the organization's users; returns `{values, hits, pages}` | `page`, `per_page`, `fields` |
@@ -662,6 +673,8 @@ These four are organization-wide. A queue may accept only some of the values the
 <details>
 <summary><strong>Workflows</strong></summary>
 
+> The reads are registered with `TRACKER_ADMIN_ENABLED=true` or together with the writes.
+
 A workflow ('рабочий процесс') is the set of statuses an issue type moves through and the transitions between them; a transition may open a screen ('экран перехода') that asks for fields.
 
 | Tool | What it does | Key arguments |
@@ -696,6 +709,8 @@ A workflow ('рабочий процесс') is the set of statuses an issue typ
 <details>
 <summary><strong>Templates</strong></summary>
 
+> The template writes need `TRACKER_ADMIN_ENABLED=true`.
+
 | Tool | What it does | Key arguments |
 | --- | --- | --- |
 | `issue_templates_get_all` | The issue templates, with the `fieldTemplates` values they prefill; returns `{values, hits, pages}` | `queue`, `page` (omit to walk every page), `per_page` |
@@ -718,6 +733,8 @@ A workflow ('рабочий процесс') is the set of statuses an issue typ
 
 <details>
 <summary><strong>Boards and Sprints</strong></summary>
+
+> The board and column writes need `TRACKER_ADMIN_ENABLED=true`; the sprint writes do not.
 
 | Tool | What it does | Key arguments |
 | --- | --- | --- |
@@ -1230,6 +1247,7 @@ TRACKER_ENTITIES_ENABLED=true             # Default: false - Register project/po
 TRACKER_AI_ACCESS_IGNORED_QUEUES=SAP      # Queues whose 'AI tools access' setting is ignored (by default a queue that forbids AI tools gets only issue keys)
 TRACKER_FILE_UPLOAD_ENABLED=true          # Default: false - Register issue_add_attachment and attachment_create, which upload local files (stdio only: refused with a network transport or OAUTH_ENABLED)
 TRACKER_BULK_ENABLED=true                 # Default: false - Register the bulk-change tools (up to 10 000 issues at once, irreversible)
+TRACKER_ADMIN_ENABLED=true                # Default: false - Register the tools that configure Tracker: queue administration, triggers, permissions, components, boards, absences, templates, workflow reads
 TRACKER_WORKFLOWS_WRITE_ENABLED=true      # Default: false - Register the workflow write tools (a change applies to every queue sharing the workflow; screens get new ids on each write)
 TRACKER_ATTACHMENT_DOWNLOAD_ENABLED=true  # Default: false - Register issue_download_attachment, which saves attachments to this machine (stdio only, like the flag above)
 TRACKER_ATTACHMENTS_DIR=/path/to/dir      # Default: <system temp>/yandex-tracker-mcp/attachments - Where downloaded attachments are saved

@@ -42,6 +42,12 @@ def register_component_tools(settings: Settings, mcp: MCPServer[AppContext]) -> 
         check_component_access(settings, component)
         return component
 
+
+def register_component_admin_tools(
+    settings: Settings, mcp: MCPServer[AppContext]
+) -> None:
+    """Register the component permission reads (``TRACKER_ADMIN_ENABLED``)."""
+
     async def check_permissions_access(
         ctx: Context[AppContext], component_id: int
     ) -> None:

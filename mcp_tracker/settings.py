@@ -55,6 +55,11 @@ class Settings(BaseSettings):
     # a workflow is often shared by many queues, and a change to it applies
     # to all of them at once.
     tracker_workflows_write_enabled: bool = False
+    # Registers the tools that configure Tracker rather than work its issues:
+    # queue administration (permissions, triggers, autoactions, macros, local
+    # fields), components, boards and their columns, absences, templates, and
+    # the workflow reads. Off by default to keep the tool manifest small.
+    tracker_admin_enabled: bool = False
     # Where downloads go; `None` means `<system temp>/yandex-tracker-mcp/attachments`
     # (see `attachments_dir`). Files are kept - a later download of the same
     # attachment reuses them.

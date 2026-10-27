@@ -652,3 +652,121 @@ class TestServerConfiguration:
 
         assert instructions is not None
         assert len(instructions) > 0
+
+
+# Tools that configure Tracker rather than work its issues: registered only
+# with TRACKER_ADMIN_ENABLED. They are in the lists above too, which the
+# default test settings (every flag on) register.
+ADMIN_READ_TOOL_NAMES = [
+    "queue_get_permissions",
+    "queue_get_user_permissions",
+    "queue_get_group_permissions",
+    "queue_get_triggers",
+    "queue_get_trigger",
+    "queue_get_trigger_logs",
+    "queue_get_autoactions",
+    "queue_get_autoaction",
+    "queue_get_autoaction_logs",
+    "queue_get_macros",
+    "queue_get_macro",
+    "component_get_user_permissions",
+    "component_get_group_permissions",
+    "groups_get_all",
+]
+ADMIN_WRITE_TOOL_NAMES = [
+    "queue_create_trigger",
+    "queue_update_trigger",
+    "queue_delete_trigger",
+    "queue_create_autoaction",
+    "queue_create_macro",
+    "queue_update_macro",
+    "queue_delete_macro",
+    "queue_create_local_field",
+    "queue_update_local_field",
+    "queue_delete_tag",
+    "queue_update_permissions",
+    "queue_create",
+    "queue_delete",
+    "queue_restore",
+    "queue_set_issue_type_workflow",
+    "queue_remove_issue_type",
+    "component_create",
+    "component_update",
+    "component_delete",
+    "component_update_permissions",
+    "board_create",
+    "board_update",
+    "board_delete",
+    "board_create_column",
+    "board_update_column",
+    "board_delete_column",
+    "users_create_absences",
+    "users_delete_absences",
+    "issue_template_create",
+    "issue_template_update",
+    "issue_template_delete",
+    "comment_template_create",
+    "comment_template_update",
+    "comment_template_delete",
+]
+# The workflow reads come with TRACKER_ADMIN_ENABLED, or with the workflow
+# writes, which need them for their drafts.
+WORKFLOW_READ_TOOL_NAMES = [
+    "workflows_get_all",
+    "workflow_get",
+    "screen_get",
+    "queue_get_workflows",
+]
+
+
+async def _tool_names(**settings: bool) -> set[str]:
+    server = create_mcp_server(settings=create_test_settings(**settings))
+    return {tool.name for tool in await server.list_tools()}
+
+
+class TestAdminToolRegistration:
+    @pytest.mark.parametrize(
+        ("read_only", "admin_enabled", "reads", "writes"),
+        [
+            pytest.param(False, False, False, False, id="flag-off"),
+            pytest.param(True, True, True, False, id="read-only"),
+            pytest.param(False, True, True, True, id="enabled"),
+        ],
+    )
+    async def test_registered_only_when_enabled(
+        self, read_only: bool, admin_enabled: bool, reads: bool, writes: bool
+    ) -> None:
+        names = await _tool_names(read_only=read_only, admin_enabled=admin_enabled)
+
+        assert {n in names for n in ADMIN_READ_TOOL_NAMES} == {reads}
+        assert {n in names for n in ADMIN_WRITE_TOOL_NAMES} == {writes}
+
+    async def test_the_flag_gates_nothing_else(self) -> None:
+        enabled = await _tool_names()
+        disabled = await _tool_names(admin_enabled=False)
+
+        assert enabled - disabled == set(ADMIN_READ_TOOL_NAMES + ADMIN_WRITE_TOOL_NAMES)
+
+    @pytest.mark.parametrize(
+        ("read_only", "admin_enabled", "workflows_write_enabled", "registered"),
+        [
+            pytest.param(False, False, False, False, id="both-off"),
+            pytest.param(False, False, True, True, id="workflow-writes"),
+            pytest.param(True, False, True, False, id="read-only-workflow-writes"),
+            pytest.param(True, True, False, True, id="admin-read-only"),
+        ],
+    )
+    async def test_workflow_reads(
+        self,
+        read_only: bool,
+        admin_enabled: bool,
+        workflows_write_enabled: bool,
+        registered: bool,
+    ) -> None:
+        names = await _tool_names(
+            read_only=read_only,
+            admin_enabled=admin_enabled,
+            workflows_write_enabled=workflows_write_enabled,
+        )
+
+        assert {n in names for n in WORKFLOW_READ_TOOL_NAMES} == {registered}

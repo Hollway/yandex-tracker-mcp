@@ -168,6 +168,10 @@ def register_user_tools(_settings: Settings, mcp: MCPServer[AppContext]) -> None
             auth=get_yandex_auth(ctx),
         )
 
+
+def register_user_admin_tools(settings: Settings, mcp: MCPServer[AppContext]) -> None:
+    """Register the user group listing (``TRACKER_ADMIN_ENABLED``)."""
+
     @mcp.tool(
         title="Get All Groups",
         description="List the user groups of the Yandex Tracker organization "

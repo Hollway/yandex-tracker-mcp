@@ -93,6 +93,133 @@ def register_board_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -
     """Register board, column and sprint write tools (not in read-only mode)."""
 
     @mcp.tool(
+        title="Create Sprint",
+        description="Create a sprint ('спринт') on a Yandex Tracker scrum board "
+        "for a range of dates. It starts as `draft`; board_start_sprint runs it. "
+        "Not covered by the queue restrictions.",
+        annotations=ToolAnnotations(read_only_hint=False),
+    )
+    async def board_create_sprint(
+        ctx: Context[AppContext],
+        board_id: BoardID,
+        name: Annotated[str, Field(description="Sprint name.")],
+        start_date: Annotated[datetime.date, Field(description="YYYY-MM-DD.")],
+        end_date: Annotated[datetime.date, Field(description="YYYY-MM-DD.")],
+    ) -> Sprint:
+        return await ctx.request_context.lifespan_context.boards.sprint_create(
+            board_id,
+            name=name,
+            start_date=start_date,
+            end_date=end_date,
+            auth=get_yandex_auth(ctx),
+        )
+
+    @mcp.tool(
+        title="Update Sprint",
+        description="Rename or reschedule a sprint of a Yandex Tracker board, or "
+        "change its status. Only the arguments passed change. Not covered by the "
+        "queue restrictions.",
+        annotations=ToolAnnotations(read_only_hint=False),
+    )
+    async def board_update_sprint(
+        ctx: Context[AppContext],
+        sprint_id: SprintID,
+        name: Annotated[str | None, Field(description="New name.")] = None,
+        start_date: Annotated[
+            datetime.date | None, Field(description="New start date, YYYY-MM-DD.")
+        ] = None,
+        end_date: Annotated[
+            datetime.date | None, Field(description="New end date, YYYY-MM-DD.")
+        ] = None,
+        status: Annotated[
+            Literal["draft", "in_progress", "released", "archived"] | None,
+            Field(description="New status."),
+        ] = None,
+        version: SprintVersionParam = None,
+    ) -> Sprint:
+        boards = ctx.request_context.lifespan_context.boards
+        auth = get_yandex_auth(ctx)
+        return await _write_current(
+            boards,
+            sprint_id,
+            version,
+            auth,
+            lambda v: boards.sprint_update(
+                sprint_id,
+                version=v,
+                name=name,
+                start_date=start_date,
+                end_date=end_date,
+                status=status,
+                auth=auth,
+            ),
+        )
+
+    @mcp.tool(
+        title="Start Sprint",
+        description="Start a sprint of a Yandex Tracker board: its status becomes "
+        "`in_progress` and Tracker moves its start to now, whatever date it was "
+        "planned for. Not covered by the queue restrictions.",
+        annotations=ToolAnnotations(read_only_hint=False),
+    )
+    async def board_start_sprint(
+        ctx: Context[AppContext],
+        sprint_id: SprintID,
+        version: SprintVersionParam = None,
+    ) -> Sprint:
+        boards = ctx.request_context.lifespan_context.boards
+        auth = get_yandex_auth(ctx)
+        return await _write_current(
+            boards,
+            sprint_id,
+            version,
+            auth,
+            lambda v: boards.sprint_start(sprint_id, version=v, auth=auth),
+        )
+
+    @mcp.tool(
+        title="Archive Sprint",
+        description="Move a sprint of a Yandex Tracker board to the archive. Not "
+        "covered by the queue restrictions.",
+        annotations=ToolAnnotations(read_only_hint=False),
+    )
+    async def board_archive_sprint(
+        ctx: Context[AppContext],
+        sprint_id: SprintID,
+        version: SprintVersionParam = None,
+    ) -> Sprint:
+        boards = ctx.request_context.lifespan_context.boards
+        auth = get_yandex_auth(ctx)
+        return await _write_current(
+            boards,
+            sprint_id,
+            version,
+            auth,
+            lambda v: boards.sprint_archive(sprint_id, version=v, auth=auth),
+        )
+
+    @mcp.tool(
+        title="Delete Sprint",
+        description="Permanently delete a sprint of a Yandex Tracker board; its "
+        "issues stay and lose the sprint. Not covered by the queue restrictions.",
+        annotations=ToolAnnotations(read_only_hint=False, destructive_hint=True),
+    )
+    async def board_delete_sprint(
+        ctx: Context[AppContext],
+        sprint_id: SprintID,
+    ) -> None:
+        await ctx.request_context.lifespan_context.boards.sprint_delete(
+            sprint_id, auth=get_yandex_auth(ctx)
+        )
+
+
+def register_board_admin_write_tools(
+    settings: Settings, mcp: MCPServer[AppContext]
+) -> None:
+    """Register the board and column writes (``TRACKER_ADMIN_ENABLED`` on a
+    writable server); sprints stay with `register_board_write_tools`."""
+
+    @mcp.tool(
         title="Create Board",
         description="Create a Yandex Tracker agile board ('доска'), optionally with "
         "its columns and the filter that puts issues on it. The filter can only be "
@@ -245,124 +372,4 @@ def register_board_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -
     ) -> None:
         await ctx.request_context.lifespan_context.boards.board_delete_column(
             board_id, column_id, version=version, auth=get_yandex_auth(ctx)
-        )
-
-    @mcp.tool(
-        title="Create Sprint",
-        description="Create a sprint ('спринт') on a Yandex Tracker scrum board "
-        "for a range of dates. It starts as `draft`; board_start_sprint runs it. "
-        "Not covered by the queue restrictions.",
-        annotations=ToolAnnotations(read_only_hint=False),
-    )
-    async def board_create_sprint(
-        ctx: Context[AppContext],
-        board_id: BoardID,
-        name: Annotated[str, Field(description="Sprint name.")],
-        start_date: Annotated[datetime.date, Field(description="YYYY-MM-DD.")],
-        end_date: Annotated[datetime.date, Field(description="YYYY-MM-DD.")],
-    ) -> Sprint:
-        return await ctx.request_context.lifespan_context.boards.sprint_create(
-            board_id,
-            name=name,
-            start_date=start_date,
-            end_date=end_date,
-            auth=get_yandex_auth(ctx),
-        )
-
-    @mcp.tool(
-        title="Update Sprint",
-        description="Rename or reschedule a sprint of a Yandex Tracker board, or "
-        "change its status. Only the arguments passed change. Not covered by the "
-        "queue restrictions.",
-        annotations=ToolAnnotations(read_only_hint=False),
-    )
-    async def board_update_sprint(
-        ctx: Context[AppContext],
-        sprint_id: SprintID,
-        name: Annotated[str | None, Field(description="New name.")] = None,
-        start_date: Annotated[
-            datetime.date | None, Field(description="New start date, YYYY-MM-DD.")
-        ] = None,
-        end_date: Annotated[
-            datetime.date | None, Field(description="New end date, YYYY-MM-DD.")
-        ] = None,
-        status: Annotated[
-            Literal["draft", "in_progress", "released", "archived"] | None,
-            Field(description="New status."),
-        ] = None,
-        version: SprintVersionParam = None,
-    ) -> Sprint:
-        boards = ctx.request_context.lifespan_context.boards
-        auth = get_yandex_auth(ctx)
-        return await _write_current(
-            boards,
-            sprint_id,
-            version,
-            auth,
-            lambda v: boards.sprint_update(
-                sprint_id,
-                version=v,
-                name=name,
-                start_date=start_date,
-                end_date=end_date,
-                status=status,
-                auth=auth,
-            ),
-        )
-
-    @mcp.tool(
-        title="Start Sprint",
-        description="Start a sprint of a Yandex Tracker board: its status becomes "
-        "`in_progress` and Tracker moves its start to now, whatever date it was "
-        "planned for. Not covered by the queue restrictions.",
-        annotations=ToolAnnotations(read_only_hint=False),
-    )
-    async def board_start_sprint(
-        ctx: Context[AppContext],
-        sprint_id: SprintID,
-        version: SprintVersionParam = None,
-    ) -> Sprint:
-        boards = ctx.request_context.lifespan_context.boards
-        auth = get_yandex_auth(ctx)
-        return await _write_current(
-            boards,
-            sprint_id,
-            version,
-            auth,
-            lambda v: boards.sprint_start(sprint_id, version=v, auth=auth),
-        )
-
-    @mcp.tool(
-        title="Archive Sprint",
-        description="Move a sprint of a Yandex Tracker board to the archive. Not "
-        "covered by the queue restrictions.",
-        annotations=ToolAnnotations(read_only_hint=False),
-    )
-    async def board_archive_sprint(
-        ctx: Context[AppContext],
-        sprint_id: SprintID,
-        version: SprintVersionParam = None,
-    ) -> Sprint:
-        boards = ctx.request_context.lifespan_context.boards
-        auth = get_yandex_auth(ctx)
-        return await _write_current(
-            boards,
-            sprint_id,
-            version,
-            auth,
-            lambda v: boards.sprint_archive(sprint_id, version=v, auth=auth),
-        )
-
-    @mcp.tool(
-        title="Delete Sprint",
-        description="Permanently delete a sprint of a Yandex Tracker board; its "
-        "issues stay and lose the sprint. Not covered by the queue restrictions.",
-        annotations=ToolAnnotations(read_only_hint=False, destructive_hint=True),
-    )
-    async def board_delete_sprint(
-        ctx: Context[AppContext],
-        sprint_id: SprintID,
-    ) -> None:
-        await ctx.request_context.lifespan_context.boards.sprint_delete(
-            sprint_id, auth=get_yandex_auth(ctx)
         )
