@@ -6,6 +6,7 @@ from pydantic import Field
 from mcp_tracker.tracker.proto.types.entities import (
     DEFAULT_ENTITY_FIELDS,
     GoalFieldsEnum,
+    GoalKeyResultType,
     GoalLinkRelationship,
     GoalStatus,
     PortfolioFieldsEnum,
@@ -19,6 +20,7 @@ from mcp_tracker.tracker.proto.types.inputs import (
     ChecklistItemInput,
     EntityChecklistItemUpdateInput,
     EntityParentEntityInput,
+    GoalKeyResultProgressInput,
     GoalLinkInput,
     IssueComponentRef,
     IssueFollowerRef,
@@ -592,6 +594,67 @@ EntityChecklistItemDeadlineParam = Annotated[
         description="Deadline for the checklist item. Example: "
         "{'date': '2026-08-20T00:00:00.000+0000', 'deadlineType': 'date'}."
     ),
+]
+
+GoalKeyResultIDParam = Annotated[
+    str,
+    Field(
+        description="Key result `id` from goal_get with fields=['keyResultItems']. "
+        "Ids change after every update or move, so read them again first."
+    ),
+]
+
+GoalKeyResultTextParam = Annotated[str, Field(description="Key result text.")]
+
+GoalKeyResultTextOptionalParam = Annotated[
+    str | None, Field(description="Key result text; omit to keep it.")
+]
+
+GoalKeyResultTypeParam = Annotated[
+    GoalKeyResultType,
+    Field(
+        description="'value' measures progress from `progress.start` to "
+        "`progress.end` (then `progress` is required); 'binary' is done or not, "
+        "see `achieved`."
+    ),
+]
+
+GoalKeyResultTypeOptionalParam = Annotated[
+    GoalKeyResultType | None,
+    Field(
+        description="'value' (measured, needs `progress`) or 'binary' (done or "
+        "not); omit to keep it."
+    ),
+]
+
+GoalKeyResultAssigneeParam = Annotated[
+    str | None,
+    Field(description="Login or uid of the person responsible; omit to keep it."),
+]
+
+GoalKeyResultDeadlineParam = Annotated[
+    datetime.date | None, Field(description="Deadline date; omit to keep it.")
+]
+
+GoalKeyResultProgressParam = Annotated[
+    GoalKeyResultProgressInput | None,
+    Field(
+        description="Progress of a 'value' key result; on update, the values "
+        "omitted keep theirs."
+    ),
+]
+
+GoalKeyResultAchievedParam = Annotated[
+    bool | None,
+    Field(
+        description="Whether a 'binary' key result is achieved; sets its status "
+        "too unless `status` is given."
+    ),
+]
+
+GoalKeyResultStatusParam = Annotated[
+    GoalStatus | None,
+    Field(description="Status of the key result; omit to keep it."),
 ]
 
 EntityChecklistItemBeforeParam = Annotated[

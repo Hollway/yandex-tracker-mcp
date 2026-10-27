@@ -578,10 +578,15 @@ claude mcp add yandex-tracker docker "run --rm -i -e TRACKER_TOKEN=ваш_ток
 | Удалить связь по id связанной сущности | `project_delete_link` | `portfolio_delete_link` | `goal_delete_link` |
 | Прикреплённые файлы и комментарий, с которым пришёл каждый | `project_get_attachments` | `portfolio_get_attachments` | `goal_get_attachments` |
 | Удалить прикреплённый файл; комментарий остаётся | `project_delete_attachment` | `portfolio_delete_attachment` | `goal_delete_attachment` |
+| Добавить ключевой результат: `type` `value` (с `progress`) или `binary` (с `achieved`) | - | - | `goal_add_key_result` |
+| Изменить один ключевой результат, оставив непереданные поля как есть | - | - | `goal_update_key_result` |
+| Переставить ключевой результат перед другим или в конец | - | - | `goal_move_key_result` |
+| Удалить один ключевой результат | - | - | `goal_delete_key_result` |
+| Удалить все ключевые результаты | - | - | `goal_delete_all_key_results` |
 
 - **Аргументы.** Чтение принимает `entity_id` и `fields`; инструменты `*_find` — `input`, `filter`, `order_by`, `order_asc`, `root_only`, `page`, `per_page`. Создание и изменение принимают `summary` (обязателен при создании), `description`, `lead`, `team_users`, `clients`, `followers`, `start` (у целей его нет), `end`, `tags`, `entity_status`, `parent_entity`, `team_access` и `links`, а изменение ещё `comment` и `version` (оптимистичная блокировка). Все инструменты принимают один и тот же селектор `fields` и возвращают сущность.
 - **`links` при создании и изменении только добавляются, а не заменяются**: `*_get_links` их читает, `*_delete_link` удаляет одну (связь — одно отношение, удалить её можно с любой стороны). При изменении Трекер применяет `links`, только если какое-то поле действительно меняется или вместе с ними передан `comment`, поэтому изменение, состоящее только из `links`, отклоняется — вместо того чтобы отчитаться об успехе, который Трекер молча проигнорировал.
-- **Не входит в набор полей по умолчанию:** `checklistItems` (инструменты чек-листа возвращают сущность целиком, так что запрашивайте их, чтобы увидеть результат), `metricItems` и ключевые результаты цели `keyResultItems` — последние два доступны только на чтение. У целей свой набор значений `entityStatus` (`draft`, `according_to_plan`, `at_risk`, `blocked`, `achieved`, `partially_achieved`, `not_achieved`, `exceeded`, `cancelled`). Массовые изменения не поддерживаются.
+- **Не входит в набор полей по умолчанию:** `checklistItems` (инструменты чек-листа возвращают сущность целиком, так что запрашивайте их, чтобы увидеть результат), `metricItems` и ключевые результаты цели `keyResultItems`. Инструменты ключевых результатов возвращают цель с её `keyResultItems` и `progressPercentage`; записи отдельного пункта у Трекера нет, поэтому изменение и перестановка переписывают список целиком, и **у всех ключевых результатов меняются id**. У целей свой набор значений `entityStatus` (`draft`, `according_to_plan`, `at_risk`, `blocked`, `achieved`, `partially_achieved`, `not_achieved`, `exceeded`, `cancelled`). Массовые изменения не поддерживаются.
 
 </details>
 

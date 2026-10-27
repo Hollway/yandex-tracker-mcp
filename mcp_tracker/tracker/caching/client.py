@@ -21,6 +21,7 @@ from mcp_tracker.tracker.proto.types.entities import (
     EntityLink,
     EntityType,
     GoalEntity,
+    GoalKeyResultType,
     GoalSearchResult,
     GoalStatus,
     PortfolioEntity,
@@ -40,6 +41,7 @@ from mcp_tracker.tracker.proto.types.inputs import (
     ChecklistItemInput,
     EntityChecklistItemUpdateInput,
     EntityParentEntityInput,
+    GoalKeyResultProgressInput,
     GoalLinkInput,
     IssueComponentRef,
     IssueFollowerRef,
@@ -2332,6 +2334,89 @@ def make_cached_protocols(
             return await self._original.entity_delete_link(
                 entity_type, entity_id, linked_entity_id, auth=auth
             )
+
+        async def goal_add_key_result(
+            self,
+            goal_id: str,
+            *,
+            text: str,
+            type: GoalKeyResultType,
+            assignee: str | None = None,
+            deadline: datetime.date | None = None,
+            progress: GoalKeyResultProgressInput | None = None,
+            achieved: bool | None = None,
+            status: GoalStatus | None = None,
+            auth: YandexAuth | None = None,
+        ) -> GoalEntity:
+            return await self._original.goal_add_key_result(
+                goal_id,
+                text=text,
+                type=type,
+                assignee=assignee,
+                deadline=deadline,
+                progress=progress,
+                achieved=achieved,
+                status=status,
+                auth=auth,
+            )
+
+        async def goal_update_key_result(
+            self,
+            goal_id: str,
+            key_result_id: str,
+            *,
+            text: str | None = None,
+            type: GoalKeyResultType | None = None,
+            assignee: str | None = None,
+            deadline: datetime.date | None = None,
+            progress: GoalKeyResultProgressInput | None = None,
+            achieved: bool | None = None,
+            status: GoalStatus | None = None,
+            auth: YandexAuth | None = None,
+        ) -> GoalEntity:
+            return await self._original.goal_update_key_result(
+                goal_id,
+                key_result_id,
+                text=text,
+                type=type,
+                assignee=assignee,
+                deadline=deadline,
+                progress=progress,
+                achieved=achieved,
+                status=status,
+                auth=auth,
+            )
+
+        async def goal_move_key_result(
+            self,
+            goal_id: str,
+            key_result_id: str,
+            *,
+            before: str | None = None,
+            auth: YandexAuth | None = None,
+        ) -> GoalEntity:
+            return await self._original.goal_move_key_result(
+                goal_id, key_result_id, before=before, auth=auth
+            )
+
+        async def goal_delete_key_result(
+            self,
+            goal_id: str,
+            key_result_id: str,
+            *,
+            auth: YandexAuth | None = None,
+        ) -> GoalEntity:
+            return await self._original.goal_delete_key_result(
+                goal_id, key_result_id, auth=auth
+            )
+
+        async def goal_delete_all_key_results(
+            self,
+            goal_id: str,
+            *,
+            auth: YandexAuth | None = None,
+        ) -> GoalEntity:
+            return await self._original.goal_delete_all_key_results(goal_id, auth=auth)
 
         async def entity_get_attachments(
             self,

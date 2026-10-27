@@ -581,10 +581,15 @@ tool does, the columns which name to call:
 | Delete a link by the linked entity's id | `project_delete_link` | `portfolio_delete_link` | `goal_delete_link` |
 | Files attached to the entity, each with the comment it came with | `project_get_attachments` | `portfolio_get_attachments` | `goal_get_attachments` |
 | Delete an attached file; the comment stays | `project_delete_attachment` | `portfolio_delete_attachment` | `goal_delete_attachment` |
+| Append a key result: `type` `value` (with `progress`) or `binary` (with `achieved`) | - | - | `goal_add_key_result` |
+| Change one key result, keeping the fields you omit | - | - | `goal_update_key_result` |
+| Move a key result before another one, or to the end | - | - | `goal_move_key_result` |
+| Delete one key result | - | - | `goal_delete_key_result` |
+| Delete all key results | - | - | `goal_delete_all_key_results` |
 
 - **Arguments.** Reads take `entity_id` and `fields`; the `*_find` tools take `input`, `filter`, `order_by`, `order_asc`, `root_only`, `page`, `per_page`. Create and update take `summary` (required on create), `description`, `lead`, `team_users`, `clients`, `followers`, `start` (goals have none), `end`, `tags`, `entity_status`, `parent_entity`, `team_access` and `links`, and update also `comment` and `version` (optimistic locking). Every tool takes the same `fields` selector and returns the entity.
 - **`links` on create and update are added, never replaced**: `*_get_links` reads them and `*_delete_link` removes one (a link is one relationship, deleted from either end). On update Tracker applies `links` only when a field actually changes or a `comment` comes with them, so a links-only update is rejected rather than reported as a success Tracker silently ignores.
-- **Not in the default field set:** `checklistItems` (the checklist tools return the whole entity, so ask for them to see the result), `metricItems`, and a goal's `keyResultItems` - the last two are read-only. Goals use their own `entityStatus` values (`draft`, `according_to_plan`, `at_risk`, `blocked`, `achieved`, `partially_achieved`, `not_achieved`, `exceeded`, `cancelled`). Bulk changes are not supported.
+- **Not in the default field set:** `checklistItems` (the checklist tools return the whole entity, so ask for them to see the result), `metricItems`, and a goal's `keyResultItems`. The key result tools return the goal with its `keyResultItems` and `progressPercentage`; Tracker has no per-item write for key results, so an update or a move rewrites the list and **every key result gets a new id**. Goals use their own `entityStatus` values (`draft`, `according_to_plan`, `at_risk`, `blocked`, `achieved`, `partially_achieved`, `not_achieved`, `exceeded`, `cancelled`). Bulk changes are not supported.
 
 </details>
 

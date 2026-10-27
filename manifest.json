@@ -416,6 +416,26 @@
       "description": "Delete a file attached to a goal (requires TRACKER_ENTITIES_ENABLED)"
     },
     {
+      "name": "goal_add_key_result",
+      "description": "Add a key result to a goal (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "goal_update_key_result",
+      "description": "Change one key result of a goal; every key result gets a new id (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "goal_move_key_result",
+      "description": "Move a key result of a goal before another one or to the end (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "goal_delete_key_result",
+      "description": "Delete one key result of a goal (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
+      "name": "goal_delete_all_key_results",
+      "description": "Delete every key result of a goal (requires TRACKER_ENTITIES_ENABLED)"
+    },
+    {
       "name": "users_get_all",
       "description": "Get information about user accounts registered in the organization"
     },

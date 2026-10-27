@@ -677,3 +677,31 @@ class MacroEmptyUpdate(YandexTrackerError):
             "A macro update must change something: pass at least one of `name`, "
             "`body`, `issue_update` or `clear_body`."
         )
+
+
+class EntityItemNotFound(YandexTrackerError):
+    """Raised when a key result or metric id is not in the entity's list.
+
+    Tracker answers a `remove` of an unknown id with 200 and changes nothing,
+    and rewriting a list gives every item a new id - so the list is read first
+    and an id it lacks is refused here.
+    """
+
+    def __init__(self, entity_id: str, item_id: str, *, item: str, field: str):
+        super().__init__(
+            f"No {item} '{item_id}' on '{entity_id}'. Ids change whenever the "
+            f"list is rewritten (an update or a move); read the current ones with "
+            f"fields=['{field}']."
+        )
+        self.entity_id = entity_id
+        self.item_id = item_id
+
+
+class EntityItemEmptyUpdate(YandexTrackerError):
+    """Raised for a key result or metric update that would change nothing."""
+
+    def __init__(self, item: str) -> None:
+        super().__init__(
+            f"A {item} update must change something: pass at least one field. "
+            f"An omitted field keeps its current value."
+        )

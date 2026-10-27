@@ -41,6 +41,8 @@ from mcp_tracker.tracker.custom.errors import (
     ComponentEmptyUpdate,
     ComponentNotFound,
     ComponentVersionConflict,
+    EntityItemEmptyUpdate,
+    EntityItemNotFound,
     EntityLinksOnlyUpdate,
     FieldClearConflict,
     IssueNotFound,
@@ -87,6 +89,8 @@ from mcp_tracker.tracker.proto.types.entities import (
     EntityLink,
     EntityType,
     GoalEntity,
+    GoalKeyResultItem,
+    GoalKeyResultType,
     GoalSearchResult,
     GoalStatus,
     PortfolioEntity,
@@ -107,6 +111,7 @@ from mcp_tracker.tracker.proto.types.inputs import (
     ChecklistItemInput,
     EntityChecklistItemUpdateInput,
     EntityParentEntityInput,
+    GoalKeyResultProgressInput,
     GoalLinkInput,
     IssueComponentRef,
     IssueFollowerRef,
@@ -4562,6 +4567,180 @@ class TrackerClient(
             auth=auth,
             params={"right": linked_entity_id},
         )
+
+    async def _goal_write_key_results(
+        self, goal_id: str, value: Any, *, auth: YandexAuth | None
+    ) -> GoalEntity:
+        """`PATCH` the goal's `keyResultItems`: a list replaces them all (and
+        gives every item a new id), `{"add": ...}` / `{"remove": ...}` touch
+        one, `None` deletes them all."""
+        return GoalEntity.model_validate_json(
+            await self._read(
+                "PATCH",
+                f"v3/entities/goal/{goal_id}",
+                auth=auth,
+                params={"fields": "keyResultItems,progressPercentage"},
+                json={"fields": {"keyResultItems": value}},
+            )
+        )
+
+    async def _goal_key_results(
+        self, goal_id: str, *, auth: YandexAuth | None
+    ) -> list[GoalKeyResultItem]:
+        goal = GoalEntity.model_validate_json(
+            await self._entity_get(
+                "goal", goal_id, fields=["keyResultItems"], auth=auth
+            )
+        )
+        return (goal.fields.keyResultItems if goal.fields else None) or []
+
+    @staticmethod
+    def _find_key_result(
+        items: list[GoalKeyResultItem], goal_id: str, key_result_id: str
+    ) -> int:
+        for index, item in enumerate(items):
+            if item.id == key_result_id:
+                return index
+        raise EntityItemNotFound(
+            goal_id, key_result_id, item="key result", field="keyResultItems"
+        )
+
+    @staticmethod
+    def _key_result_draft(item: GoalKeyResultItem) -> dict[str, Any]:
+        """A key result as read, in the shape a write takes: references by id,
+        the deadline as a date, the status by key. `id` is read-only."""
+        draft: dict[str, Any] = {"type": item.type, "text": item.text}
+        if item.assignee is not None:
+            draft["assignee"] = item.assignee.id
+        if item.deadline is not None:
+            draft["deadline"] = {
+                "date": item.deadline.date.date().isoformat(),
+                "deadlineType": item.deadline.deadline_type or "date",
+            }
+        if item.progress is not None:
+            draft["progress"] = item.progress.model_dump(exclude_none=True)
+        if item.achieved is not None:
+            draft["achieved"] = item.achieved
+        if item.status is not None and item.status.id is not None:
+            draft["status"] = item.status.id
+        return draft
+
+    async def goal_add_key_result(
+        self,
+        goal_id: str,
+        *,
+        text: str,
+        type: GoalKeyResultType,
+        assignee: str | None = None,
+        deadline: datetime.date | None = None,
+        progress: GoalKeyResultProgressInput | None = None,
+        achieved: bool | None = None,
+        status: GoalStatus | None = None,
+        auth: YandexAuth | None = None,
+    ) -> GoalEntity:
+        item: dict[str, Any] = {"type": type, "text": text}
+        if assignee is not None:
+            item["assignee"] = assignee
+        if deadline is not None:
+            item["deadline"] = {"date": deadline.isoformat(), "deadlineType": "date"}
+        if progress is not None:
+            item["progress"] = progress.model_dump(exclude_none=True)
+        if achieved is not None:
+            item["achieved"] = achieved
+        if status is not None:
+            item["status"] = status
+        return await self._goal_write_key_results(goal_id, {"add": item}, auth=auth)
+
+    async def goal_update_key_result(
+        self,
+        goal_id: str,
+        key_result_id: str,
+        *,
+        text: str | None = None,
+        type: GoalKeyResultType | None = None,
+        assignee: str | None = None,
+        deadline: datetime.date | None = None,
+        progress: GoalKeyResultProgressInput | None = None,
+        achieved: bool | None = None,
+        status: GoalStatus | None = None,
+        auth: YandexAuth | None = None,
+    ) -> GoalEntity:
+        # There is no per-item endpoint: the whole list is read, the one item
+        # changed, and the list written back - which renumbers every item.
+        if all(
+            value is None
+            for value in (text, type, assignee, deadline, progress, achieved, status)
+        ):
+            raise EntityItemEmptyUpdate("key result")
+        items = await self._goal_key_results(goal_id, auth=auth)
+        index = self._find_key_result(items, goal_id, key_result_id)
+        drafts = [self._key_result_draft(item) for item in items]
+        draft = drafts[index]
+        if text is not None:
+            draft["text"] = text
+        if type is not None:
+            draft["type"] = type
+        if assignee is not None:
+            draft["assignee"] = assignee
+        if deadline is not None:
+            draft["deadline"] = {"date": deadline.isoformat(), "deadlineType": "date"}
+        if progress is not None:
+            draft["progress"] = {
+                **draft.get("progress", {}),
+                **progress.model_dump(exclude_none=True),
+            }
+        if achieved is not None:
+            draft["achieved"] = achieved
+            # Tracker derives a binary result's status from `achieved` only
+            # when no status is sent; resending the old one would keep it.
+            draft.pop("status", None)
+        if status is not None:
+            draft["status"] = status
+        return await self._goal_write_key_results(goal_id, drafts, auth=auth)
+
+    async def goal_move_key_result(
+        self,
+        goal_id: str,
+        key_result_id: str,
+        *,
+        before: str | None = None,
+        auth: YandexAuth | None = None,
+    ) -> GoalEntity:
+        items = await self._goal_key_results(goal_id, auth=auth)
+        moved = items.pop(self._find_key_result(items, goal_id, key_result_id))
+        position = (
+            len(items)
+            if before is None
+            else self._find_key_result(items, goal_id, before)
+        )
+        items.insert(position, moved)
+        return await self._goal_write_key_results(
+            goal_id, [self._key_result_draft(item) for item in items], auth=auth
+        )
+
+    async def goal_delete_key_result(
+        self,
+        goal_id: str,
+        key_result_id: str,
+        *,
+        auth: YandexAuth | None = None,
+    ) -> GoalEntity:
+        # `remove` by id keeps the other ids, but an unknown id is a silent
+        # no-op - hence the read. The full object as read answers 400: its
+        # `status` is an object, which a write does not take.
+        items = await self._goal_key_results(goal_id, auth=auth)
+        self._find_key_result(items, goal_id, key_result_id)
+        return await self._goal_write_key_results(
+            goal_id, {"remove": {"id": key_result_id}}, auth=auth
+        )
+
+    async def goal_delete_all_key_results(
+        self,
+        goal_id: str,
+        *,
+        auth: YandexAuth | None = None,
+    ) -> GoalEntity:
+        return await self._goal_write_key_results(goal_id, None, auth=auth)
 
     async def entity_get_attachments(
         self,

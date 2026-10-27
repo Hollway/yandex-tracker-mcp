@@ -1,9 +1,12 @@
+import datetime
 from unittest.mock import AsyncMock
 
+import pytest
 from mcp import Client
 
 from mcp_tracker.tracker.proto.common import YandexAuth
 from mcp_tracker.tracker.proto.types.entities import GoalEntity
+from mcp_tracker.tracker.proto.types.inputs import GoalKeyResultProgressInput
 from mcp_tracker.tracker.proto.types.issues import IssueComment
 from tests.mcp.conftest import get_tool_result_content
 
@@ -219,6 +222,157 @@ class TestGoalDeleteComment:
     ) -> None:
         result = await client_session_read_only.call_tool(
             "goal_delete_comment", {"entity_id": "ghi789", "comment_id": 1}
+        )
+
+        assert result.is_error
+
+
+class TestGoalAddKeyResult:
+    async def test_passes_every_field(
+        self,
+        client_session: Client,
+        mock_entities_protocol: AsyncMock,
+        sample_goal: GoalEntity,
+    ) -> None:
+        mock_entities_protocol.goal_add_key_result.return_value = sample_goal
+
+        result = await client_session.call_tool(
+            "goal_add_key_result",
+            {
+                "entity_id": "ghi789",
+                "text": "Revenue",
+                "type": "value",
+                "assignee": "i.ivanov",
+                "deadline": "2026-12-31",
+                "progress": {"start": 0, "end": 100, "current": 20},
+                "status": "at_risk",
+            },
+        )
+
+        assert not result.is_error
+        mock_entities_protocol.goal_add_key_result.assert_called_once_with(
+            "ghi789",
+            text="Revenue",
+            type="value",
+            assignee="i.ivanov",
+            deadline=datetime.date(2026, 12, 31),
+            progress=GoalKeyResultProgressInput(start=0, end=100, current=20),
+            achieved=None,
+            status="at_risk",
+            auth=YandexAuth(),
+        )
+
+    async def test_rejects_unknown_type(self, client_session: Client) -> None:
+        result = await client_session.call_tool(
+            "goal_add_key_result",
+            {"entity_id": "ghi789", "text": "x", "type": "percent"},
+        )
+
+        assert result.is_error
+
+
+class TestGoalUpdateKeyResult:
+    async def test_passes_only_given_fields(
+        self,
+        client_session: Client,
+        mock_entities_protocol: AsyncMock,
+        sample_goal: GoalEntity,
+    ) -> None:
+        mock_entities_protocol.goal_update_key_result.return_value = sample_goal
+
+        result = await client_session.call_tool(
+            "goal_update_key_result",
+            {"entity_id": "ghi789", "key_result_id": "kr1", "achieved": True},
+        )
+
+        assert not result.is_error
+        mock_entities_protocol.goal_update_key_result.assert_called_once_with(
+            "ghi789",
+            "kr1",
+            text=None,
+            type=None,
+            assignee=None,
+            deadline=None,
+            progress=None,
+            achieved=True,
+            status=None,
+            auth=YandexAuth(),
+        )
+
+
+class TestGoalMoveKeyResult:
+    @pytest.mark.parametrize("before", [None, "kr2"])
+    async def test_passes_before(
+        self,
+        client_session: Client,
+        mock_entities_protocol: AsyncMock,
+        sample_goal: GoalEntity,
+        before: str | None,
+    ) -> None:
+        mock_entities_protocol.goal_move_key_result.return_value = sample_goal
+        args = {"entity_id": "ghi789", "key_result_id": "kr1"}
+        if before is not None:
+            args["before"] = before
+
+        result = await client_session.call_tool("goal_move_key_result", args)
+
+        assert not result.is_error
+        mock_entities_protocol.goal_move_key_result.assert_called_once_with(
+            "ghi789", "kr1", before=before, auth=YandexAuth()
+        )
+
+
+class TestGoalDeleteKeyResults:
+    async def test_deletes_one(
+        self,
+        client_session: Client,
+        mock_entities_protocol: AsyncMock,
+        sample_goal: GoalEntity,
+    ) -> None:
+        mock_entities_protocol.goal_delete_key_result.return_value = sample_goal
+
+        result = await client_session.call_tool(
+            "goal_delete_key_result", {"entity_id": "ghi789", "key_result_id": "kr1"}
+        )
+
+        assert not result.is_error
+        mock_entities_protocol.goal_delete_key_result.assert_called_once_with(
+            "ghi789", "kr1", auth=YandexAuth()
+        )
+        assert get_tool_result_content(result)["id"] == sample_goal.id
+
+    async def test_deletes_all(
+        self,
+        client_session: Client,
+        mock_entities_protocol: AsyncMock,
+        sample_goal: GoalEntity,
+    ) -> None:
+        mock_entities_protocol.goal_delete_all_key_results.return_value = sample_goal
+
+        result = await client_session.call_tool(
+            "goal_delete_all_key_results", {"entity_id": "ghi789"}
+        )
+
+        assert not result.is_error
+        mock_entities_protocol.goal_delete_all_key_results.assert_called_once_with(
+            "ghi789", auth=YandexAuth()
+        )
+
+    @pytest.mark.parametrize(
+        "tool,args",
+        [
+            ("goal_add_key_result", {"text": "x", "type": "binary"}),
+            ("goal_update_key_result", {"key_result_id": "kr1", "text": "x"}),
+            ("goal_move_key_result", {"key_result_id": "kr1"}),
+            ("goal_delete_key_result", {"key_result_id": "kr1"}),
+            ("goal_delete_all_key_results", {}),
+        ],
+    )
+    async def test_not_registered_read_only(
+        self, client_session_read_only: Client, tool: str, args: dict[str, str]
+    ) -> None:
+        result = await client_session_read_only.call_tool(
+            tool, {"entity_id": "ghi789", **args}
         )
 
         assert result.is_error

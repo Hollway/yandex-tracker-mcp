@@ -35,7 +35,7 @@ ProjectPortfolioStatus = Literal[
     "cancelled",
 ]
 
-# Status values for goals.
+# Status values for goals - and for their key results.
 GoalStatus = Literal[
     "draft",
     "according_to_plan",
@@ -47,6 +47,9 @@ GoalStatus = Literal[
     "exceeded",
     "cancelled",
 ]
+
+# How a goal's key result is measured: by a value, or done / not done.
+GoalKeyResultType = Literal["value", "binary"]
 
 # Link relationship values for projects and portfolios.
 ProjectPortfolioLinkRelationship = Literal[
@@ -80,10 +83,7 @@ class ParentEntityRef(BaseTrackerEntity):
 
 
 class EntityMetricItem(BaseTrackerEntity):
-    """Metric widget shown on an entity (`metricItems`).
-
-    Readable through the `fields` selector; this server does not write metrics.
-    """
+    """Metric widget shown on an entity (`metricItems`)."""
 
     id: str | None = NoneExcludedField
     text: str | None = NoneExcludedField
@@ -139,8 +139,8 @@ class EntityChecklistItem(BaseTrackerEntity):
 class GoalKeyResultItem(BaseTrackerEntity):
     """Key result of a goal (`keyResultItems`).
 
-    Readable through the `fields` selector; this server does not write key
-    results. `progressPercentage` on the goal is derived from these.
+    Written by the `goal_*_key_result*` tools. `progressPercentage` on the goal
+    is derived from these.
     """
 
     id: str | None = NoneExcludedField
@@ -151,6 +151,9 @@ class GoalKeyResultItem(BaseTrackerEntity):
     progress: GoalKeyResultProgress | None = NoneExcludedField
     achieved: bool | None = NoneExcludedField
     assignee: UserReference | None = NoneExcludedField
+    # A goal status key ('at_risk', ...) with its display name. Set on write
+    # or, for a binary result written without one, derived from `achieved`.
+    status: EntityReference | None = NoneExcludedField
 
 
 class EntityLink(BaseTrackerEntity):

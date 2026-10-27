@@ -15,7 +15,10 @@ from mcp_tracker.tracker.proto.types.entities import (
     ProjectEntity,
     ProjectSearchResult,
 )
-from mcp_tracker.tracker.proto.types.inputs import EntityChecklistItemUpdateInput
+from mcp_tracker.tracker.proto.types.inputs import (
+    EntityChecklistItemUpdateInput,
+    GoalKeyResultProgressInput,
+)
 from mcp_tracker.tracker.proto.types.issues import CommentsPage, IssueComment
 
 ENTITY_COMMENT_METHOD_PREFIXES = ["project", "portfolio", "goal"]
@@ -644,3 +647,58 @@ class TestCachingEntitiesProtocol:
         mock_original.entity_delete_attachment.assert_called_once_with(
             "project", "p1", "8021", auth=yandex_auth
         )
+
+    @pytest.mark.parametrize(
+        "method,args,kwargs",
+        [
+            (
+                "goal_add_key_result",
+                ("g1",),
+                {
+                    "text": "Launch",
+                    "type": "binary",
+                    "assignee": None,
+                    "deadline": None,
+                    "progress": None,
+                    "achieved": True,
+                    "status": None,
+                },
+            ),
+            (
+                "goal_update_key_result",
+                ("g1", "kr1"),
+                {
+                    "text": None,
+                    "type": None,
+                    "assignee": None,
+                    "deadline": None,
+                    "progress": GoalKeyResultProgressInput(current=5),
+                    "achieved": None,
+                    "status": "at_risk",
+                },
+            ),
+            ("goal_move_key_result", ("g1", "kr1"), {"before": "kr2"}),
+            ("goal_delete_key_result", ("g1", "kr1"), {}),
+            ("goal_delete_all_key_results", ("g1",), {}),
+        ],
+    )
+    async def test_key_result_writes_call_original(
+        self,
+        caching_entities_protocol: Any,
+        mock_original: AsyncMock,
+        yandex_auth: YandexAuth,
+        method: str,
+        args: tuple[str, ...],
+        kwargs: dict[str, Any],
+    ) -> None:
+        entity = GoalEntity(id="g1", entityType="goal")
+        getattr(mock_original, method).return_value = entity
+
+        result = await getattr(caching_entities_protocol, method)(
+            *args, **kwargs, auth=yandex_auth
+        )
+
+        getattr(mock_original, method).assert_called_once_with(
+            *args, **kwargs, auth=yandex_auth
+        )
+        assert result == entity

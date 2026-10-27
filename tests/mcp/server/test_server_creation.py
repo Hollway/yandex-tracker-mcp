@@ -187,6 +187,11 @@ ENTITY_WRITE_TOOL_NAMES = [
     "goal_delete_comment",
     "goal_delete_link",
     "goal_delete_attachment",
+    "goal_add_key_result",
+    "goal_update_key_result",
+    "goal_move_key_result",
+    "goal_delete_key_result",
+    "goal_delete_all_key_results",
 ]
 
 # Tools that read local files - require both write mode and TRACKER_FILE_UPLOAD_ENABLED
