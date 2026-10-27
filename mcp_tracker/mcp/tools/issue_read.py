@@ -33,6 +33,7 @@ from mcp_tracker.mcp.tools._ai_access import (
     hide_ai_restricted,
     is_restricted_row,
 )
+from mcp_tracker.mcp.tools._issue_access import check_issue
 from mcp_tracker.mcp.utils import (
     get_yandex_auth,
     safe_file_name,
@@ -142,9 +143,10 @@ def register_issue_read_tools(settings: Settings, mcp: MCPServer[AppContext]) ->
             ),
         ] = True,
     ) -> Issue:
-        check_issue_access(settings, issue_id)
-        # A key names its queue, so a forbidding one is refused unread.
+        # A key names its queue, so one out of reach or forbidding AI tools is
+        # refused unread; an internal id is checked once the issue is read.
         if queue_of_key(issue_id) is not None:
+            check_issue_access(settings, issue_id)
             await check_ai_access(ctx, settings, issue_id)
 
         issue = await ctx.request_context.lifespan_context.issues.issue_get(
@@ -181,8 +183,7 @@ def register_issue_read_tools(settings: Settings, mcp: MCPServer[AppContext]) ->
             ),
         ] = None,
     ) -> CommentsPage:
-        check_issue_access(settings, issue_id)
-        await check_ai_access(ctx, settings, issue_id)
+        await check_issue(ctx, settings, issue_id)
 
         page = await ctx.request_context.lifespan_context.issues.issue_get_comments(
             issue_id,
@@ -205,9 +206,8 @@ def register_issue_read_tools(settings: Settings, mcp: MCPServer[AppContext]) ->
         ctx: Context[AppContext],
         issue_id: IssueID,
     ) -> list[IssueLink]:
-        check_issue_access(settings, issue_id)
         # Each link carries the linked issue's summary and status.
-        await check_ai_access(ctx, settings, issue_id)
+        await check_issue(ctx, settings, issue_id)
 
         return await ctx.request_context.lifespan_context.issues.issues_get_links(
             issue_id,
@@ -225,8 +225,7 @@ def register_issue_read_tools(settings: Settings, mcp: MCPServer[AppContext]) ->
         ctx: Context[AppContext],
         issue_id: IssueID,
     ) -> list[RemoteLink]:
-        check_issue_access(settings, issue_id)
-        await check_ai_access(ctx, settings, issue_id)
+        await check_issue(ctx, settings, issue_id)
 
         return await ctx.request_context.lifespan_context.issues.issue_get_remote_links(
             issue_id, auth=get_yandex_auth(ctx)
@@ -332,8 +331,7 @@ def register_issue_read_tools(settings: Settings, mcp: MCPServer[AppContext]) ->
             Field(description="The comment's numeric `id` or its `longId`."),
         ],
     ) -> IssueComment:
-        check_issue_access(settings, issue_id)
-        await check_ai_access(ctx, settings, issue_id)
+        await check_issue(ctx, settings, issue_id)
 
         return await ctx.request_context.lifespan_context.issues.issue_get_comment(
             issue_id, comment_id, auth=get_yandex_auth(ctx)
@@ -356,8 +354,7 @@ def register_issue_read_tools(settings: Settings, mcp: MCPServer[AppContext]) ->
         ] = None,
     ) -> dict[str, list[Worklog]]:
         for issue_id in issue_ids:
-            check_issue_access(settings, issue_id)
-            await check_ai_access(ctx, settings, issue_id)
+            await check_issue(ctx, settings, issue_id)
 
         result: dict[str, list[Worklog]] = {}
         for issue_id in issue_ids:
@@ -390,8 +387,7 @@ def register_issue_read_tools(settings: Settings, mcp: MCPServer[AppContext]) ->
             ),
         ] = None,
     ) -> list[IssueAttachment]:
-        check_issue_access(settings, issue_id)
-        await check_ai_access(ctx, settings, issue_id)
+        await check_issue(ctx, settings, issue_id)
 
         attachments = (
             await ctx.request_context.lifespan_context.issues.issue_get_attachments(
@@ -414,8 +410,7 @@ def register_issue_read_tools(settings: Settings, mcp: MCPServer[AppContext]) ->
         ctx: Context[AppContext],
         issue_id: IssueID,
     ) -> list[ChecklistItem]:
-        check_issue_access(settings, issue_id)
-        await check_ai_access(ctx, settings, issue_id)
+        await check_issue(ctx, settings, issue_id)
 
         return await ctx.request_context.lifespan_context.issues.issue_get_checklist(
             issue_id,
@@ -432,7 +427,7 @@ def register_issue_read_tools(settings: Settings, mcp: MCPServer[AppContext]) ->
         ctx: Context[AppContext],
         issue_id: IssueID,
     ) -> list[IssueTransition]:
-        check_issue_access(settings, issue_id)
+        await check_issue(ctx, settings, issue_id, ai=False)
 
         return await ctx.request_context.lifespan_context.issues.issue_get_transitions(
             issue_id,
@@ -472,8 +467,7 @@ def register_issue_read_tools(settings: Settings, mcp: MCPServer[AppContext]) ->
             ),
         ] = None,
     ) -> ChangelogPage:
-        check_issue_access(settings, issue_id)
-        await check_ai_access(ctx, settings, issue_id)
+        await check_issue(ctx, settings, issue_id)
 
         return await ctx.request_context.lifespan_context.issues.issue_get_changelog(
             issue_id,
@@ -520,8 +514,7 @@ def register_issue_attachment_download_tools(
             ),
         ] = False,
     ) -> DownloadedIssueAttachment:
-        check_issue_access(settings, issue_id)
-        await check_ai_access(ctx, settings, issue_id)
+        await check_issue(ctx, settings, issue_id)
 
         issues = ctx.request_context.lifespan_context.issues
         auth = get_yandex_auth(ctx)

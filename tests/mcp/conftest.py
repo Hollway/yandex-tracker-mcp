@@ -23,6 +23,7 @@ from mcp_tracker.tracker.proto.issues import IssueProtocol
 from mcp_tracker.tracker.proto.queues import QueuesProtocol
 from mcp_tracker.tracker.proto.reports import ReportsProtocol
 from mcp_tracker.tracker.proto.templates import TemplatesProtocol
+from mcp_tracker.tracker.proto.types.issues import Issue
 from mcp_tracker.tracker.proto.types.pagination import PaginatedResult
 from mcp_tracker.tracker.proto.users import UsersProtocol
 from mcp_tracker.tracker.proto.workflows import WorkflowsProtocol
@@ -163,14 +164,33 @@ def test_settings_with_queue_limits() -> Settings:
 
 @pytest.fixture
 def mock_queues_protocol() -> AsyncMock:
-    """Create a mock QueuesProtocol."""
-    return AsyncMock(spec=QueuesProtocol)
+    """Create a mock QueuesProtocol.
+
+    The organization has no queues unless a test says otherwise: the access
+    checks list them to learn whether any forbids AI tools.
+    """
+    mock = AsyncMock(spec=QueuesProtocol)
+    mock.queues_list.return_value = page([])
+    return mock
 
 
 @pytest.fixture
 def mock_issues_protocol() -> AsyncMock:
-    """Create a mock IssueProtocol."""
-    return AsyncMock(spec=IssueProtocol)
+    """Create a mock IssueProtocol.
+
+    `issue_get` answers with an issue under the id it was given unless a test
+    sets its `return_value` or `side_effect`: under the queue restrictions the
+    access checks read an issue for the queue it is in now.
+    """
+    mock = AsyncMock(spec=IssueProtocol)
+    unset = mock.issue_get.return_value
+
+    async def issue_get(issue_id: str, **_: Any) -> Any:
+        configured = mock.issue_get.return_value
+        return Issue(key=issue_id) if configured is unset else configured
+
+    mock.issue_get.side_effect = issue_get
+    return mock
 
 
 @pytest.fixture

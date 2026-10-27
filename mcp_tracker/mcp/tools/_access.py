@@ -74,8 +74,8 @@ def check_issue_access(
     An internal id names no queue, so under a restriction it is refused rather
     than let through - taking the id itself for the queue used to let a write
     past ``TRACKER_READ_ONLY_QUEUES``. An old key of a moved issue still names
-    its old queue; `check_fetched_issue_access` covers that where the issue is
-    read anyway.
+    its old queue; `check_issue` in `_issue_access.py` reads the issue for the
+    queue it is in now, and is what a tool acting on one issue calls.
     """
     queue = queue_of_key(issue_id)
     if queue is None:
@@ -88,16 +88,32 @@ def check_issue_access(
     _check_scoped_queue(settings, queue, not_found=IssueNotFound(issue_id), write=write)
 
 
+def check_issue_queue_access(
+    settings: Settings, issue_id: str, queue: str, *, write: bool = False
+) -> None:
+    """`check_issue_access` against a queue known otherwise than from the id -
+    the one the issue was read back under."""
+    _check_scoped_queue(settings, queue, not_found=IssueNotFound(issue_id), write=write)
+
+
 def check_fetched_issue_access(
     settings: Settings, issue_id: str, issue_key: str | None
 ) -> None:
     """Check ``TRACKER_LIMIT_QUEUES`` against the key Tracker answered with.
 
     Tracker serves an issue moved to another queue under its old key too, so
-    the key the caller passed can name a queue the issue has left.
+    the key the caller passed can name a queue the issue has left. An issue
+    that came back without a key is refused under ``TRACKER_LIMIT_QUEUES``.
     """
     queue = queue_of_key(issue_key or "")
-    if queue is not None and not is_queue_allowed(settings, queue):
+    if queue is None:
+        if settings.tracker_limit_queues:
+            raise TrackerError(
+                f"Issue `{issue_id}` came back without a key, so its queue cannot "
+                f"be checked against the queue restrictions; refusing."
+            )
+        return
+    if not is_queue_allowed(settings, queue):
         raise IssueNotFound(issue_id)
 
 

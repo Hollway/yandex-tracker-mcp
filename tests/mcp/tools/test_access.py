@@ -78,11 +78,19 @@ class TestCheckFetchedIssueAccess:
         with pytest.raises(IssueNotFound):
             check_fetched_issue_access(settings, "ALLOWED-1", "HIDDEN-7")
 
-    @pytest.mark.parametrize("key", ["ALLOWED-9", None])
-    def test_an_allowed_or_missing_key_passes(self, key: str | None) -> None:
+    def test_an_allowed_key_passes(self) -> None:
         settings = create_test_settings(limit_queues=["ALLOWED"])
 
-        check_fetched_issue_access(settings, "ALLOWED-1", key)
+        check_fetched_issue_access(settings, "ALLOWED-1", "ALLOWED-9")
+
+    def test_a_missing_key_is_refused_under_the_allow_list(self) -> None:
+        settings = create_test_settings(limit_queues=["ALLOWED"])
+
+        with pytest.raises(TrackerError, match="without a key"):
+            check_fetched_issue_access(settings, INTERNAL_ID, None)
+
+    def test_a_missing_key_passes_without_the_allow_list(self) -> None:
+        check_fetched_issue_access(create_test_settings(), INTERNAL_ID, None)
 
 
 class TestCheckIssueAccess:

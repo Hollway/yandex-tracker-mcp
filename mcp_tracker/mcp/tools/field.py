@@ -326,7 +326,10 @@ def register_field_tools(settings: Settings, mcp: MCPServer[AppContext]) -> None
 
         issue_type: str | None = None
         if issue_id is not None:
-            check_issue_access(settings, issue_id)
+            # The issue is read anyway, so an internal id is checked by the key
+            # it comes back under.
+            if queue_of_key(issue_id) is not None:
+                check_issue_access(settings, issue_id)
             issue = await app.issues.issue_get(issue_id, auth=auth)
             check_fetched_issue_access(settings, issue_id, issue.key)
             queue = queue_of_key(issue.key or issue_id)

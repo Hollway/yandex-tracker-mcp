@@ -52,6 +52,7 @@ from mcp_tracker.mcp.tools._files import (
     UploadFilePathParam,
     read_upload_file,
 )
+from mcp_tracker.mcp.tools._issue_access import check_issue
 from mcp_tracker.mcp.utils import get_yandex_auth
 from mcp_tracker.settings import Settings
 from mcp_tracker.tracker.proto.types.inputs import (
@@ -103,7 +104,7 @@ def _prefilled(name: str, value: bool) -> tuple[type[bool], Any]:
     )
 
 
-def _can_ask(ctx: Context) -> bool:
+def _can_ask(ctx: Context[Any]) -> bool:
     """Whether the client can be asked a question: form elicitation, and a
     back-channel on a pre-2026-07-28 connection (see `confirm_move_options`)."""
     capabilities = ctx.client_capabilities
@@ -126,7 +127,7 @@ def _move_options_resolver(
     """
 
     async def confirm_move_options(
-        ctx: Context,
+        ctx: Context[AppContext],
         issue_id: str,
         queue: str,
         notify: bool,
@@ -153,7 +154,7 @@ def _move_options_resolver(
           runs cannot deliver (`NoBackChannelError`). Modern connections carry
           the question in the tool result instead and are not affected.
         """
-        check_issue_access(settings, issue_id, write=True)
+        await check_issue(ctx, settings, issue_id, write=True)
         check_queue_access(settings, queue, write=True)
 
         if not _can_ask(ctx):
@@ -212,7 +213,7 @@ def register_issue_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -
             ),
         ] = None,
     ) -> list[IssueTransition]:
-        check_issue_access(settings, issue_id, write=True)
+        await check_issue(ctx, settings, issue_id, write=True)
 
         return (
             await ctx.request_context.lifespan_context.issues.issue_execute_transition(
@@ -256,7 +257,7 @@ def register_issue_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -
             Field(description="Optional comment to add when closing the issue."),
         ] = None,
     ) -> list[IssueTransition]:
-        check_issue_access(settings, issue_id, write=True)
+        await check_issue(ctx, settings, issue_id, write=True)
 
         return await ctx.request_context.lifespan_context.issues.issue_close(
             issue_id,
@@ -417,7 +418,7 @@ def register_issue_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -
             ),
         ] = None,
     ) -> Issue:
-        check_issue_access(settings, issue_id, write=True)
+        await check_issue(ctx, settings, issue_id, write=True)
 
         return await ctx.request_context.lifespan_context.issues.issue_update(
             issue_id,
@@ -464,7 +465,7 @@ def register_issue_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -
             ),
         ] = None,
     ) -> Worklog:
-        check_issue_access(settings, issue_id, write=True)
+        await check_issue(ctx, settings, issue_id, write=True)
 
         return await ctx.request_context.lifespan_context.issues.issue_add_worklog(
             issue_id,
@@ -504,7 +505,7 @@ def register_issue_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -
             ),
         ] = None,
     ) -> Worklog:
-        check_issue_access(settings, issue_id, write=True)
+        await check_issue(ctx, settings, issue_id, write=True)
 
         return await ctx.request_context.lifespan_context.issues.issue_update_worklog(
             issue_id,
@@ -528,7 +529,7 @@ def register_issue_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -
             Field(description="Worklog entry ID (integer)."),
         ],
     ) -> None:
-        check_issue_access(settings, issue_id, write=True)
+        await check_issue(ctx, settings, issue_id, write=True)
 
         return await ctx.request_context.lifespan_context.issues.issue_delete_worklog(
             issue_id,
@@ -588,7 +589,7 @@ def register_issue_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -
             ),
         ] = None,
     ) -> IssueComment:
-        check_issue_access(settings, issue_id, write=True)
+        await check_issue(ctx, settings, issue_id, write=True)
 
         return await ctx.request_context.lifespan_context.issues.issue_add_comment(
             issue_id,
@@ -640,7 +641,7 @@ def register_issue_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -
             ),
         ] = None,
     ) -> IssueComment:
-        check_issue_access(settings, issue_id, write=True)
+        await check_issue(ctx, settings, issue_id, write=True)
 
         return await ctx.request_context.lifespan_context.issues.issue_update_comment(
             issue_id,
@@ -697,7 +698,7 @@ def register_issue_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -
             ),
         ] = False,
     ) -> Issue:
-        check_issue_access(settings, issue_id, write=True)
+        await check_issue(ctx, settings, issue_id, write=True)
         check_queue_access(settings, queue, write=True)
 
         # `options` is resolved before the body runs: either the values the user
@@ -731,7 +732,7 @@ def register_issue_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -
             Field(description="Comment ID (integer)."),
         ],
     ) -> None:
-        check_issue_access(settings, issue_id, write=True)
+        await check_issue(ctx, settings, issue_id, write=True)
 
         return await ctx.request_context.lifespan_context.issues.issue_delete_comment(
             issue_id,
@@ -752,7 +753,7 @@ def register_issue_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -
         comment_id: CommentReactionCommentIDParam,
         reaction: CommentReactionParam,
     ) -> IssueComment:
-        check_issue_access(settings, issue_id, write=True)
+        await check_issue(ctx, settings, issue_id, write=True)
         comment = await ctx.request_context.lifespan_context.issues.issue_add_comment_reaction(
             issue_id, comment_id, reaction, auth=get_yandex_auth(ctx)
         )
@@ -771,7 +772,7 @@ def register_issue_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -
         comment_id: CommentReactionCommentIDParam,
         reaction: CommentReactionParam,
     ) -> IssueComment:
-        check_issue_access(settings, issue_id, write=True)
+        await check_issue(ctx, settings, issue_id, write=True)
         comment = await ctx.request_context.lifespan_context.issues.issue_delete_comment_reaction(
             issue_id, comment_id, reaction, auth=get_yandex_auth(ctx)
         )
@@ -801,7 +802,7 @@ def register_issue_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -
             Field(description="Also create the mirror link in the other application."),
         ] = False,
     ) -> RemoteLink:
-        check_issue_access(settings, issue_id, write=True)
+        await check_issue(ctx, settings, issue_id, write=True)
 
         return await ctx.request_context.lifespan_context.issues.issue_add_remote_link(
             issue_id,
@@ -825,7 +826,7 @@ def register_issue_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -
             Field(description="Link `id` from issue_get_remote_links."),
         ],
     ) -> None:
-        check_issue_access(settings, issue_id, write=True)
+        await check_issue(ctx, settings, issue_id, write=True)
 
         await ctx.request_context.lifespan_context.issues.issue_delete_remote_link(
             issue_id, link_id, auth=get_yandex_auth(ctx)
@@ -846,7 +847,7 @@ def register_issue_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -
             Field(description="Attachment `id` from issue_get_attachments."),
         ],
     ) -> None:
-        check_issue_access(settings, issue_id, write=True)
+        await check_issue(ctx, settings, issue_id, write=True)
 
         await ctx.request_context.lifespan_context.issues.issue_delete_attachment(
             issue_id, attachment_id, auth=get_yandex_auth(ctx)
@@ -876,7 +877,7 @@ def register_issue_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -
             Field(description="ID or key of the issue to link to, e.g. 'TEST-123'."),
         ],
     ) -> IssueLink:
-        check_issue_access(settings, issue_id, write=True)
+        await check_issue(ctx, settings, issue_id, write=True)
 
         return await ctx.request_context.lifespan_context.issues.issue_add_link(
             issue_id,
@@ -899,7 +900,7 @@ def register_issue_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -
             Field(description="Link ID (integer) as returned by issue_get_links."),
         ],
     ) -> None:
-        check_issue_access(settings, issue_id, write=True)
+        await check_issue(ctx, settings, issue_id, write=True)
 
         return await ctx.request_context.lifespan_context.issues.issue_delete_link(
             issue_id,
@@ -920,7 +921,7 @@ def register_issue_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -
         issue_id: IssueID,
         items: IssueChecklistItemsParam,
     ) -> list[ChecklistItem]:
-        check_issue_access(settings, issue_id, write=True)
+        await check_issue(ctx, settings, issue_id, write=True)
 
         return (
             await ctx.request_context.lifespan_context.issues.issue_add_checklist_items(
@@ -950,7 +951,7 @@ def register_issue_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -
         clear_assignee: IssueChecklistItemClearAssigneeParam = False,
         clear_deadline: IssueChecklistItemClearDeadlineParam = False,
     ) -> list[ChecklistItem]:
-        check_issue_access(settings, issue_id, write=True)
+        await check_issue(ctx, settings, issue_id, write=True)
 
         return await ctx.request_context.lifespan_context.issues.issue_update_checklist_item(
             issue_id,
@@ -976,7 +977,7 @@ def register_issue_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -
         issue_id: IssueID,
         checklist_item_id: IssueChecklistItemIDParam,
     ) -> list[ChecklistItem]:
-        check_issue_access(settings, issue_id, write=True)
+        await check_issue(ctx, settings, issue_id, write=True)
 
         return await ctx.request_context.lifespan_context.issues.issue_delete_checklist_item(
             issue_id,
@@ -996,7 +997,7 @@ def register_issue_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -
         ctx: Context[AppContext],
         issue_id: IssueID,
     ) -> None:
-        check_issue_access(settings, issue_id, write=True)
+        await check_issue(ctx, settings, issue_id, write=True)
 
         await ctx.request_context.lifespan_context.issues.issue_delete_checklist(
             issue_id, auth=get_yandex_auth(ctx)
@@ -1028,7 +1029,7 @@ def register_issue_file_upload_tools(
         file_path: UploadFilePathParam,
         filename: UploadFilenameParam = None,
     ) -> IssueAttachment:
-        check_issue_access(settings, issue_id, write=True)
+        await check_issue(ctx, settings, issue_id, write=True)
 
         content, path = await read_upload_file(file_path)
 
@@ -1091,7 +1092,9 @@ def _bulk_question(
 
 
 def _check_bulk_issues(settings: Settings, issues: list[str]) -> None:
-    """The write check of every issue of a bulk change."""
+    """The write check of every issue of a bulk change, by the queue each key
+    names: up to 10 000 issues are not read one by one, so the old key of a
+    moved issue is checked against its old queue here."""
     for issue_id in issues:
         check_issue_access(settings, issue_id, write=True)
 

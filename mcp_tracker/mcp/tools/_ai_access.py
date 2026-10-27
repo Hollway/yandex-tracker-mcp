@@ -47,13 +47,18 @@ def queue_forbids_ai(queue: Queue) -> bool:
     return extra.get("noMcp") is True or (isinstance(level, str) and level != "full")
 
 
+def _is_ignored(settings: Settings, key: str) -> bool:
+    return bool(
+        settings.tracker_ai_access_ignored_queues
+        and key in settings.tracker_ai_access_ignored_queues
+    )
+
+
 async def is_ai_restricted(
     ctx: Context[AppContext], settings: Settings, queue: str
 ) -> bool:
     key = queue.upper()
-    if settings.tracker_ai_access_ignored_queues and (
-        key in settings.tracker_ai_access_ignored_queues
-    ):
+    if _is_ignored(settings, key):
         return False
 
     context = ctx.request_context.lifespan_context
@@ -76,6 +81,43 @@ async def is_ai_restricted(
         restricted = queue_forbids_ai(queue_data)
     context.ai_access[key] = (restricted, now + AI_ACCESS_TTL_SECONDS)
     return restricted
+
+
+_QUEUES_PAGE = 100
+# A guard against a listing that never ends; no organization comes close.
+_MAX_QUEUE_PAGES = 100
+
+
+async def ai_forbidden_anywhere(ctx: Context[AppContext], settings: Settings) -> bool:
+    """Whether any queue the token can see forbids AI tools.
+
+    The listing reports each queue's setting, so one pass over it - every ten
+    minutes - answers this and fills the per-queue answers of `is_ai_restricted`
+    on the way. A failure is raised and not remembered, as there.
+    """
+    context = ctx.request_context.lifespan_context
+    now = time.monotonic()
+    cached = context.ai_forbidden_anywhere
+    if cached is not None and cached[1] > now:
+        return cached[0]
+
+    expires = now + AI_ACCESS_TTL_SECONDS
+    found = False
+    for page in range(1, _MAX_QUEUE_PAGES + 1):
+        result = await context.queues.queues_list(
+            per_page=_QUEUES_PAGE, page=page, auth=get_yandex_auth(ctx)
+        )
+        for queue in result.values:
+            if not queue.key:
+                continue
+            key = queue.key.upper()
+            restricted = not _is_ignored(settings, key) and queue_forbids_ai(queue)
+            context.ai_access[key] = (restricted, expires)
+            found = found or restricted
+        if len(result.values) < _QUEUES_PAGE:
+            break
+    context.ai_forbidden_anywhere = (found, expires)
+    return found
 
 
 async def ai_restricted_queues(

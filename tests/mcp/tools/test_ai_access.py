@@ -48,6 +48,7 @@ def queues_by_key(mock_queues_protocol: AsyncMock) -> dict[str, Any]:
         return known[key]
 
     mock_queues_protocol.queue_get.side_effect = queue_get
+    mock_queues_protocol.queues_list.return_value = page(list(known.values()))
     return known
 
 

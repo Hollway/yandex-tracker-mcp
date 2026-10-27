@@ -28,3 +28,5 @@ class AppContext:
     dashboards: DashboardsProtocol
     # Queue key -> (forbids AI tools, monotonic time the answer expires).
     ai_access: dict[str, tuple[bool, float]] = field(default_factory=dict)
+    # Whether any queue the token sees forbids AI tools, and when that expires.
+    ai_forbidden_anywhere: tuple[bool, float] | None = None
