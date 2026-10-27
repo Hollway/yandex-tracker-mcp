@@ -10,7 +10,11 @@ from mcp.types import CallToolResult, TextContent
 
 from mcp_tracker.mcp.context import AppContext
 from mcp_tracker.mcp.server import create_mcp_server
-from mcp_tracker.tracker.custom.errors import AttachmentNotFound, TrackerAPIError
+from mcp_tracker.tracker.custom.errors import (
+    AttachmentNotFound,
+    AttachmentThumbnailNotFound,
+    TrackerAPIError,
+)
 from mcp_tracker.tracker.proto.common import YandexAuth
 from mcp_tracker.tracker.proto.types.issues import (
     ChangelogComments,
@@ -610,6 +614,7 @@ async def write_attachment(
     file_name: str,
     destination: Path,
     *,
+    thumbnail: bool = False,
     auth: Any = None,
 ) -> int:
     """Stands in for the HTTP download: writes the file where it was asked to."""
@@ -787,6 +792,73 @@ class TestIssueDownloadAttachment:
         assert result.is_error
         mock_issues_protocol.issue_get_attachment.assert_not_called()
         mock_issues_protocol.issue_download_attachment.assert_not_called()
+
+    async def test_a_thumbnail_is_saved_as_png_whatever_the_size(
+        self,
+        download_session: Client,
+        mock_issues_protocol: AsyncMock,
+        tmp_path: Path,
+    ) -> None:
+        mock_issues_protocol.issue_get_attachment.return_value = (
+            IssueAttachment.model_construct(
+                id="7946", name="photo.jpg", size=51 * 1024 * 1024, mimetype=None
+            )
+        )
+        mock_issues_protocol.issue_download_attachment.side_effect = write_attachment
+
+        result = await download_session.call_tool(
+            "issue_download_attachment",
+            {"issue_id": "ALLOWED-1", "attachment_id": "7946", "thumbnail": True},
+        )
+
+        assert not result.is_error
+        expected = tmp_path / "ALLOWED-1" / "7946-thumbnail-photo.png"
+        call_args = mock_issues_protocol.issue_download_attachment.call_args
+        assert call_args.args == ("ALLOWED-1", "7946", "photo.jpg", expected)
+        assert call_args.kwargs["thumbnail"] is True
+        content = get_tool_result_content(result)
+        assert content["path"] == str(expected)
+        assert (content["mime_type"], content["size"]) == ("image/png", 1024)
+
+    async def test_a_thumbnail_already_saved_is_reused(
+        self,
+        download_session: Client,
+        mock_issues_protocol: AsyncMock,
+        attachment: IssueAttachment,
+        tmp_path: Path,
+    ) -> None:
+        existing = tmp_path / "ALLOWED-1" / "7946-thumbnail-image.png"
+        existing.parent.mkdir()
+        existing.write_bytes(b"x" * 40)
+        mock_issues_protocol.issue_get_attachment.return_value = attachment
+
+        result = await download_session.call_tool(
+            "issue_download_attachment",
+            {"issue_id": "ALLOWED-1", "attachment_id": "7946", "thumbnail": True},
+        )
+
+        assert not result.is_error
+        mock_issues_protocol.issue_download_attachment.assert_not_called()
+        assert get_tool_result_content(result)["size"] == 40
+
+    async def test_no_thumbnail_is_reported(
+        self,
+        download_session: Client,
+        mock_issues_protocol: AsyncMock,
+        attachment: IssueAttachment,
+    ) -> None:
+        mock_issues_protocol.issue_get_attachment.return_value = attachment
+        mock_issues_protocol.issue_download_attachment.side_effect = (
+            AttachmentThumbnailNotFound("ALLOWED-1", "7946")
+        )
+
+        result = await download_session.call_tool(
+            "issue_download_attachment",
+            {"issue_id": "ALLOWED-1", "attachment_id": "7946", "thumbnail": True},
+        )
+
+        assert result.is_error
+        assert "images only" in error_text(result)
 
 
 class TestIssueGetChecklist:

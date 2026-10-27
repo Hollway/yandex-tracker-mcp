@@ -524,8 +524,52 @@
       "description": "Vacations, sick leave and other absences of users over a period (needs organization admin rights)"
     },
     {
+      "name": "users_create_absences",
+      "description": "Record vacations, trips, duty and other absences of users (needs organization admin rights)"
+    },
+    {
+      "name": "users_delete_absences",
+      "description": "Delete user absences by id (needs organization admin rights)"
+    },
+    {
       "name": "groups_get_all",
       "description": "List the organization's user groups with their numeric ids"
+    },
+    {
+      "name": "report_create",
+      "description": "Export the issues a query matches to an xlsx, csv or xml report, downloaded in the Tracker web interface"
+    },
+    {
+      "name": "report_get",
+      "description": "Get an issue report by id: its name, status and what it exports"
+    },
+    {
+      "name": "reports_find",
+      "description": "List the organization's issue reports, optionally by author"
+    },
+    {
+      "name": "report_delete",
+      "description": "Delete an issue report"
+    },
+    {
+      "name": "dashboards_get_all",
+      "description": "List the dashboards of the Yandex Tracker organization with their owners"
+    },
+    {
+      "name": "dashboard_get",
+      "description": "Get a dashboard with the ids and titles of its widgets"
+    },
+    {
+      "name": "dashboard_create",
+      "description": "Create an empty Yandex Tracker dashboard"
+    },
+    {
+      "name": "dashboard_delete",
+      "description": "Delete a dashboard with all its widgets"
+    },
+    {
+      "name": "dashboard_add_cycle_time_widget",
+      "description": "Add a cycle time chart for the issues a query matches to a dashboard"
     },
     {
       "name": "get_global_fields",
@@ -870,6 +914,10 @@
     {
       "name": "issue_delete_checklist_item",
       "description": "Delete a single item from the checklist of a Yandex Tracker issue"
+    },
+    {
+      "name": "issue_delete_checklist",
+      "description": "Delete the whole checklist of a Yandex Tracker issue"
     },
     {
       "name": "issue_get_checklist",

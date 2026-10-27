@@ -9,13 +9,21 @@ from aiocache import cached
 from mcp_tracker.tracker.proto.boards import BoardsProtocolWrap
 from mcp_tracker.tracker.proto.common import YandexAuth
 from mcp_tracker.tracker.proto.components import ComponentsProtocolWrap
+from mcp_tracker.tracker.proto.dashboards import DashboardsProtocolWrap
 from mcp_tracker.tracker.proto.entities import EntitiesProtocolWrap
 from mcp_tracker.tracker.proto.fields import GlobalDataProtocolWrap
 from mcp_tracker.tracker.proto.issues import IssueProtocolWrap
 from mcp_tracker.tracker.proto.queues import QueuesProtocolWrap
+from mcp_tracker.tracker.proto.reports import ReportsProtocolWrap
 from mcp_tracker.tracker.proto.templates import TemplatesProtocolWrap
 from mcp_tracker.tracker.proto.types.boards import Board, BoardColumnDetail, Sprint
 from mcp_tracker.tracker.proto.types.components import Component
+from mcp_tracker.tracker.proto.types.dashboards import (
+    CycleTimeWidget,
+    CycleTimeWidgetInput,
+    Dashboard,
+    DashboardLayout,
+)
 from mcp_tracker.tracker.proto.types.entities import (
     EntityAttachment,
     EntityLink,
@@ -102,10 +110,16 @@ from mcp_tracker.tracker.proto.types.queues import (
     QueueVersion,
 )
 from mcp_tracker.tracker.proto.types.refs import IssueTypeReference
+from mcp_tracker.tracker.proto.types.reports import Report, ReportFormat, ReportSort
 from mcp_tracker.tracker.proto.types.resolutions import Resolution
 from mcp_tracker.tracker.proto.types.statuses import Status, StatusType
 from mcp_tracker.tracker.proto.types.templates import CommentTemplate, IssueTemplate
-from mcp_tracker.tracker.proto.types.users import User, UserAbsences
+from mcp_tracker.tracker.proto.types.users import (
+    AbsenceInput,
+    CreatedAbsence,
+    User,
+    UserAbsences,
+)
 from mcp_tracker.tracker.proto.types.workflows import (
     IssueTypeResolutionsDraft,
     LocalizedText,
@@ -130,6 +144,8 @@ class CacheCollection:
     boards: type[BoardsProtocolWrap]
     components: type[ComponentsProtocolWrap]
     workflows: type[WorkflowsProtocolWrap]
+    reports: type[ReportsProtocolWrap]
+    dashboards: type[DashboardsProtocolWrap]
 
 
 def make_cached_protocols(
@@ -1057,10 +1073,16 @@ def make_cached_protocols(
             file_name: str,
             destination: Path,
             *,
+            thumbnail: bool = False,
             auth: YandexAuth | None = None,
         ) -> int:
             return await self._original.issue_download_attachment(
-                issue_id, attachment_id, file_name, destination, auth=auth
+                issue_id,
+                attachment_id,
+                file_name,
+                destination,
+                thumbnail=thumbnail,
+                auth=auth,
             )
 
         @cached(**cache_config)
@@ -1131,6 +1153,11 @@ def make_cached_protocols(
                 checklist_item_id,
                 auth=auth,
             )
+
+        async def issue_delete_checklist(
+            self, issue_id: str, *, auth: YandexAuth | None = None
+        ) -> None:
+            await self._original.issue_delete_checklist(issue_id, auth=auth)
 
         async def issue_create(
             self,
@@ -1651,6 +1678,16 @@ def make_cached_protocols(
             return await self._original.users_get_absences(
                 users, date_from=date_from, date_to=date_to, auth=auth
             )
+
+        async def users_create_absences(
+            self, absences: list[AbsenceInput], *, auth: YandexAuth | None = None
+        ) -> list[CreatedAbsence]:
+            return await self._original.users_create_absences(absences, auth=auth)
+
+        async def users_delete_absences(
+            self, absence_ids: list[str], *, auth: YandexAuth | None = None
+        ) -> None:
+            await self._original.users_delete_absences(absence_ids, auth=auth)
 
         @cached(**cache_config)
         async def users_list(
@@ -3004,6 +3041,97 @@ def make_cached_protocols(
         ) -> None:
             return await self._original.workflow_delete(workflow_id, auth=auth)
 
+    class CachingReportsProtocol(ReportsProtocolWrap):
+        """Not cached: a report is built right after its create, and the tools
+        are a create / read / delete cycle a stale read would misreport."""
+
+        async def report_create(
+            self,
+            summary: str,
+            *,
+            format: ReportFormat,
+            fields: list[str],
+            query: str | None = None,
+            filter: dict[str, Any] | None = None,
+            filter_id: int | None = None,
+            sorts: list[ReportSort] | None = None,
+            auth: YandexAuth | None = None,
+        ) -> Report:
+            return await self._original.report_create(
+                summary,
+                format=format,
+                fields=fields,
+                query=query,
+                filter=filter,
+                filter_id=filter_id,
+                sorts=sorts,
+                auth=auth,
+            )
+
+        async def report_get(
+            self, report_id: str, *, auth: YandexAuth | None = None
+        ) -> Report:
+            return await self._original.report_get(report_id, auth=auth)
+
+        async def reports_find(
+            self,
+            *,
+            author: str | None = None,
+            per_page: int = 50,
+            page: int = 1,
+            auth: YandexAuth | None = None,
+        ) -> PaginatedResult[Report]:
+            return await self._original.reports_find(
+                author=author, per_page=per_page, page=page, auth=auth
+            )
+
+        async def report_delete(
+            self, report_id: str, *, auth: YandexAuth | None = None
+        ) -> None:
+            await self._original.report_delete(report_id, auth=auth)
+
+    class CachingDashboardsProtocol(DashboardsProtocolWrap):
+        """Not cached: the tools are a create / read / delete cycle, which a
+        cached read would misreport for the rest of the TTL."""
+
+        async def dashboard_create(
+            self,
+            name: str,
+            *,
+            layout: DashboardLayout | None = None,
+            owner: str | None = None,
+            auth: YandexAuth | None = None,
+        ) -> Dashboard:
+            return await self._original.dashboard_create(
+                name, layout=layout, owner=owner, auth=auth
+            )
+
+        async def dashboard_get(
+            self, dashboard_id: int, *, auth: YandexAuth | None = None
+        ) -> Dashboard:
+            return await self._original.dashboard_get(dashboard_id, auth=auth)
+
+        async def dashboards_list(
+            self, *, auth: YandexAuth | None = None
+        ) -> PaginatedResult[Dashboard]:
+            return await self._original.dashboards_list(auth=auth)
+
+        async def dashboard_delete(
+            self, dashboard_id: int, *, auth: YandexAuth | None = None
+        ) -> None:
+            await self._original.dashboard_delete(dashboard_id, auth=auth)
+
+        async def dashboard_add_cycle_time_widget(
+            self,
+            dashboard_id: int,
+            widget: CycleTimeWidgetInput,
+            *,
+            auth: YandexAuth | None = None,
+        ) -> CycleTimeWidget:
+            return await self._original.dashboard_add_cycle_time_widget(
+                dashboard_id, widget, auth=auth
+            )
+
     return CacheCollection(
         queues=CachingQueuesProtocol,
         issues=CachingIssuesProtocol,
@@ -3014,4 +3142,6 @@ def make_cached_protocols(
         boards=CachingBoardsProtocol,
         components=CachingComponentsProtocol,
         workflows=CachingWorkflowsProtocol,
+        reports=CachingReportsProtocol,
+        dashboards=CachingDashboardsProtocol,
     )

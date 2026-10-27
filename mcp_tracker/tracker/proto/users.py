@@ -4,7 +4,7 @@ from typing import Protocol, runtime_checkable
 from .common import YandexAuth
 from .types.pagination import PaginatedResult
 from .types.permissions import Group
-from .types.users import User, UserAbsences
+from .types.users import AbsenceInput, CreatedAbsence, User, UserAbsences
 
 
 @runtime_checkable
@@ -31,6 +31,14 @@ class UsersProtocol(Protocol):
         date_to: datetime.datetime | None = None,
         auth: YandexAuth | None = None,
     ) -> list[UserAbsences]: ...
+
+    async def users_create_absences(
+        self, absences: list[AbsenceInput], *, auth: YandexAuth | None = None
+    ) -> list[CreatedAbsence]: ...
+
+    async def users_delete_absences(
+        self, absence_ids: list[str], *, auth: YandexAuth | None = None
+    ) -> None: ...
 
 
 class UsersProtocolWrap(UsersProtocol):

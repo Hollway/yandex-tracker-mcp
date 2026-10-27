@@ -282,6 +282,7 @@ class IssueProtocol(Protocol):
         file_name: str,
         destination: Path,
         *,
+        thumbnail: bool = False,
         auth: YandexAuth | None = None,
     ) -> int: ...
     async def issues_count(
@@ -321,6 +322,9 @@ class IssueProtocol(Protocol):
         *,
         auth: YandexAuth | None = None,
     ) -> list[ChecklistItem]: ...
+    async def issue_delete_checklist(
+        self, issue_id: str, *, auth: YandexAuth | None = None
+    ) -> None: ...
     async def issue_create(
         self,
         queue: str,

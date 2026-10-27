@@ -984,6 +984,24 @@ def register_issue_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -
             auth=get_yandex_auth(ctx),
         )
 
+    @mcp.tool(
+        title="Delete Issue Checklist",
+        description="Delete the whole checklist ('чеклист') of a Yandex Tracker "
+        "issue, every item at once; issue_delete_checklist_item removes one item.",
+        annotations=ToolAnnotations(
+            read_only_hint=False, destructive_hint=True, idempotent_hint=True
+        ),
+    )
+    async def issue_delete_checklist(
+        ctx: Context[AppContext],
+        issue_id: IssueID,
+    ) -> None:
+        check_issue_access(settings, issue_id, write=True)
+
+        await ctx.request_context.lifespan_context.issues.issue_delete_checklist(
+            issue_id, auth=get_yandex_auth(ctx)
+        )
+
 
 def register_issue_file_upload_tools(
     settings: Settings, mcp: MCPServer[AppContext]

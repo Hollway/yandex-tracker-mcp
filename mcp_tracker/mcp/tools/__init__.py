@@ -16,7 +16,12 @@ This package organizes MCP tools by category:
   mode and tracker_file_upload_enabled)
 - issue_write.py: Issue write tools (conditional on read-only mode); the file upload
   tool additionally needs tracker_file_upload_enabled
+- dashboard.py: Dashboard tools (read-only)
+- dashboard_write.py: Dashboard write tools (conditional on read-only mode)
+- report.py: Issue report tools (read-only)
+- report_write.py: Issue report write tools (conditional on read-only mode)
 - user.py: User-related tools (read-only)
+- user_write.py: User absence write tools (conditional on read-only mode)
 - worklog.py: Worklog search across issues (read-only)
 - workflow.py: Workflow and transition screen tools (read-only)
 - workflow_write.py: Workflow write tools (conditional on read-only mode and
@@ -47,6 +52,8 @@ from mcp_tracker.mcp.tools.board_write import register_board_write_tools
 from mcp_tracker.mcp.tools.catalog_write import register_catalog_write_tools
 from mcp_tracker.mcp.tools.component import register_component_tools
 from mcp_tracker.mcp.tools.component_write import register_component_write_tools
+from mcp_tracker.mcp.tools.dashboard import register_dashboard_tools
+from mcp_tracker.mcp.tools.dashboard_write import register_dashboard_write_tools
 from mcp_tracker.mcp.tools.field import register_field_tools
 from mcp_tracker.mcp.tools.field_write import register_field_write_tools
 from mcp_tracker.mcp.tools.filter import register_filter_tools
@@ -68,8 +75,11 @@ from mcp_tracker.mcp.tools.project import register_project_tools
 from mcp_tracker.mcp.tools.project_write import register_project_write_tools
 from mcp_tracker.mcp.tools.queue import register_queue_tools
 from mcp_tracker.mcp.tools.queue_write import register_queue_write_tools
+from mcp_tracker.mcp.tools.report import register_report_tools
+from mcp_tracker.mcp.tools.report_write import register_report_write_tools
 from mcp_tracker.mcp.tools.template import register_template_tools
 from mcp_tracker.mcp.tools.user import register_user_tools
+from mcp_tracker.mcp.tools.user_write import register_user_write_tools
 from mcp_tracker.mcp.tools.workflow import register_workflow_tools
 from mcp_tracker.mcp.tools.workflow_write import register_workflow_write_tools
 from mcp_tracker.mcp.tools.worklog import register_worklog_tools
@@ -100,6 +110,8 @@ def register_all_tools(settings: Settings, mcp: MCPServer[AppContext]) -> None:
     register_worklog_tools(settings, mcp)
     register_workflow_tools(settings, mcp)
     register_filter_tools(settings, mcp)
+    register_report_tools(settings, mcp)
+    register_dashboard_tools(settings, mcp)
 
     # Changes nothing in Tracker, so it does not depend on tracker_read_only.
     if settings.tracker_attachment_download_enabled:
@@ -117,6 +129,9 @@ def register_all_tools(settings: Settings, mcp: MCPServer[AppContext]) -> None:
         register_component_write_tools(settings, mcp)
         register_issue_write_tools(settings, mcp)
         register_filter_write_tools(settings, mcp)
+        register_user_write_tools(settings, mcp)
+        register_report_write_tools(settings, mcp)
+        register_dashboard_write_tools(settings, mcp)
 
         if settings.tracker_bulk_enabled:
             register_issue_bulk_tools(settings, mcp)

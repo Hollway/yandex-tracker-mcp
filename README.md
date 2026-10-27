@@ -610,10 +610,13 @@ tool does, the columns which name to call:
 | `user_get_current` | The user the current token belongs to | - |
 | `users_search` | Find users by login, email or real name | `login_or_email_or_name` |
 | `users_get_absences` | Vacations, sick leave, trips and other absences overlapping a period; needs organization administrator rights | `users` (up to 100), `date_from`, `date_to` |
+| `users_create_absences` | Record absences and get their ids; needs organization administrator rights | `absences` (up to 100: `user`, `workflow`, `date_from`, `date_to`, `full_day`, `work_in_absence`) |
+| `users_delete_absences` | Delete absences by id; needs organization administrator rights | `absence_ids` (up to 100) |
 | `groups_get_all` | The organization's user groups with the numeric ids queue permissions take; returns `{values, hits, pages}` | `page`, `per_page` |
 
 - `users_search` matches login and email exactly first and falls back to fuzzy name matching (80% similarity, at most the three best matches).
 - The page from `users_get_all` is the last one when `page` equals `pages`.
+- An absence cannot be edited: delete it and create it again. `users_delete_absences` succeeds for an unknown or already deleted id too. Both write tools are not registered in read-only mode and are not covered by the queue restrictions.
 
 </details>
 
@@ -763,7 +766,7 @@ A workflow ('рабочий процесс') is the set of statuses an issue typ
 | `issue_update_worklog` | Edit a worklog entry | `issue_id`, `worklog_id`, `duration`, `comment`, `start` |
 | `issue_delete_worklog` | Delete a worklog entry | `issue_id`, `worklog_id` |
 | `issue_get_attachments` | Attachment metadata | `issue_id`, `fields` |
-| `issue_download_attachment` | Save an attachment to the machine the server runs on, returning its absolute path, MIME type and size | `issue_id`, `attachment_id` from `issue_get_attachments` |
+| `issue_download_attachment` | Save an attachment to the machine the server runs on, returning its absolute path, MIME type and size; with `thumbnail`, Tracker's 140x140 PNG preview of an image instead | `issue_id`, `attachment_id` from `issue_get_attachments`, `thumbnail` |
 | `issue_add_attachment` | Upload a file from the machine the server runs on, returning the attachment; an image shows inline in a description only when embedded as `![name](/ajax/v2/attachments/<id>?inline=true)` | `issue_id`, `file_path`, `filename` |
 | `issue_delete_attachment` | Delete a file attached to an issue - it cannot be restored | `issue_id`, `attachment_id` |
 | `attachment_create` | Upload a file from the machine the server runs on as a temporary attachment, returning the `id` that `attachment_ids` of `issue_add_comment` takes | `file_path`, `filename` |
@@ -771,6 +774,7 @@ A workflow ('рабочий процесс') is the set of statuses an issue typ
 | `issue_add_checklist_items` | Append items in order, creating the checklist if there is none | `issue_id`, `items` (`text`, `checked`, `assignee`, `deadline`) |
 | `issue_update_checklist_item` | Change one item; the fields you omit keep their value | `issue_id`, `checklist_item_id`, `text`, `checked`, `assignee`, `deadline`, `clear_assignee`, `clear_deadline` |
 | `issue_delete_checklist_item` | Delete one item | `issue_id`, `checklist_item_id` |
+| `issue_delete_checklist` | Delete the whole checklist | `issue_id` |
 | `issue_get_transitions` | The status transitions available right now, with their ids | `issue_id` |
 | `issue_execute_transition` | Run a transition, returning the transitions available afterwards | `issue_id`, `transition_id`, `comment`, `fields` |
 | `issue_close` | Find a transition to a done status and run it with a resolution | `issue_id`, `resolution_id`, `comment`, `fields` |
@@ -817,6 +821,37 @@ Downloads are saved under `TRACKER_ATTACHMENTS_DIR` (default `<system temp>/yand
 - `per_page` defaults to 100 and can be lowered when a page does not fit the context window.
 - With both `query` and `filter_id`, only issues matching both come back. The API cannot list saved filters: the id comes from `filter_create` or from the filter's link in Tracker. A filter takes its conditions as either `query` or `filter`, never both.
 - Saved filters belong to no queue, so `TRACKER_LIMIT_QUEUES` and `TRACKER_READ_ONLY_QUEUES` do not apply to the `filter_*` tools. `issues_suggest` drops issues of queues outside `TRACKER_LIMIT_QUEUES` and applies `queue` itself, since Tracker ignores it.
+
+</details>
+
+<details>
+<summary><strong>Reports</strong></summary>
+
+| Tool | What it does | Key arguments |
+| --- | --- | --- |
+| `report_create` | Export the issues a query matches to an xlsx, csv or xml file in Tracker | `summary`, `format`, `fields`, one of `query` / `filter` / `filter_id`, `sorts` |
+| `report_get` | One report: name, status and what it exports | `report_id` (`id` or `shortId`) |
+| `reports_find` | The organization's reports, newest first; returns `{values, hits, pages}` | `author` (login or uid), `page`, `per_page` |
+| `report_delete` | Delete a report | `report_id` |
+
+- The API returns no file: a report is downloaded in Tracker's web interface. To read issues through the server, use `issues_find`.
+- `report_create` is refused under `TRACKER_LIMIT_QUEUES`, since a query may match issues of any queue; the write tools are not registered in read-only mode.
+
+</details>
+
+<details>
+<summary><strong>Dashboards</strong></summary>
+
+| Tool | What it does | Key arguments |
+| --- | --- | --- |
+| `dashboards_get_all` | The organization's dashboards with their owners; returns `{values, hits, pages}` | - |
+| `dashboard_get` | One dashboard with the ids and titles of its widgets | `dashboard_id` |
+| `dashboard_create` | Create an empty dashboard | `name`, `layout`, `owner` |
+| `dashboard_delete` | Delete a dashboard with its widgets | `dashboard_id` |
+| `dashboard_add_cycle_time_widget` | Add a 'Cycle time' chart: how long the issues a query matches take between statuses | `dashboard_id`, `description`, one of `query` / `filter` / `filter_id`, `from_statuses`, `to_statuses`, `bucket`, `lines`, `start`, `end`, `mode` |
+
+- 'Cycle time' is the only widget the API can create; a widget cannot be changed or removed on its own, only with its dashboard.
+- `dashboard_add_cycle_time_widget` is refused under `TRACKER_LIMIT_QUEUES`, like `report_create`; dashboards themselves belong to no queue and are not covered by the queue restrictions.
 
 </details>
 

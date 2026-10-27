@@ -16,10 +16,12 @@ from mcp_tracker.mcp.server import Lifespan, create_mcp_server
 from mcp_tracker.settings import Settings
 from mcp_tracker.tracker.proto.boards import BoardsProtocol
 from mcp_tracker.tracker.proto.components import ComponentsProtocol
+from mcp_tracker.tracker.proto.dashboards import DashboardsProtocol
 from mcp_tracker.tracker.proto.entities import EntitiesProtocol
 from mcp_tracker.tracker.proto.fields import GlobalDataProtocol
 from mcp_tracker.tracker.proto.issues import IssueProtocol
 from mcp_tracker.tracker.proto.queues import QueuesProtocol
+from mcp_tracker.tracker.proto.reports import ReportsProtocol
 from mcp_tracker.tracker.proto.templates import TemplatesProtocol
 from mcp_tracker.tracker.proto.types.pagination import PaginatedResult
 from mcp_tracker.tracker.proto.users import UsersProtocol
@@ -214,6 +216,18 @@ def mock_workflows_protocol() -> AsyncMock:
 
 
 @pytest.fixture
+def mock_reports_protocol() -> AsyncMock:
+    """Create a mock ReportsProtocol."""
+    return AsyncMock(spec=ReportsProtocol)
+
+
+@pytest.fixture
+def mock_dashboards_protocol() -> AsyncMock:
+    """Create a mock DashboardsProtocol."""
+    return AsyncMock(spec=DashboardsProtocol)
+
+
+@pytest.fixture
 def mock_app_context(
     mock_queues_protocol: AsyncMock,
     mock_issues_protocol: AsyncMock,
@@ -224,6 +238,8 @@ def mock_app_context(
     mock_boards_protocol: AsyncMock,
     mock_components_protocol: AsyncMock,
     mock_workflows_protocol: AsyncMock,
+    mock_reports_protocol: AsyncMock,
+    mock_dashboards_protocol: AsyncMock,
 ) -> AppContext:
     """Create AppContext with mock protocols."""
     return AppContext(
@@ -236,6 +252,8 @@ def mock_app_context(
         boards=mock_boards_protocol,
         components=mock_components_protocol,
         workflows=mock_workflows_protocol,
+        reports=mock_reports_protocol,
+        dashboards=mock_dashboards_protocol,
     )
 
 

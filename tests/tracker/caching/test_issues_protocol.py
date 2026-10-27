@@ -341,7 +341,7 @@ class TestCachingIssuesProtocol:
         # It writes a file: answering the second call from the cache would skip it.
         assert mock_original.issue_download_attachment.call_count == 2
         mock_original.issue_download_attachment.assert_called_with(
-            "TEST-1", "7946", "a.png", destination, auth=yandex_auth
+            "TEST-1", "7946", "a.png", destination, thumbnail=False, auth=yandex_auth
         )
         assert first == second == 1024
 
@@ -416,6 +416,15 @@ class TestCachingIssuesProtocol:
             "TEST-1", "item-1", auth=None
         )
         assert result == mock_original.issue_delete_checklist_item.return_value
+
+    async def test_issue_delete_checklist_calls_original(
+        self, caching_issues_protocol: Any, mock_original: AsyncMock
+    ) -> None:
+        await caching_issues_protocol.issue_delete_checklist("TEST-1")
+
+        mock_original.issue_delete_checklist.assert_called_once_with(
+            "TEST-1", auth=None
+        )
 
     async def test_issue_get_transitions_calls_original(
         self,

@@ -26,6 +26,7 @@ from yarl import URL
 from mcp_tracker.tracker.custom.errors import (
     AbsencesForbidden,
     AttachmentNotFound,
+    AttachmentThumbnailNotFound,
     AttachmentTooLarge,
     AutoactionNotFound,
     BoardColumnEmptyUpdate,
@@ -44,6 +45,7 @@ from mcp_tracker.tracker.custom.errors import (
     ComponentEmptyUpdate,
     ComponentNotFound,
     ComponentVersionConflict,
+    DashboardNotFound,
     EntityHasNoParent,
     EntityItemEmptyUpdate,
     EntityItemNotFound,
@@ -85,13 +87,21 @@ from mcp_tracker.tracker.custom.errors import (
 from mcp_tracker.tracker.proto.boards import BoardsProtocol
 from mcp_tracker.tracker.proto.common import YandexAuth
 from mcp_tracker.tracker.proto.components import ComponentsProtocol
+from mcp_tracker.tracker.proto.dashboards import DashboardsProtocol
 from mcp_tracker.tracker.proto.entities import EntitiesProtocol
 from mcp_tracker.tracker.proto.fields import GlobalDataProtocol
 from mcp_tracker.tracker.proto.issues import IssueProtocol
 from mcp_tracker.tracker.proto.queues import QueuesProtocol
+from mcp_tracker.tracker.proto.reports import ReportsProtocol
 from mcp_tracker.tracker.proto.templates import TemplatesProtocol
 from mcp_tracker.tracker.proto.types.boards import Board, BoardColumnDetail, Sprint
 from mcp_tracker.tracker.proto.types.components import Component
+from mcp_tracker.tracker.proto.types.dashboards import (
+    CycleTimeWidget,
+    CycleTimeWidgetInput,
+    Dashboard,
+    DashboardLayout,
+)
 from mcp_tracker.tracker.proto.types.entities import (
     DEFAULT_ENTITY_FIELDS_PARAM,
     DEFAULT_LINK_FIELDS,
@@ -183,10 +193,13 @@ from mcp_tracker.tracker.proto.types.queues import (
     QueueVersion,
 )
 from mcp_tracker.tracker.proto.types.refs import IssueTypeReference
+from mcp_tracker.tracker.proto.types.reports import Report, ReportFormat, ReportSort
 from mcp_tracker.tracker.proto.types.resolutions import Resolution
 from mcp_tracker.tracker.proto.types.statuses import Status, StatusType
 from mcp_tracker.tracker.proto.types.templates import CommentTemplate, IssueTemplate
 from mcp_tracker.tracker.proto.types.users import (
+    AbsenceInput,
+    CreatedAbsence,
     User,
     UserAbsences,
 )
@@ -233,6 +246,29 @@ EntityAttachmentList = RootModel[list[EntityAttachment]]
 class AbsenceSearchPage(BaseModel):
     user_gaps: list[UserAbsences] = Field(default_factory=list, alias="userGaps")
     has_more: bool = Field(False, alias="hasMore")
+
+
+class CreatedAbsences(BaseModel):
+    gaps: list[CreatedAbsence] = Field(default_factory=list)
+
+
+DashboardList = RootModel[list[Dashboard]]
+
+# `POST v3/dashboards/_search` ignores `page` and caps `perPage` at 500
+# (verified 2026-10-27), so one request at the cap is the whole listing.
+_DASHBOARDS_PER_PAGE = 500
+
+
+class ReportSearchPage(BaseModel):
+    values: list[Report] = Field(default_factory=list)
+    hits: int | None = None
+    pages: int | None = None
+
+
+# What a report read asks for. `parameters` answers 500 on the search (verified
+# 2026-10-26), so the listing goes without it.
+_REPORT_FIELDS = "summary,entityStatus,parameters"
+_REPORT_SEARCH_FIELDS = "summary,entityStatus"
 
 
 ChecklistItemList = RootModel[list[ChecklistItem]]
@@ -627,6 +663,8 @@ class TrackerClient(
     BoardsProtocol,
     ComponentsProtocol,
     WorkflowsProtocol,
+    ReportsProtocol,
+    DashboardsProtocol,
 ):
     def __init__(
         self,
@@ -2774,9 +2812,14 @@ class TrackerClient(
         file_name: str,
         destination: Path,
         *,
+        thumbnail: bool = False,
         auth: YandexAuth | None = None,
     ) -> int:
         """Stream an attachment into `destination`; returns the bytes written.
+
+        With `thumbnail` it is Tracker's preview instead,
+        `GET v3/issues/{id}/thumbnails/{attachmentId}` - a 140x140 PNG whatever
+        the image's own format, and a 404 for anything but an image.
 
         The URL needs the attachment's name as its last segment; it and the id
         are quoted whole: a name is free text, and a `/` or `..` left in either
@@ -2788,12 +2831,24 @@ class TrackerClient(
         actually received are held to `max_attachment_bytes`.
         """
         limit = self._max_attachment_bytes
+        attachment = quote(attachment_id, safe="")
+        url, not_found = (
+            (
+                f"v3/issues/{issue_id}/thumbnails/{attachment}",
+                AttachmentThumbnailNotFound(issue_id, attachment_id),
+            )
+            if thumbnail
+            else (
+                f"v3/issues/{issue_id}/attachments/{attachment}/"
+                f"{quote(file_name, safe='')}",
+                AttachmentNotFound(issue_id, attachment_id),
+            )
+        )
         async with self._request(
             "GET",
-            f"v3/issues/{issue_id}/attachments/{quote(attachment_id, safe='')}/"
-            f"{quote(file_name, safe='')}",
+            url,
             auth=auth,
-            not_found=AttachmentNotFound(issue_id, attachment_id),
+            not_found=not_found,
             timeout=self._attachment_timeout,
             timeout_setting="TRACKER_ATTACHMENT_TIMEOUT",
         ) as response:
@@ -2858,6 +2913,242 @@ class TrackerClient(
             if not found.has_more or not found.user_gaps:
                 return result
             page += 1
+
+    async def users_create_absences(
+        self, absences: list[AbsenceInput], *, auth: YandexAuth | None = None
+    ) -> list[CreatedAbsence]:
+        """Create absences, `POST v3/gaps` (at most 100, admins only).
+
+        No `id` is sent: Tracker answers 500 to one that already exists rather
+        than updating that absence (verified 2026-10-26).
+        """
+        gaps: list[dict[str, Any]] = []
+        for absence in absences:
+            gap: dict[str, Any] = {
+                "user": absence.user,
+                "workflow": absence.workflow,
+                "from": _tracker_datetime(absence.date_from),
+                "to": _tracker_datetime(absence.date_to),
+            }
+            if absence.full_day is not None:
+                gap["fullDay"] = absence.full_day
+            if absence.work_in_absence is not None:
+                gap["workInAbsence"] = absence.work_in_absence
+            gaps.append(gap)
+        try:
+            raw = await self._read("POST", "v3/gaps", auth=auth, json={"gaps": gaps})
+        except TrackerAPIError as exc:
+            if exc.status == 403:
+                raise AbsencesForbidden("create") from exc
+            raise
+        return CreatedAbsences.model_validate_json(raw).gaps
+
+    async def users_delete_absences(
+        self, absence_ids: list[str], *, auth: YandexAuth | None = None
+    ) -> None:
+        """Delete absences, `DELETE v3/gaps?gapIds=a,b` (at most 100, admins only).
+
+        Tracker answers 204 for an unknown or already deleted id as well.
+        """
+        try:
+            await self._read(
+                "DELETE", "v3/gaps", auth=auth, params={"gapIds": ",".join(absence_ids)}
+            )
+        except TrackerAPIError as exc:
+            if exc.status == 403:
+                raise AbsencesForbidden("delete") from exc
+            raise
+
+    async def dashboard_create(
+        self,
+        name: str,
+        *,
+        layout: DashboardLayout | None = None,
+        owner: str | None = None,
+        auth: YandexAuth | None = None,
+    ) -> Dashboard:
+        body: dict[str, Any] = {"name": name}
+        if layout is not None:
+            body["layout"] = layout
+        if owner is not None:
+            body["owner"] = owner
+        return Dashboard.model_validate_json(
+            await self._read("POST", "v3/dashboards", auth=auth, json=body)
+        )
+
+    async def dashboard_get(
+        self, dashboard_id: int, *, auth: YandexAuth | None = None
+    ) -> Dashboard:
+        return Dashboard.model_validate_json(
+            await self._read(
+                "GET",
+                f"v3/dashboards/{dashboard_id}",
+                auth=auth,
+                not_found=DashboardNotFound(dashboard_id),
+            )
+        )
+
+    async def dashboards_list(
+        self, *, auth: YandexAuth | None = None
+    ) -> PaginatedResult[Dashboard]:
+        """Every dashboard, `POST v3/dashboards/_search` (undocumented)."""
+        async with self._request(
+            "POST",
+            "v3/dashboards/_search",
+            auth=auth,
+            params={"perPage": _DASHBOARDS_PER_PAGE},
+            json={},
+        ) as response:
+            return self._paginated(
+                response,
+                DashboardList.model_validate_json(await response.read()).root,
+            )
+
+    async def dashboard_delete(
+        self, dashboard_id: int, *, auth: YandexAuth | None = None
+    ) -> None:
+        """`DELETE v3/dashboards/{id}` (undocumented): 204, the widgets go too."""
+        await self._read(
+            "DELETE",
+            f"v3/dashboards/{dashboard_id}",
+            auth=auth,
+            not_found=DashboardNotFound(dashboard_id),
+        )
+
+    async def dashboard_add_cycle_time_widget(
+        self,
+        dashboard_id: int,
+        widget: CycleTimeWidgetInput,
+        *,
+        auth: YandexAuth | None = None,
+    ) -> CycleTimeWidget:
+        body: dict[str, Any] = {"description": widget.description}
+        for key, value in (
+            ("query", widget.query),
+            ("filter", widget.filter),
+            ("filterId", widget.filter_id),
+            ("calendar", widget.calendar_id),
+            ("start", widget.start),
+            ("end", widget.end),
+            ("mode", widget.mode),
+        ):
+            if value is not None:
+                body[key] = value
+        for key, statuses in (
+            ("fromStatuses", widget.from_statuses),
+            ("toStatuses", widget.to_statuses),
+            ("excludedStatuses", widget.excluded_statuses),
+            ("includedStatuses", widget.included_statuses),
+        ):
+            if statuses is not None:
+                body[key] = [{"key": status} for status in statuses]
+        if widget.bucket is not None:
+            body["bucket"] = widget.bucket.model_dump(by_alias=True, exclude_none=True)
+        if widget.lines is not None:
+            body["lines"] = widget.lines.model_dump(by_alias=True, exclude_none=True)
+        return CycleTimeWidget.model_validate_json(
+            await self._read(
+                "POST",
+                f"v3/dashboards/{dashboard_id}/widgets/cycleTime",
+                auth=auth,
+                json=body,
+                not_found=DashboardNotFound(dashboard_id),
+            )
+        )
+
+    async def report_create(
+        self,
+        summary: str,
+        *,
+        format: ReportFormat,
+        fields: list[str],
+        query: str | None = None,
+        filter: dict[str, Any] | None = None,
+        filter_id: int | None = None,
+        sorts: list[ReportSort] | None = None,
+        auth: YandexAuth | None = None,
+    ) -> Report:
+        """Create an issue export, `POST v3/entities/report/` (trailing slash).
+
+        Tracker builds the file within a second or so; the API offers no way to
+        fetch it (verified 2026-10-26).
+        """
+        issue_filter: dict[str, Any] = {}
+        if query is not None:
+            issue_filter["query"] = query
+        if filter is not None:
+            issue_filter["filter"] = filter
+        if filter_id is not None:
+            issue_filter["filterId"] = filter_id
+        if sorts:
+            issue_filter["sorts"] = [sort.model_dump(by_alias=True) for sort in sorts]
+        body = {
+            "fields": {
+                "summary": summary,
+                "parameters": {
+                    "type": "issueFilterExport",
+                    "format": format,
+                    "filter": issue_filter,
+                    "fields": fields,
+                },
+            }
+        }
+        created = Report.model_validate_json(
+            await self._read("POST", "v3/entities/report/", auth=auth, json=body)
+        )
+        return created.model_copy(update={"summary": summary})
+
+    async def report_get(
+        self, report_id: str, *, auth: YandexAuth | None = None
+    ) -> Report:
+        return Report.model_validate_json(
+            await self._read(
+                "GET",
+                f"v3/entities/report/{quote(report_id, safe='')}",
+                auth=auth,
+                params={"fields": _REPORT_FIELDS},
+            )
+        )
+
+    async def reports_find(
+        self,
+        *,
+        author: str | None = None,
+        per_page: int = 50,
+        page: int = 1,
+        auth: YandexAuth | None = None,
+    ) -> PaginatedResult[Report]:
+        """Reports, newest first, `POST v3/entities/report/_search`.
+
+        The totals come in the body, not in headers; `author` takes a uid only -
+        a login matches nothing.
+        """
+        body: dict[str, Any] = {"orderBy": "createdAt", "orderAsc": False}
+        if author is not None:
+            body["filter"] = {"author": author}
+        found = ReportSearchPage.model_validate_json(
+            await self._read(
+                "POST",
+                "v3/entities/report/_search",
+                auth=auth,
+                params={
+                    "fields": _REPORT_SEARCH_FIELDS,
+                    "perPage": per_page,
+                    "page": page,
+                },
+                json=body,
+            )
+        )
+        return PaginatedResult[Report](
+            values=found.values, hits=found.hits, pages=found.pages
+        )
+
+    async def report_delete(
+        self, report_id: str, *, auth: YandexAuth | None = None
+    ) -> None:
+        await self._read(
+            "DELETE", f"v3/entities/report/{quote(report_id, safe='')}", auth=auth
+        )
 
     async def users_list(
         self, per_page: int = 50, page: int = 1, *, auth: YandexAuth | None = None
@@ -3052,6 +3343,21 @@ class TrackerClient(
             return _IssueChecklist.model_validate_json(
                 await response.read()
             ).checklistItems
+
+    async def issue_delete_checklist(
+        self, issue_id: str, *, auth: YandexAuth | None = None
+    ) -> None:
+        """Delete every item of the checklist, `DELETE v3/issues/{id}/checklistItems`.
+
+        Answers 200 with the whole issue, an empty checklist included, and bumps
+        the issue's version either way (verified 2026-10-26).
+        """
+        await self._read(
+            "DELETE",
+            f"v3/issues/{issue_id}/checklistItems",
+            auth=auth,
+            not_found=IssueNotFound(issue_id),
+        )
 
     async def issues_count(
         self,

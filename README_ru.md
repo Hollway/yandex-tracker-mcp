@@ -607,10 +607,13 @@ claude mcp add yandex-tracker docker "run --rm -i -e TRACKER_TOKEN=ваш_ток
 | `user_get_current` | Пользователь, которому принадлежит текущий токен | - |
 | `users_search` | Поиск пользователей по логину, email или имени | `login_or_email_or_name` |
 | `users_get_absences` | Отпуска, больничные, командировки и другие отсутствия, пересекающие период; нужны права администратора организации | `users` (до 100), `date_from`, `date_to` |
+| `users_create_absences` | Завести отсутствия и получить их id; нужны права администратора организации | `absences` (до 100: `user`, `workflow`, `date_from`, `date_to`, `full_day`, `work_in_absence`) |
+| `users_delete_absences` | Удалить отсутствия по id; нужны права администратора организации | `absence_ids` (до 100) |
 | `groups_get_all` | Группы пользователей организации с числовыми id, которые принимают права очереди; возвращает `{values, hits, pages}` | `page`, `per_page` |
 
 - `users_search` сначала ищет точное совпадение по логину и email, затем — нечёткое по имени (порог схожести 80%, не более трёх лучших совпадений).
 - Страница `users_get_all` — последняя, когда `page` равен `pages`.
+- Отсутствие нельзя изменить: удалите его и заведите заново. `users_delete_absences` проходит без ошибки и для неизвестного или уже удалённого id. Оба пишущих инструмента не регистрируются в режиме только для чтения и не подпадают под ограничения по очередям.
 
 </details>
 
@@ -760,7 +763,7 @@ claude mcp add yandex-tracker docker "run --rm -i -e TRACKER_TOKEN=ваш_ток
 | `issue_update_worklog` | Изменить запись о времени | `issue_id`, `worklog_id`, `duration`, `comment`, `start` |
 | `issue_delete_worklog` | Удалить запись о времени | `issue_id`, `worklog_id` |
 | `issue_get_attachments` | Метаданные вложений | `issue_id`, `fields` |
-| `issue_download_attachment` | Сохранить вложение на машину, где работает сервер, и вернуть абсолютный путь, MIME-тип и размер | `issue_id`, `attachment_id` из `issue_get_attachments` |
+| `issue_download_attachment` | Сохранить вложение на машину, где работает сервер, и вернуть абсолютный путь, MIME-тип и размер; с `thumbnail` — вместо файла миниатюру картинки, PNG 140×140 | `issue_id`, `attachment_id` из `issue_get_attachments`, `thumbnail` |
 | `issue_add_attachment` | Загрузить файл с машины, на которой работает сервер, и вернуть вложение; изображение показывается в описании, только если вставить его как `![name](/ajax/v2/attachments/<id>?inline=true)` | `issue_id`, `file_path`, `filename` |
 | `issue_delete_attachment` | Удалить файл, прикреплённый к задаче, - восстановить его нельзя | `issue_id`, `attachment_id` |
 | `attachment_create` | Загрузить файл с машины, где работает сервер, как временное вложение и вернуть `id`, который принимает `attachment_ids` у `issue_add_comment` | `file_path`, `filename` |
@@ -768,6 +771,7 @@ claude mcp add yandex-tracker docker "run --rm -i -e TRACKER_TOKEN=ваш_ток
 | `issue_add_checklist_items` | Добавить пункты по порядку, создав чек-лист, если его не было | `issue_id`, `items` (`text`, `checked`, `assignee`, `deadline`) |
 | `issue_update_checklist_item` | Изменить один пункт; непереданные поля сохраняют значение | `issue_id`, `checklist_item_id`, `text`, `checked`, `assignee`, `deadline`, `clear_assignee`, `clear_deadline` |
 | `issue_delete_checklist_item` | Удалить один пункт | `issue_id`, `checklist_item_id` |
+| `issue_delete_checklist` | Удалить весь чек-лист | `issue_id` |
 | `issue_get_transitions` | Переходы по статусам, доступные сейчас, с их id | `issue_id` |
 | `issue_execute_transition` | Выполнить переход; возвращает переходы, доступные после него | `issue_id`, `transition_id`, `comment`, `fields` |
 | `issue_close` | Найти переход в статус «готово» и выполнить его с резолюцией | `issue_id`, `resolution_id`, `comment`, `fields` |
@@ -814,6 +818,37 @@ claude mcp add yandex-tracker docker "run --rm -i -e TRACKER_TOKEN=ваш_ток
 - `per_page` по умолчанию 100 и может быть уменьшен, если страница не влезает в контекст.
 - С `query` и `filter_id` вместе возвращаются задачи, подходящие под оба. Списка сохранённых фильтров в API нет: id берётся из `filter_create` или из ссылки на фильтр в Трекере. Условия фильтра задаются либо `query`, либо `filter`, но не обоими.
 - Сохранённый фильтр не принадлежит очереди, поэтому `TRACKER_LIMIT_QUEUES` и `TRACKER_READ_ONLY_QUEUES` на инструменты `filter_*` не действуют. `issues_suggest` отбрасывает задачи очередей вне `TRACKER_LIMIT_QUEUES` и сам применяет `queue`, потому что Трекер его игнорирует.
+
+</details>
+
+<details>
+<summary><strong>Отчёты</strong></summary>
+
+| Инструмент | Что делает | Ключевые аргументы |
+| --- | --- | --- |
+| `report_create` | Выгрузить задачи, подходящие под запрос, в файл xlsx, csv или xml в Трекере | `summary`, `format`, `fields`, одно из `query` / `filter` / `filter_id`, `sorts` |
+| `report_get` | Один отчёт: название, статус и что он выгружает | `report_id` (`id` или `shortId`) |
+| `reports_find` | Отчёты организации, новые первыми; возвращает `{values, hits, pages}` | `author` (логин или uid), `page`, `per_page` |
+| `report_delete` | Удалить отчёт | `report_id` |
+
+- Файл через API не получить: отчёт скачивается в веб-интерфейсе Трекера. Чтобы прочитать задачи через сервер, используйте `issues_find`.
+- `report_create` не работает при `TRACKER_LIMIT_QUEUES`: запрос может захватить задачи любой очереди; пишущие инструменты не регистрируются в режиме только для чтения.
+
+</details>
+
+<details>
+<summary><strong>Дашборды</strong></summary>
+
+| Инструмент | Что делает | Ключевые аргументы |
+| --- | --- | --- |
+| `dashboards_get_all` | Дашборды организации с владельцами; возвращает `{values, hits, pages}` | - |
+| `dashboard_get` | Один дашборд с id и названиями его виджетов | `dashboard_id` |
+| `dashboard_create` | Создать пустой дашборд | `name`, `layout`, `owner` |
+| `dashboard_delete` | Удалить дашборд вместе с виджетами | `dashboard_id` |
+| `dashboard_add_cycle_time_widget` | Добавить диаграмму «Время цикла»: сколько задачи, подходящие под запрос, проводят между статусами | `dashboard_id`, `description`, одно из `query` / `filter` / `filter_id`, `from_statuses`, `to_statuses`, `bucket`, `lines`, `start`, `end`, `mode` |
+
+- «Время цикла» — единственный виджет, который умеет создавать API; изменить или удалить виджет отдельно нельзя, только вместе с дашбордом.
+- `dashboard_add_cycle_time_widget` не работает при `TRACKER_LIMIT_QUEUES`, как и `report_create`; сами дашборды не принадлежат очереди и под ограничения по очередям не подпадают.
 
 </details>
 
