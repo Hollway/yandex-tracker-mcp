@@ -46,6 +46,11 @@ class BoardColumnDetail(BaseTrackerEntity):
         None, exclude_if=none_excluder, description="Column identifier"
     )
     name: str | None = NoneExcludedField
+    limit: int | None = Field(
+        None,
+        exclude_if=none_excluder,
+        description="Most issues the column should hold; absent when unlimited",
+    )
     statuses: list[BoardColumnStatus] | None = Field(
         None,
         exclude_if=none_excluder,

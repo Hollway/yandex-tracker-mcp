@@ -12,6 +12,8 @@ from mcp_tracker.mcp.params import (
     CursorPerPageParam,
     IssueID,
     IssueIDs,
+    IssueSearchFieldsParam,
+    IssueSearchIncludeDescriptionParam,
     PageParam,
     PerPageParam,
     YTQuery,
@@ -53,6 +55,61 @@ from mcp_tracker.tracker.proto.types.issues import (
     resolve_issue_field,
 )
 from mcp_tracker.tracker.proto.types.pagination import PaginatedResult
+
+
+async def find_issues(
+    ctx: Context[AppContext],
+    settings: Settings,
+    query: str,
+    *,
+    include_description: bool,
+    fields: list[str] | None,
+    page: int,
+    per_page: int,
+) -> PaginatedResult[Issue]:
+    """One page of a YQL search, the way the issue search tools return it.
+
+    Issues of a queue that forbids AI tools come back as bare restricted rows,
+    the description is dropped unless asked for, and a `fields` projection is
+    trimmed to exactly what was asked.
+    """
+    api_fields: list[str] | None = None
+    selected: set[str] | None = None
+    if fields is not None:
+        resolved = [resolve_issue_field(name) for name in fields]
+        # Asking for both spellings of one field would send it to the API twice.
+        api_fields = list(dict.fromkeys(api for api, _ in resolved))
+        selected = {key for _, key in resolved}
+        # The key names the issue's queue, which the AI access check needs;
+        # it is trimmed away again below unless it was asked for.
+        if "key" not in api_fields:
+            api_fields.append("key")
+
+    result = await ctx.request_context.lifespan_context.issues.issues_find(
+        query=query,
+        per_page=per_page,
+        page=page,
+        fields=api_fields,
+        auth=get_yandex_auth(ctx),
+    )
+
+    result.values = await hide_ai_restricted(ctx, settings, result.values)
+
+    # A description asked for through `fields` is an explicit request for it,
+    # so it is not stripped by `include_description` defaulting to False.
+    if not include_description and "description" not in (selected or ()):
+        for issue in result.values:
+            issue.description = None  # Clear description to save context
+
+    if selected is not None:
+        # Tracker sends `self`, `id`, `version` and `favorite` on top of any
+        # projection, so the response still needs trimming to what was asked for.
+        set_non_needed_fields_null(
+            [issue for issue in result.values if not is_restricted_row(issue)],
+            selected,
+        )
+
+    return result
 
 
 def register_issue_read_tools(settings: Settings, mcp: MCPServer[AppContext]) -> None:
@@ -178,64 +235,20 @@ def register_issue_read_tools(settings: Settings, mcp: MCPServer[AppContext]) ->
     async def issues_find(
         ctx: Context[AppContext],
         query: YTQuery,
-        include_description: Annotated[
-            bool,
-            Field(
-                description="Whether to include the issue description; it can be large. "
-                "Ignored when `description` is listed in `fields`.",
-            ),
-        ] = False,
-        fields: Annotated[
-            list[str] | None,
-            Field(
-                description="Fields to return, in Tracker's own spelling "
-                "(`storyPoints`, not `story_points`); the standard ones are in this "
-                "tool's output schema. For a queue's local or the organization's "
-                "custom fields, pass the field `id` from `queue_get_fields`. An "
-                "unknown name is dropped silently, so check there if a field comes "
-                "back missing. Omitting this returns ALL fields."
-            ),
-        ] = None,
+        include_description: IssueSearchIncludeDescriptionParam = False,
+        fields: IssueSearchFieldsParam = None,
         page: PageParam = 1,
         per_page: PerPageParam = 100,
     ) -> PaginatedResult[Issue]:
-        api_fields: list[str] | None = None
-        selected: set[str] | None = None
-        if fields is not None:
-            resolved = [resolve_issue_field(name) for name in fields]
-            # Asking for both spellings of one field would send it to the API twice.
-            api_fields = list(dict.fromkeys(api for api, _ in resolved))
-            selected = {key for _, key in resolved}
-            # The key names the issue's queue, which the AI access check needs;
-            # it is trimmed away again below unless it was asked for.
-            if "key" not in api_fields:
-                api_fields.append("key")
-
-        result = await ctx.request_context.lifespan_context.issues.issues_find(
-            query=query,
-            per_page=per_page,
+        return await find_issues(
+            ctx,
+            settings,
+            query,
+            include_description=include_description,
+            fields=fields,
             page=page,
-            fields=api_fields,
-            auth=get_yandex_auth(ctx),
+            per_page=per_page,
         )
-
-        result.values = await hide_ai_restricted(ctx, settings, result.values)
-
-        # A description asked for through `fields` is an explicit request for it,
-        # so it is not stripped by `include_description` defaulting to False.
-        if not include_description and "description" not in (selected or ()):
-            for issue in result.values:
-                issue.description = None  # Clear description to save context
-
-        if selected is not None:
-            # Tracker sends `self`, `id`, `version` and `favorite` on top of any
-            # projection, so the response still needs trimming to what was asked for.
-            set_non_needed_fields_null(
-                [issue for issue in result.values if not is_restricted_row(issue)],
-                selected,
-            )
-
-        return result
 
     @mcp.tool(
         title="Count Issues",

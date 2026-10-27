@@ -6,6 +6,7 @@ import pytest
 from mcp_tracker.tracker.caching.client import make_cached_protocols
 from mcp_tracker.tracker.proto.common import YandexAuth
 from mcp_tracker.tracker.proto.types.boards import Board, BoardColumnDetail, Sprint
+from mcp_tracker.tracker.proto.types.inputs import BoardColumnInput
 
 
 class TestCachingBoardsProtocol:
@@ -127,3 +128,72 @@ class TestCachingBoardsProtocol:
             4401, version=2, auth=yandex_auth
         )
         mock_original.sprint_delete.assert_called_once_with(4401, auth=yandex_auth)
+
+    async def test_board_get_column_is_cached(
+        self,
+        caching_boards_protocol: Any,
+        mock_original: AsyncMock,
+        yandex_auth: YandexAuth,
+    ) -> None:
+        mock_original.board_get_column.return_value = BoardColumnDetail(id=7)
+
+        for _ in range(2):
+            result = await caching_boards_protocol.board_get_column(
+                163, 7, auth=yandex_auth
+            )
+
+        mock_original.board_get_column.assert_called_once_with(163, 7, auth=yandex_auth)
+        assert result == BoardColumnDetail(id=7)
+
+    async def test_board_writes_are_passthroughs(
+        self,
+        caching_boards_protocol: Any,
+        mock_original: AsyncMock,
+        yandex_auth: YandexAuth,
+    ) -> None:
+        columns = [BoardColumnInput(name="To Do", statuses=["open"])]
+        await caching_boards_protocol.board_create(
+            name="B",
+            columns=columns,
+            owner="me",
+            private=True,
+            sprints=True,
+            auto_filter={"queue": ["DEV"]},
+            auth=yandex_auth,
+        )
+        await caching_boards_protocol.board_update(
+            163, version=2, name="N", columns=columns, sprints=False, auth=yandex_auth
+        )
+        await caching_boards_protocol.board_delete(163, auth=yandex_auth)
+        await caching_boards_protocol.board_create_column(
+            163, name="C", statuses=["open"], limit=2, version=3, auth=yandex_auth
+        )
+        await caching_boards_protocol.board_update_column(
+            163, 7, version=4, name="D", statuses=["closed"], limit=1, auth=yandex_auth
+        )
+        await caching_boards_protocol.board_delete_column(
+            163, 7, version=5, auth=yandex_auth
+        )
+
+        mock_original.board_create.assert_called_once_with(
+            name="B",
+            columns=columns,
+            owner="me",
+            private=True,
+            sprints=True,
+            auto_filter={"queue": ["DEV"]},
+            auth=yandex_auth,
+        )
+        mock_original.board_update.assert_called_once_with(
+            163, version=2, name="N", columns=columns, sprints=False, auth=yandex_auth
+        )
+        mock_original.board_delete.assert_called_once_with(163, auth=yandex_auth)
+        mock_original.board_create_column.assert_called_once_with(
+            163, name="C", statuses=["open"], limit=2, version=3, auth=yandex_auth
+        )
+        mock_original.board_update_column.assert_called_once_with(
+            163, 7, version=4, name="D", statuses=["closed"], limit=1, auth=yandex_auth
+        )
+        mock_original.board_delete_column.assert_called_once_with(
+            163, 7, version=5, auth=yandex_auth
+        )

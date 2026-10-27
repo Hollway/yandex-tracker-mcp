@@ -33,6 +33,7 @@ from mcp_tracker.tracker.proto.types.fields import (
     LocalField,
 )
 from mcp_tracker.tracker.proto.types.inputs import (
+    BoardColumnInput,
     ChecklistItemDeadlineInput,
     ChecklistItemInput,
     EntityChecklistItemUpdateInput,
@@ -2328,6 +2329,109 @@ def make_cached_protocols(
             self, board_id: int, *, auth: YandexAuth | None = None
         ) -> list[BoardColumnDetail]:
             return await self._original.board_get_columns(board_id, auth=auth)
+
+        @cached(**cache_config)
+        async def board_get_column(
+            self, board_id: int, column_id: int, *, auth: YandexAuth | None = None
+        ) -> BoardColumnDetail:
+            return await self._original.board_get_column(board_id, column_id, auth=auth)
+
+        async def board_create(
+            self,
+            *,
+            name: str,
+            columns: list[BoardColumnInput] | None = None,
+            owner: str | None = None,
+            private: bool | None = None,
+            sprints: bool | None = None,
+            auto_filter: dict[str, list[str]] | None = None,
+            auth: YandexAuth | None = None,
+        ) -> Board:
+            return await self._original.board_create(
+                name=name,
+                columns=columns,
+                owner=owner,
+                private=private,
+                sprints=sprints,
+                auto_filter=auto_filter,
+                auth=auth,
+            )
+
+        async def board_update(
+            self,
+            board_id: int,
+            *,
+            version: int | None = None,
+            name: str | None = None,
+            columns: list[BoardColumnInput] | None = None,
+            sprints: bool | None = None,
+            auth: YandexAuth | None = None,
+        ) -> Board:
+            return await self._original.board_update(
+                board_id,
+                version=version,
+                name=name,
+                columns=columns,
+                sprints=sprints,
+                auth=auth,
+            )
+
+        async def board_delete(
+            self, board_id: int, *, auth: YandexAuth | None = None
+        ) -> None:
+            return await self._original.board_delete(board_id, auth=auth)
+
+        async def board_create_column(
+            self,
+            board_id: int,
+            *,
+            name: str,
+            statuses: list[str],
+            limit: int | None = None,
+            version: int | None = None,
+            auth: YandexAuth | None = None,
+        ) -> BoardColumnDetail:
+            return await self._original.board_create_column(
+                board_id,
+                name=name,
+                statuses=statuses,
+                limit=limit,
+                version=version,
+                auth=auth,
+            )
+
+        async def board_update_column(
+            self,
+            board_id: int,
+            column_id: int,
+            *,
+            version: int | None = None,
+            name: str | None = None,
+            statuses: list[str] | None = None,
+            limit: int | None = None,
+            auth: YandexAuth | None = None,
+        ) -> BoardColumnDetail:
+            return await self._original.board_update_column(
+                board_id,
+                column_id,
+                version=version,
+                name=name,
+                statuses=statuses,
+                limit=limit,
+                auth=auth,
+            )
+
+        async def board_delete_column(
+            self,
+            board_id: int,
+            column_id: int,
+            *,
+            version: int | None = None,
+            auth: YandexAuth | None = None,
+        ) -> None:
+            return await self._original.board_delete_column(
+                board_id, column_id, version=version, auth=auth
+            )
 
         @cached(**cache_config)
         async def board_get_sprints(

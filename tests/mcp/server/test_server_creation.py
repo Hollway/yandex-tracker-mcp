@@ -53,7 +53,9 @@ READ_ONLY_TOOL_NAMES = [
     "boards_get_all",
     "board_get",
     "board_get_columns",
+    "board_get_column",
     "board_get_sprints",
+    "board_get_sprint_issues",
     # Issue read tools (10)
     "issue_get",
     "issue_get_comments",
@@ -96,6 +98,12 @@ ENTITY_READ_ONLY_TOOL_NAMES = [
 
 # Write tool names - only registered when not in read-only mode
 WRITE_TOOL_NAMES = [
+    "board_create",
+    "board_update",
+    "board_delete",
+    "board_create_column",
+    "board_update_column",
+    "board_delete_column",
     "board_create_sprint",
     "board_update_sprint",
     "board_start_sprint",

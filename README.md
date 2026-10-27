@@ -692,7 +692,15 @@ A workflow ('рабочий процесс') is the set of statuses an issue typ
 | `boards_get_all` | The organization's agile boards; returns `{boards, next_cursor}` | `queue`, `fields`, `cursor` (the previous `next_cursor`), `per_page` |
 | `board_get` | One board with `autoFilterSettings` (what it collects), `estimateBy`, `useRanking` and its working `calendar` | `board_id`, `fields` |
 | `board_get_columns` | The board's columns with the issue statuses that land in each | `board_id` |
+| `board_get_column` | One column with its statuses and issue `limit` | `board_id`, `column_id` |
+| `board_create` | Create a board, optionally with its columns and the filter that collects its issues | `name`, `columns`, `auto_filter`, `owner`, `private`, `sprints` |
+| `board_update` | Rename a board, replace all of its columns, turn sprints on or off | `board_id`, `name`, `columns`, `sprints`, `version` |
+| `board_delete` | Delete a board together with its sprints; the issues stay | `board_id` |
+| `board_create_column` | Add a column to the right of the others | `board_id`, `name`, `statuses`, `limit`, `version` |
+| `board_update_column` | Rename a column, change its statuses or its issue limit | `board_id`, `column_id`, `name`, `statuses`, `limit`, `version` |
+| `board_delete_column` | Delete a column | `board_id`, `column_id`, `version` |
 | `board_get_sprints` | The board's sprints with status (`draft`, `in_progress`, `released`, `archived`) and planned/actual dates | `board_id`, `fields` |
+| `board_get_sprint_issues` | The issues in a sprint now, a page at a time | `sprint_id`, `fields`, `include_description`, `page`, `per_page` |
 | `board_create_sprint` | Create a sprint; it starts as `draft` | `board_id`, `name`, `start_date`, `end_date` |
 | `board_update_sprint` | Rename or reschedule a sprint, or change its status | `sprint_id`, `name`, `start_date`, `end_date`, `status`, `version` |
 | `board_start_sprint` | Start a sprint (`in_progress`) | `sprint_id`, `version` |
@@ -702,6 +710,9 @@ A workflow ('рабочий процесс') is the set of statuses an issue typ
 - A board has no queue of its own, so `queue` is matched against the board's own filter and misses the boards that filter by something else - a personal board filtering by assignee, for one. To catch those, read a few issues of the queue with `issues_find` and look at their `boards` field.
 - Boards belong to the organization, not to a queue, so `TRACKER_LIMIT_QUEUES` does not filter them: only the `queue` argument of `boards_get_all` is checked, and what these tools return can name restricted queues. The sprint write tools ignore `TRACKER_READ_ONLY_QUEUES` too - only `TRACKER_READ_ONLY` removes them; their `version` is optional, the current one is read when it is left out.
 - A non-scrum board has no sprints and `board_get_sprints` is rejected for it. The sprint `id` it returns is what `issue_create` / `issue_update` take.
+- The board and column writes are not covered by `TRACKER_LIMIT_QUEUES` / `TRACKER_READ_ONLY_QUEUES` either. A column has no version of its own: every column change bumps the board's `version`, which is what `version` means on all of them; leave it out to write unconditionally.
+- `auto_filter` can only be set when the board is created - Tracker refuses to change the filter afterwards. `board_update` with `columns` deletes every column and creates new ones with new ids. A column's `limit` cannot be removed once set, only changed; replacing all columns drops it.
+- `board_get_sprint_issues` is the sprint as it is now. What was planned when the sprint started (the burndown chart's starting set) is not in Tracker's public API. Under `TRACKER_LIMIT_QUEUES` only the allowed queues' issues are listed.
 
 </details>
 

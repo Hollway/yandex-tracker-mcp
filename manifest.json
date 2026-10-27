@@ -544,6 +544,38 @@
       "description": "Get the columns of an agile board together with the issue statuses mapped onto each of them"
     },
     {
+      "name": "board_get_column",
+      "description": "Get one column of an agile board with its statuses and issue limit"
+    },
+    {
+      "name": "board_create",
+      "description": "Create an agile board with its columns and the filter that collects its issues"
+    },
+    {
+      "name": "board_update",
+      "description": "Rename an agile board, replace its columns or turn sprints on or off"
+    },
+    {
+      "name": "board_delete",
+      "description": "Permanently delete an agile board together with its sprints"
+    },
+    {
+      "name": "board_create_column",
+      "description": "Add a column to an agile board"
+    },
+    {
+      "name": "board_update_column",
+      "description": "Rename a board column, change its statuses or its issue limit"
+    },
+    {
+      "name": "board_delete_column",
+      "description": "Delete a column of an agile board"
+    },
+    {
+      "name": "board_get_sprint_issues",
+      "description": "Get the issues currently in a sprint"
+    },
+    {
       "name": "board_create_sprint",
       "description": "Create a sprint on a scrum board"
     },

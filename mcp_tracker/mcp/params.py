@@ -15,6 +15,7 @@ from mcp_tracker.tracker.proto.types.entities import (
 )
 from mcp_tracker.tracker.proto.types.fields import FieldType
 from mcp_tracker.tracker.proto.types.inputs import (
+    BoardColumnInput,
     ChecklistItemDeadlineInput,
     ChecklistItemInput,
     EntityChecklistItemUpdateInput,
@@ -625,6 +626,49 @@ BoardID = Annotated[
     ),
 ]
 
+SprintID = Annotated[int, Field(description="Sprint `id` from board_get_sprints.")]
+
+BoardColumnID = Annotated[
+    int,
+    Field(description="Column `id` from board_get_columns (a number)."),
+]
+
+# Shared by board_create and board_update: a create/update pair takes the same
+# types with the same wording.
+BoardColumnsParam = Annotated[
+    list[BoardColumnInput] | None,
+    Field(
+        description="Columns of the board, left to right. Omitted on create, the "
+        "board gets Tracker's default columns; on update it replaces every column, "
+        "and the new ones get new ids."
+    ),
+]
+
+BoardSprintsParam = Annotated[
+    bool | None,
+    Field(
+        description="Turn sprints and the backlog on (true) or off (false); a board "
+        "without them cannot have sprints. Omit to leave as is."
+    ),
+]
+
+BoardVersionParam = Annotated[
+    int | None,
+    Field(
+        description="The board's `version` from board_get for optimistic locking; "
+        "every column change bumps it too. Omit to write unconditionally."
+    ),
+]
+
+BoardColumnLimitParam = Annotated[
+    int | None,
+    Field(
+        description="Most issues the column should hold, a positive number. Once "
+        "set it cannot be removed, only changed.",
+        gt=0,
+    ),
+]
+
 # Component parameters, shared by component_create and component_update: a
 # create/update pair takes the same types with the same wording.
 ComponentID = Annotated[
@@ -842,6 +886,27 @@ QueueIssueTypeParam = Annotated[
     str, Field(description="Issue type key, e.g. 'task' or 'bug'.")
 ]
 
+
+# Shared by the tools returning a page of issue search results.
+IssueSearchIncludeDescriptionParam = Annotated[
+    bool,
+    Field(
+        description="Whether to include the issue description; it can be large. "
+        "Ignored when `description` is listed in `fields`.",
+    ),
+]
+
+IssueSearchFieldsParam = Annotated[
+    list[str] | None,
+    Field(
+        description="Fields to return, in Tracker's own spelling "
+        "(`storyPoints`, not `story_points`); the standard ones are in this "
+        "tool's output schema. For a queue's local or the organization's "
+        "custom fields, pass the field `id` from `queue_get_fields`. An "
+        "unknown name is dropped silently, so check there if a field comes "
+        "back missing. Omitting this returns ALL fields."
+    ),
+]
 
 YTQuery = Annotated[
     str,

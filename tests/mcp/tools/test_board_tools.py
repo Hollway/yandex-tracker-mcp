@@ -4,9 +4,10 @@ import pytest
 from mcp import Client
 
 from mcp_tracker.mcp.tools.board import BOARDS_SCAN_PAGE
-from mcp_tracker.tracker.custom.errors import BoardNotFound
+from mcp_tracker.tracker.custom.errors import BoardNotFound, SprintNotFound
 from mcp_tracker.tracker.proto.types.boards import Board, BoardColumnDetail, Sprint
-from tests.mcp.conftest import get_tool_result_content
+from mcp_tracker.tracker.proto.types.issues import Issue
+from tests.mcp.conftest import get_tool_result_content, page
 from tests.mcp.tools.conftest import make_board_on_queues
 
 
@@ -619,3 +620,130 @@ class TestBoardNotFoundReachesTheCaller:
         result = await client_session.call_tool(tool_name, {"board_id": 404})
 
         assert result.is_error
+
+
+class TestBoardGetColumn:
+    async def test_returns_the_column(
+        self,
+        client_session: Client,
+        mock_boards_protocol: AsyncMock,
+    ) -> None:
+        mock_boards_protocol.board_get_column.return_value = BoardColumnDetail(
+            id=7, name="Closed", limit=3
+        )
+
+        result = await client_session.call_tool(
+            "board_get_column", {"board_id": 163, "column_id": 7}
+        )
+
+        assert not result.is_error
+        assert mock_boards_protocol.board_get_column.call_args.args == (163, 7)
+        content = get_tool_result_content(result)
+        assert content["limit"] == 3
+
+
+class TestBoardGetSprintIssues:
+    async def test_searches_the_sprint_by_id(
+        self,
+        client_session: Client,
+        mock_issues_protocol: AsyncMock,
+        sample_issues: list[Issue],
+    ) -> None:
+        mock_issues_protocol.issues_find.return_value = page(sample_issues, hits=2)
+
+        result = await client_session.call_tool(
+            "board_get_sprint_issues", {"sprint_id": 146, "page": 2, "per_page": 10}
+        )
+
+        assert not result.is_error
+        kwargs = mock_issues_protocol.issues_find.call_args.kwargs
+        assert kwargs["query"] == 'Sprint: 146 "Sort by": Created ASC'
+        assert (kwargs["page"], kwargs["per_page"]) == (2, 10)
+        content = get_tool_result_content(result)
+        assert [i["key"] for i in content["values"]] == [i.key for i in sample_issues]
+
+    async def test_fields_trim_the_answer(
+        self,
+        client_session: Client,
+        mock_issues_protocol: AsyncMock,
+        sample_issues: list[Issue],
+    ) -> None:
+        mock_issues_protocol.issues_find.return_value = page(sample_issues)
+
+        result = await client_session.call_tool(
+            "board_get_sprint_issues", {"sprint_id": 146, "fields": ["summary"]}
+        )
+
+        assert not result.is_error
+        assert mock_issues_protocol.issues_find.call_args.kwargs["fields"] == [
+            "summary",
+            "key",
+        ]
+        content = get_tool_result_content(result)
+        assert [sorted(i) for i in content["values"]] == [["id", "summary"]] * len(
+            sample_issues
+        )
+
+    async def test_restricted_queues_go_into_the_query(
+        self,
+        client_session_with_limits: Client,
+        mock_issues_protocol: AsyncMock,
+        sample_issues: list[Issue],
+    ) -> None:
+        mock_issues_protocol.issues_find.return_value = page(sample_issues)
+
+        result = await client_session_with_limits.call_tool(
+            "board_get_sprint_issues", {"sprint_id": 146}
+        )
+
+        assert not result.is_error
+        assert mock_issues_protocol.issues_find.call_args.kwargs["query"] == (
+            'Sprint: 146 Queue: ALLOWED, PERMITTED "Sort by": Created ASC'
+        )
+
+    async def test_an_empty_first_page_checks_the_sprint_exists(
+        self,
+        client_session: Client,
+        mock_issues_protocol: AsyncMock,
+        mock_boards_protocol: AsyncMock,
+    ) -> None:
+        mock_issues_protocol.issues_find.return_value = page([])
+        mock_boards_protocol.sprint_get.side_effect = SprintNotFound(999)
+
+        result = await client_session.call_tool(
+            "board_get_sprint_issues", {"sprint_id": 999}
+        )
+
+        assert result.is_error
+        mock_boards_protocol.sprint_get.assert_called_once()
+
+    async def test_an_empty_sprint_is_an_empty_page(
+        self,
+        client_session: Client,
+        mock_issues_protocol: AsyncMock,
+        mock_boards_protocol: AsyncMock,
+    ) -> None:
+        mock_issues_protocol.issues_find.return_value = page([], hits=0)
+        mock_boards_protocol.sprint_get.return_value = Sprint(id=141)
+
+        result = await client_session.call_tool(
+            "board_get_sprint_issues", {"sprint_id": 141}
+        )
+
+        assert not result.is_error
+        assert get_tool_result_content(result)["values"] == []
+
+    async def test_a_later_page_is_not_checked(
+        self,
+        client_session: Client,
+        mock_issues_protocol: AsyncMock,
+        mock_boards_protocol: AsyncMock,
+    ) -> None:
+        mock_issues_protocol.issues_find.return_value = page([])
+
+        result = await client_session.call_tool(
+            "board_get_sprint_issues", {"sprint_id": 146, "page": 3}
+        )
+
+        assert not result.is_error
+        mock_boards_protocol.sprint_get.assert_not_called()

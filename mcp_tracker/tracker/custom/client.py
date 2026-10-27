@@ -28,7 +28,10 @@ from mcp_tracker.tracker.custom.errors import (
     AttachmentNotFound,
     AttachmentTooLarge,
     AutoactionNotFound,
+    BoardColumnEmptyUpdate,
+    BoardEmptyUpdate,
     BoardNotFound,
+    BoardVersionConflict,
     BulkChangeNotFound,
     CatalogEmptyUpdate,
     CatalogObjectNotFound,
@@ -99,6 +102,7 @@ from mcp_tracker.tracker.proto.types.fields import (
     LocalField,
 )
 from mcp_tracker.tracker.proto.types.inputs import (
+    BoardColumnInput,
     ChecklistItemDeadlineInput,
     ChecklistItemInput,
     EntityChecklistItemUpdateInput,
@@ -286,6 +290,28 @@ def _issue_types_config_body(
         }
         for item in config
     ]
+
+
+def _column_body(column: BoardColumnInput) -> dict[str, Any]:
+    """A board column as `POST v3/liveBoards` and the column writes take it."""
+    return column.model_dump(exclude_none=True)
+
+
+def _sprints_body(enabled: bool) -> dict[str, bool]:
+    """Sprints and backlog go together: the API documents them as one switch."""
+    return {"sprintsAvailable": enabled, "backlogAvailable": enabled}
+
+
+def _if_match(version: int | None) -> dict[str, str] | None:
+    """The `If-Match` header of a versioned write, or none for an unconditional one.
+
+    The quotes are part of the value: a bare number answers 400.
+    """
+    return None if version is None else {"If-Match": f'"{version}"'}
+
+
+def _board_conflict(board_id: int, version: int | None) -> BoardVersionConflict | None:
+    return None if version is None else BoardVersionConflict(board_id, version)
 
 
 def _tracker_datetime(value: datetime.datetime) -> str:
@@ -4572,6 +4598,179 @@ class TrackerClient(
                 not_found=BoardNotFound(board_id),
             )
         ).root
+
+    async def board_create(
+        self,
+        *,
+        name: str,
+        columns: list[BoardColumnInput] | None = None,
+        owner: str | None = None,
+        private: bool | None = None,
+        sprints: bool | None = None,
+        auto_filter: dict[str, list[str]] | None = None,
+        auth: YandexAuth | None = None,
+    ) -> Board:
+        """Create a board through `POST v3/liveBoards`.
+
+        The documented `POST v3/boards` is deprecated and ignores the body,
+        creating a board with default settings. The auto-filter can only be set
+        here: `PATCH v3/boards/{id}` answers 400 to `autoFilters` (live API,
+        2026-10-26).
+        """
+        body: dict[str, Any] = {"name": name}
+        if columns is not None:
+            body["columns"] = [_column_body(c) for c in columns]
+        if owner is not None:
+            body["owner"] = owner
+        if private is not None:
+            body["boardPermissionsTemplate"] = "private" if private else "public"
+        if sprints is not None:
+            body.update(_sprints_body(sprints))
+        if auto_filter is not None:
+            body["autoFilters"] = {
+                "addFilter": {
+                    "liveFilter": {
+                        "fieldValues": {
+                            field: [{"fixed": value} for value in values]
+                            for field, values in auto_filter.items()
+                        }
+                    },
+                    "enabled": True,
+                }
+            }
+
+        return Board.model_validate_json(
+            await self._read("POST", "v3/liveBoards", auth=auth, json=body)
+        )
+
+    async def board_update(
+        self,
+        board_id: int,
+        *,
+        version: int | None = None,
+        name: str | None = None,
+        columns: list[BoardColumnInput] | None = None,
+        sprints: bool | None = None,
+        auth: YandexAuth | None = None,
+    ) -> Board:
+        """Change a board; `columns` replaces every column, under new ids."""
+        body: dict[str, Any] = {}
+        if name is not None:
+            body["name"] = name
+        if columns is not None:
+            body["columns"] = [_column_body(c) for c in columns]
+        if sprints is not None:
+            body.update(_sprints_body(sprints))
+        if not body:
+            # An empty body answers 200 and changes nothing.
+            raise BoardEmptyUpdate()
+
+        return Board.model_validate_json(
+            await self._read(
+                "PATCH",
+                f"v3/boards/{board_id}",
+                auth=auth,
+                json=body,
+                not_found=BoardNotFound(board_id),
+                extra_headers=_if_match(version),
+                conflict=_board_conflict(board_id, version),
+            )
+        )
+
+    async def board_delete(
+        self, board_id: int, *, auth: YandexAuth | None = None
+    ) -> None:
+        await self._read(
+            "DELETE",
+            f"v3/boards/{board_id}",
+            auth=auth,
+            not_found=BoardNotFound(board_id),
+        )
+
+    # The column paths answer 404 with Tracker's own words for which of the two
+    # is missing ("Колонка не существует." / "Доска не существует."), so no
+    # `not_found` is passed: that text reaches the caller as it is.
+
+    async def board_get_column(
+        self, board_id: int, column_id: int, *, auth: YandexAuth | None = None
+    ) -> BoardColumnDetail:
+        return BoardColumnDetail.model_validate_json(
+            await self._read(
+                "GET", f"v3/boards/{board_id}/columns/{column_id}", auth=auth
+            )
+        )
+
+    async def board_create_column(
+        self,
+        board_id: int,
+        *,
+        name: str,
+        statuses: list[str],
+        limit: int | None = None,
+        version: int | None = None,
+        auth: YandexAuth | None = None,
+    ) -> BoardColumnDetail:
+        body = _column_body(BoardColumnInput(name=name, statuses=statuses, limit=limit))
+        return BoardColumnDetail.model_validate_json(
+            await self._read(
+                "POST",
+                f"v3/boards/{board_id}/columns",
+                auth=auth,
+                json=body,
+                extra_headers=_if_match(version),
+                conflict=_board_conflict(board_id, version),
+            )
+        )
+
+    async def board_update_column(
+        self,
+        board_id: int,
+        column_id: int,
+        *,
+        version: int | None = None,
+        name: str | None = None,
+        statuses: list[str] | None = None,
+        limit: int | None = None,
+        auth: YandexAuth | None = None,
+    ) -> BoardColumnDetail:
+        body: dict[str, Any] = {}
+        if name is not None:
+            body["name"] = name
+        if statuses is not None:
+            body["statuses"] = statuses
+        if limit is not None:
+            body["limit"] = limit
+        if not body:
+            # An empty body answers 200, changes nothing and still bumps the
+            # board's version.
+            raise BoardColumnEmptyUpdate()
+
+        return BoardColumnDetail.model_validate_json(
+            await self._read(
+                "PATCH",
+                f"v3/boards/{board_id}/columns/{column_id}",
+                auth=auth,
+                json=body,
+                extra_headers=_if_match(version),
+                conflict=_board_conflict(board_id, version),
+            )
+        )
+
+    async def board_delete_column(
+        self,
+        board_id: int,
+        column_id: int,
+        *,
+        version: int | None = None,
+        auth: YandexAuth | None = None,
+    ) -> None:
+        await self._read(
+            "DELETE",
+            f"v3/boards/{board_id}/columns/{column_id}",
+            auth=auth,
+            extra_headers=_if_match(version),
+            conflict=_board_conflict(board_id, version),
+        )
 
     async def board_get_sprints(
         self, board_id: int, *, auth: YandexAuth | None = None
