@@ -416,6 +416,26 @@
       "description": "Delete an issue report"
     },
     {
+      "name": "dashboards_get_all",
+      "description": "List the dashboards of the Yandex Tracker organization with their owners"
+    },
+    {
+      "name": "dashboard_get",
+      "description": "Get a dashboard with the ids and titles of its widgets"
+    },
+    {
+      "name": "dashboard_create",
+      "description": "Create an empty Yandex Tracker dashboard"
+    },
+    {
+      "name": "dashboard_delete",
+      "description": "Delete a dashboard with all its widgets"
+    },
+    {
+      "name": "dashboard_add_cycle_time_widget",
+      "description": "Add a cycle time chart for the issues a query matches to a dashboard"
+    },
+    {
       "name": "get_global_fields",
       "description": "Get all global fields available in Yandex Tracker"
     },

@@ -79,6 +79,9 @@ READ_ONLY_TOOL_NAMES = [
     # Report tools (2)
     "report_get",
     "reports_find",
+    # Dashboard tools (2)
+    "dashboard_get",
+    "dashboards_get_all",
 ]
 
 # Entity read tools - registered only when TRACKER_ENTITIES_ENABLED is set
@@ -149,6 +152,9 @@ WRITE_TOOL_NAMES = [
     "users_delete_absences",
     "report_create",
     "report_delete",
+    "dashboard_create",
+    "dashboard_delete",
+    "dashboard_add_cycle_time_widget",
 ]
 
 # Entity write tools - require both write mode and TRACKER_ENTITIES_ENABLED

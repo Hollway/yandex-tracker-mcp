@@ -42,6 +42,7 @@ from mcp_tracker.tracker.custom.errors import (
     ComponentEmptyUpdate,
     ComponentNotFound,
     ComponentVersionConflict,
+    DashboardNotFound,
     EntityLinksOnlyUpdate,
     FieldClearConflict,
     IssueNotFound,
@@ -74,6 +75,7 @@ from mcp_tracker.tracker.custom.errors import (
 from mcp_tracker.tracker.proto.boards import BoardsProtocol
 from mcp_tracker.tracker.proto.common import YandexAuth
 from mcp_tracker.tracker.proto.components import ComponentsProtocol
+from mcp_tracker.tracker.proto.dashboards import DashboardsProtocol
 from mcp_tracker.tracker.proto.entities import EntitiesProtocol
 from mcp_tracker.tracker.proto.fields import GlobalDataProtocol
 from mcp_tracker.tracker.proto.issues import IssueProtocol
@@ -82,6 +84,12 @@ from mcp_tracker.tracker.proto.reports import ReportsProtocol
 from mcp_tracker.tracker.proto.templates import TemplatesProtocol
 from mcp_tracker.tracker.proto.types.boards import Board, BoardColumnDetail, Sprint
 from mcp_tracker.tracker.proto.types.components import Component
+from mcp_tracker.tracker.proto.types.dashboards import (
+    CycleTimeWidget,
+    CycleTimeWidgetInput,
+    Dashboard,
+    DashboardLayout,
+)
 from mcp_tracker.tracker.proto.types.entities import (
     DEFAULT_ENTITY_FIELDS_PARAM,
     GoalEntity,
@@ -212,6 +220,13 @@ class AbsenceSearchPage(BaseModel):
 
 class CreatedAbsences(BaseModel):
     gaps: list[CreatedAbsence] = Field(default_factory=list)
+
+
+DashboardList = RootModel[list[Dashboard]]
+
+# `POST v3/dashboards/_search` ignores `page` and caps `perPage` at 500
+# (verified 2026-10-27), so one request at the cap is the whole listing.
+_DASHBOARDS_PER_PAGE = 500
 
 
 class ReportSearchPage(BaseModel):
@@ -587,6 +602,7 @@ class TrackerClient(
     ComponentsProtocol,
     WorkflowsProtocol,
     ReportsProtocol,
+    DashboardsProtocol,
 ):
     def __init__(
         self,
@@ -2770,6 +2786,103 @@ class TrackerClient(
             if exc.status == 403:
                 raise AbsencesForbidden("delete") from exc
             raise
+
+    async def dashboard_create(
+        self,
+        name: str,
+        *,
+        layout: DashboardLayout | None = None,
+        owner: str | None = None,
+        auth: YandexAuth | None = None,
+    ) -> Dashboard:
+        body: dict[str, Any] = {"name": name}
+        if layout is not None:
+            body["layout"] = layout
+        if owner is not None:
+            body["owner"] = owner
+        return Dashboard.model_validate_json(
+            await self._read("POST", "v3/dashboards", auth=auth, json=body)
+        )
+
+    async def dashboard_get(
+        self, dashboard_id: int, *, auth: YandexAuth | None = None
+    ) -> Dashboard:
+        return Dashboard.model_validate_json(
+            await self._read(
+                "GET",
+                f"v3/dashboards/{dashboard_id}",
+                auth=auth,
+                not_found=DashboardNotFound(dashboard_id),
+            )
+        )
+
+    async def dashboards_list(
+        self, *, auth: YandexAuth | None = None
+    ) -> PaginatedResult[Dashboard]:
+        """Every dashboard, `POST v3/dashboards/_search` (undocumented)."""
+        async with self._request(
+            "POST",
+            "v3/dashboards/_search",
+            auth=auth,
+            params={"perPage": _DASHBOARDS_PER_PAGE},
+            json={},
+        ) as response:
+            return self._paginated(
+                response,
+                DashboardList.model_validate_json(await response.read()).root,
+            )
+
+    async def dashboard_delete(
+        self, dashboard_id: int, *, auth: YandexAuth | None = None
+    ) -> None:
+        """`DELETE v3/dashboards/{id}` (undocumented): 204, the widgets go too."""
+        await self._read(
+            "DELETE",
+            f"v3/dashboards/{dashboard_id}",
+            auth=auth,
+            not_found=DashboardNotFound(dashboard_id),
+        )
+
+    async def dashboard_add_cycle_time_widget(
+        self,
+        dashboard_id: int,
+        widget: CycleTimeWidgetInput,
+        *,
+        auth: YandexAuth | None = None,
+    ) -> CycleTimeWidget:
+        body: dict[str, Any] = {"description": widget.description}
+        for key, value in (
+            ("query", widget.query),
+            ("filter", widget.filter),
+            ("filterId", widget.filter_id),
+            ("calendar", widget.calendar_id),
+            ("start", widget.start),
+            ("end", widget.end),
+            ("mode", widget.mode),
+        ):
+            if value is not None:
+                body[key] = value
+        for key, statuses in (
+            ("fromStatuses", widget.from_statuses),
+            ("toStatuses", widget.to_statuses),
+            ("excludedStatuses", widget.excluded_statuses),
+            ("includedStatuses", widget.included_statuses),
+        ):
+            if statuses is not None:
+                body[key] = [{"key": status} for status in statuses]
+        if widget.bucket is not None:
+            body["bucket"] = widget.bucket.model_dump(by_alias=True, exclude_none=True)
+        if widget.lines is not None:
+            body["lines"] = widget.lines.model_dump(by_alias=True, exclude_none=True)
+        return CycleTimeWidget.model_validate_json(
+            await self._read(
+                "POST",
+                f"v3/dashboards/{dashboard_id}/widgets/cycleTime",
+                auth=auth,
+                json=body,
+                not_found=DashboardNotFound(dashboard_id),
+            )
+        )
 
     async def report_create(
         self,

@@ -799,6 +799,22 @@ Downloads are saved under `TRACKER_ATTACHMENTS_DIR` (default `<system temp>/yand
 
 </details>
 
+<details>
+<summary><strong>Dashboards</strong></summary>
+
+| Tool | What it does | Key arguments |
+| --- | --- | --- |
+| `dashboards_get_all` | The organization's dashboards with their owners; returns `{values, hits, pages}` | - |
+| `dashboard_get` | One dashboard with the ids and titles of its widgets | `dashboard_id` |
+| `dashboard_create` | Create an empty dashboard | `name`, `layout`, `owner` |
+| `dashboard_delete` | Delete a dashboard with its widgets | `dashboard_id` |
+| `dashboard_add_cycle_time_widget` | Add a 'Cycle time' chart: how long the issues a query matches take between statuses | `dashboard_id`, `description`, one of `query` / `filter` / `filter_id`, `from_statuses`, `to_statuses`, `bucket`, `lines`, `start`, `end`, `mode` |
+
+- 'Cycle time' is the only widget the API can create; a widget cannot be changed or removed on its own, only with its dashboard.
+- `dashboard_add_cycle_time_widget` is refused under `TRACKER_LIMIT_QUEUES`, like `report_create`; dashboards themselves belong to no queue and are not covered by the queue restrictions.
+
+</details>
+
 ## http Transport
 
 The MCP server can also be run in streamable-http mode for web-based integrations or when stdio transport is not suitable.

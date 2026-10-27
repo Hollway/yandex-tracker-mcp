@@ -402,6 +402,17 @@ class AttachmentThumbnailNotFound(YandexTrackerError):
         self.attachment_id = attachment_id
 
 
+class DashboardNotFound(YandexTrackerError):
+    """Raised for a 404 from a dashboard-scoped path, `v3/dashboards/{id}...`."""
+
+    def __init__(self, dashboard_id: int):
+        super().__init__(
+            f"Dashboard {dashboard_id} was not found - dashboards_get_all lists the "
+            f"organization's dashboards."
+        )
+        self.dashboard_id = dashboard_id
+
+
 class AttachmentTooLarge(YandexTrackerError):
     """Raised for a download over `TRACKER_MAX_ATTACHMENT_BYTES`."""
 

@@ -266,6 +266,11 @@ EntityID = Annotated[
     Field(description="Entity id or shortId"),
 ]
 
+DashboardID = Annotated[
+    int,
+    Field(description="Dashboard id, as dashboards_get_all returns it."),
+]
+
 ReportID = Annotated[
     str,
     Field(description="Report `id` or `shortId`, as reports_find returns them."),

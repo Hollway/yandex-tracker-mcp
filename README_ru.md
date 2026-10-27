@@ -796,6 +796,22 @@ claude mcp add yandex-tracker docker "run --rm -i -e TRACKER_TOKEN=ваш_ток
 
 </details>
 
+<details>
+<summary><strong>Дашборды</strong></summary>
+
+| Инструмент | Что делает | Ключевые аргументы |
+| --- | --- | --- |
+| `dashboards_get_all` | Дашборды организации с владельцами; возвращает `{values, hits, pages}` | - |
+| `dashboard_get` | Один дашборд с id и названиями его виджетов | `dashboard_id` |
+| `dashboard_create` | Создать пустой дашборд | `name`, `layout`, `owner` |
+| `dashboard_delete` | Удалить дашборд вместе с виджетами | `dashboard_id` |
+| `dashboard_add_cycle_time_widget` | Добавить диаграмму «Время цикла»: сколько задачи, подходящие под запрос, проводят между статусами | `dashboard_id`, `description`, одно из `query` / `filter` / `filter_id`, `from_statuses`, `to_statuses`, `bucket`, `lines`, `start`, `end`, `mode` |
+
+- «Время цикла» — единственный виджет, который умеет создавать API; изменить или удалить виджет отдельно нельзя, только вместе с дашбордом.
+- `dashboard_add_cycle_time_widget` не работает при `TRACKER_LIMIT_QUEUES`, как и `report_create`; сами дашборды не принадлежат очереди и под ограничения по очередям не подпадают.
+
+</details>
+
 ## Транспорт http
 
 MCP сервер также может работать в режиме streamable-http для веб-интеграций или когда транспорт stdio не подходит.

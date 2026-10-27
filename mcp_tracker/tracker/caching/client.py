@@ -9,6 +9,7 @@ from aiocache import cached
 from mcp_tracker.tracker.proto.boards import BoardsProtocolWrap
 from mcp_tracker.tracker.proto.common import YandexAuth
 from mcp_tracker.tracker.proto.components import ComponentsProtocolWrap
+from mcp_tracker.tracker.proto.dashboards import DashboardsProtocolWrap
 from mcp_tracker.tracker.proto.entities import EntitiesProtocolWrap
 from mcp_tracker.tracker.proto.fields import GlobalDataProtocolWrap
 from mcp_tracker.tracker.proto.issues import IssueProtocolWrap
@@ -17,6 +18,12 @@ from mcp_tracker.tracker.proto.reports import ReportsProtocolWrap
 from mcp_tracker.tracker.proto.templates import TemplatesProtocolWrap
 from mcp_tracker.tracker.proto.types.boards import Board, BoardColumnDetail, Sprint
 from mcp_tracker.tracker.proto.types.components import Component
+from mcp_tracker.tracker.proto.types.dashboards import (
+    CycleTimeWidget,
+    CycleTimeWidgetInput,
+    Dashboard,
+    DashboardLayout,
+)
 from mcp_tracker.tracker.proto.types.entities import (
     GoalEntity,
     GoalSearchResult,
@@ -124,6 +131,7 @@ class CacheCollection:
     components: type[ComponentsProtocolWrap]
     workflows: type[WorkflowsProtocolWrap]
     reports: type[ReportsProtocolWrap]
+    dashboards: type[DashboardsProtocolWrap]
 
 
 def make_cached_protocols(
@@ -2656,6 +2664,48 @@ def make_cached_protocols(
         ) -> None:
             await self._original.report_delete(report_id, auth=auth)
 
+    class CachingDashboardsProtocol(DashboardsProtocolWrap):
+        """Not cached: the tools are a create / read / delete cycle, which a
+        cached read would misreport for the rest of the TTL."""
+
+        async def dashboard_create(
+            self,
+            name: str,
+            *,
+            layout: DashboardLayout | None = None,
+            owner: str | None = None,
+            auth: YandexAuth | None = None,
+        ) -> Dashboard:
+            return await self._original.dashboard_create(
+                name, layout=layout, owner=owner, auth=auth
+            )
+
+        async def dashboard_get(
+            self, dashboard_id: int, *, auth: YandexAuth | None = None
+        ) -> Dashboard:
+            return await self._original.dashboard_get(dashboard_id, auth=auth)
+
+        async def dashboards_list(
+            self, *, auth: YandexAuth | None = None
+        ) -> PaginatedResult[Dashboard]:
+            return await self._original.dashboards_list(auth=auth)
+
+        async def dashboard_delete(
+            self, dashboard_id: int, *, auth: YandexAuth | None = None
+        ) -> None:
+            await self._original.dashboard_delete(dashboard_id, auth=auth)
+
+        async def dashboard_add_cycle_time_widget(
+            self,
+            dashboard_id: int,
+            widget: CycleTimeWidgetInput,
+            *,
+            auth: YandexAuth | None = None,
+        ) -> CycleTimeWidget:
+            return await self._original.dashboard_add_cycle_time_widget(
+                dashboard_id, widget, auth=auth
+            )
+
     return CacheCollection(
         queues=CachingQueuesProtocol,
         issues=CachingIssuesProtocol,
@@ -2667,4 +2717,5 @@ def make_cached_protocols(
         components=CachingComponentsProtocol,
         workflows=CachingWorkflowsProtocol,
         reports=CachingReportsProtocol,
+        dashboards=CachingDashboardsProtocol,
     )
