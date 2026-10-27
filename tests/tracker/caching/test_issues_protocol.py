@@ -140,7 +140,12 @@ class TestCachingIssuesProtocol:
         )
 
         mock_original.issues_find.assert_called_once_with(
-            query="query", per_page=20, page=3, fields=["key"], auth=yandex_auth
+            query="query",
+            filter_id=None,
+            per_page=20,
+            page=3,
+            fields=["key"],
+            auth=yandex_auth,
         )
         assert result == mock_original.issues_find.return_value
 
@@ -351,7 +356,7 @@ class TestCachingIssuesProtocol:
         )
 
         mock_original.issues_count.assert_called_once_with(
-            "test query", auth=yandex_auth
+            "test query", filter_id=None, auth=yandex_auth
         )
         assert result == mock_original.issues_count.return_value
 

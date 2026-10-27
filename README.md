@@ -463,6 +463,7 @@ The server exposes the following tools through the MCP protocol:
 | --- | --- | --- |
 | `queues_get_all` | Every queue the token may see; returns `{values, hits, pages}` | `fields`, `page` (omit to walk every page), `per_page` |
 | `queue_get_tags` | The tags defined in the queue | `queue_id` (a key like `"SOMEPROJECT"`) |
+| `queue_get_forms` | The queue's issue-intake forms (Yandex Forms) with id, name, description and path; people fill them in, `issue_create` files an issue | `queue_id` |
 | `queue_delete_tag` | Remove a tag from the queue's list; Tracker refuses a tag still set on an issue | `queue_id`, `tag` |
 | `queue_get_triggers` | Automation triggers: conditions and actions, webhook credentials left out | `queue_id`, `active_only` |
 | `queue_get_versions` | The queue's versions, with dates and status | `queue_id` |
@@ -494,6 +495,7 @@ Triggers react to issue events, autoactions run on a schedule over the issues a 
 | `queue_get_trigger` | One trigger with conditions, actions and current `version` | `queue_id`, `trigger_id` |
 | `queue_create_trigger` | Create a trigger | `queue_id`, `name`, `actions`, `conditions`, `active` |
 | `queue_update_trigger` | Rename, replace actions or conditions, reorder (`before`), or switch off with `active: false` | `queue_id`, `trigger_id`, `version` (omit to use the current one) |
+| `queue_delete_trigger` | Delete a trigger for good; `active: false` keeps it switched off instead | `queue_id`, `trigger_id` |
 | `queue_get_trigger_logs` | Runs of the trigger's HTTP request actions: issue, request sent, status code back | `queue_id`, `trigger_id`, `issue_id`, `limit` (10 by default, at most 100), `created_from`, `created_to` |
 | `queue_get_autoactions` | The queue's autoactions | `queue_id` |
 | `queue_get_autoaction` | One autoaction with filter or query, actions, interval and last launch | `queue_id`, `autoaction_id` |
@@ -505,7 +507,7 @@ Triggers react to issue events, autoactions run on a schedule over the issues a 
 | `queue_update_macro` | Change a macro; `issue_update` replaces all its field changes, `clear_body` removes the comment | `queue_id`, `macro_id` |
 | `queue_delete_macro` | Delete a macro | `queue_id`, `macro_id` |
 
-- The API has no trigger delete and no autoaction update or delete: `queue_update_trigger` with `active: false` switches a trigger off, an autoaction is changed in the Tracker UI.
+- The API has no autoaction update or delete: an autoaction is changed in the Tracker UI. A trigger is deleted through an undocumented `DELETE` that needs no `version`.
 - Webhook credentials and headers are left out of what comes back; in a queue that forbids AI tools access, the log tools leave out the request body and the issue summaries.
 - Reads respect `TRACKER_LIMIT_QUEUES`, writes `TRACKER_READ_ONLY_QUEUES` as well.
 
@@ -732,6 +734,8 @@ A workflow ('рабочий процесс') is the set of statuses an issue typ
 | `issue_add_comment` | Add a comment; `summonees` is what notifies a user, an `@login` in the text notifies nobody | `issue_id`, `text`, `summonees`, `maillist_summonees`, `markup_type`, `is_add_to_followers`, `attachment_ids` (from `attachment_create`) |
 | `issue_update_comment` | Edit a comment | `issue_id`, `comment_id`, `text`, `summonees`, `maillist_summonees` |
 | `issue_delete_comment` | Delete a comment | `issue_id`, `comment_id` |
+| `issue_add_comment_reaction` | Put a reaction on a comment, returning the comment with `reactionsCount` and `ownReactions`; a reaction already there is refused | `issue_id`, `comment_id` (`id` or `longId`), `reaction` (`LIKE`, `DISLIKE`, `LAUGH`, `HOORAY`, `CONFUSED`, `HEART`, `ROCKET`, `EYES`, `FIRE`, `OK`, `FACEPALM`, `CHECK`) |
+| `issue_delete_comment_reaction` | Take your reaction off a comment | `issue_id`, `comment_id`, `reaction` |
 | `issue_get_links` | Links to related, blocking and duplicate issues | `issue_id` |
 | `issue_add_link` | Link two issues | `issue_id`, `relationship`, `issue` |
 | `issue_delete_link` | Remove a link | `issue_id`, `link_id` (from `issue_get_links`) |
@@ -786,12 +790,19 @@ Downloads are saved under `TRACKER_ATTACHMENTS_DIR` (default `<system temp>/yand
 
 | Tool | What it does | Key arguments |
 | --- | --- | --- |
-| `issues_find` | Search issues with [Yandex Tracker Query Language](https://yandex.ru/support/tracker/ru/user/query-filter); returns `{values, hits, pages}` | `query`, `fields`, `include_description`, `page`, `per_page` |
-| `issues_count` | How many issues match a query; returns `{"count": N}` | `query` |
+| `issues_find` | Search issues with [Yandex Tracker Query Language](https://yandex.ru/support/tracker/ru/user/query-filter) or by a saved filter; returns `{values, hits, pages}` | `query`, `filter_id`, `fields`, `include_description`, `page`, `per_page` |
+| `issues_count` | How many issues match a query or a saved filter; returns `{"count": N}` | `query`, `filter_id` |
+| `issues_suggest` | Quick lookup by a fragment of the summary: up to 20 issues with key, summary and status | `text`, `queue` |
+| `filter_get` | A saved filter: name, conditions as `query` or `filter`, sorting, owner | `filter_id` |
+| `filter_create` | Save a filter; it is readable by every employee by default | `name`, `query` or `filter`, `sorts`, `fields` (UI columns) |
+| `filter_update` | Change a saved filter; new conditions replace the old ones whole | `filter_id`, `name`, `query` or `filter`, `sorts`, `fields` |
+| `filter_delete` | Delete a saved filter | `filter_id` |
 
 - `fields` uses Tracker's own spelling (`storyPoints`, not `story_points`) and accepts any field name, a queue's local and the organization's custom fields included - pass the field `id` from `queue_get_fields`. A name Tracker does not know is dropped silently.
 - `include_description` is ignored when `description` is listed in `fields`: naming it there is an explicit request for it.
 - `per_page` defaults to 100 and can be lowered when a page does not fit the context window.
+- With both `query` and `filter_id`, only issues matching both come back. The API cannot list saved filters: the id comes from `filter_create` or from the filter's link in Tracker. A filter takes its conditions as either `query` or `filter`, never both.
+- Saved filters belong to no queue, so `TRACKER_LIMIT_QUEUES` and `TRACKER_READ_ONLY_QUEUES` do not apply to the `filter_*` tools. `issues_suggest` drops issues of queues outside `TRACKER_LIMIT_QUEUES` and applies `queue` itself, since Tracker ignores it.
 
 </details>
 

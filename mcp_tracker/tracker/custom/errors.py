@@ -711,3 +711,34 @@ class MacroEmptyUpdate(YandexTrackerError):
             "A macro update must change something: pass at least one of `name`, "
             "`body`, `issue_update` or `clear_body`."
         )
+
+
+class FilterNotFound(YandexTrackerError):
+    def __init__(self, filter_id: int):
+        super().__init__(
+            f"Saved filter '{filter_id}' was not found. The API has no listing of "
+            f"filters: take the id from the filter's link in Tracker or from "
+            f"filter_create."
+        )
+        self.filter_id = filter_id
+
+
+class FilterConditionsConflict(YandexTrackerError):
+    """Raised for a filter given both `query` and `filter` - Tracker answers 409."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            "A saved filter takes its conditions as either `query` or `filter`, "
+            "not both."
+        )
+
+
+class FilterEmptyUpdate(YandexTrackerError):
+    """Raised for a filter update that changes nothing - Tracker answers an
+    empty one 200 and does nothing."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            "A filter update must change something: pass at least one of `name`, "
+            "`query`, `filter`, `sorts` or `fields`."
+        )

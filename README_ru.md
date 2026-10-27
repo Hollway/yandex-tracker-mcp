@@ -460,6 +460,7 @@ claude mcp add yandex-tracker docker "run --rm -i -e TRACKER_TOKEN=ваш_ток
 | --- | --- | --- |
 | `queues_get_all` | Все очереди, доступные токену; возвращает `{values, hits, pages}` | `fields`, `page` (не указывать — обойти все страницы), `per_page` |
 | `queue_get_tags` | Теги, заведённые в очереди | `queue_id` (ключ вида `"SOMEPROJECT"`) |
+| `queue_get_forms` | Формы приёма задач очереди (Яндекс Формы): id, название, описание и путь; формы заполняют люди, задачу создаёт `issue_create` | `queue_id` |
 | `queue_delete_tag` | Убрать тег из списка очереди; тег, который ещё стоит в задаче, Трекер не удаляет | `queue_id`, `tag` |
 | `queue_get_triggers` | Триггеры автоматизации: условия и действия, без учётных данных вебхуков | `queue_id`, `active_only` |
 | `queue_get_versions` | Версии очереди с датами и статусом | `queue_id` |
@@ -491,6 +492,7 @@ claude mcp add yandex-tracker docker "run --rm -i -e TRACKER_TOKEN=ваш_ток
 | `queue_get_trigger` | Один триггер с условиями, действиями и текущей `version` | `queue_id`, `trigger_id` |
 | `queue_create_trigger` | Создать триггер | `queue_id`, `name`, `actions`, `conditions`, `active` |
 | `queue_update_trigger` | Переименовать, заменить действия или условия, переставить (`before`) или выключить через `active: false` | `queue_id`, `trigger_id`, `version` (не указывать — взять текущую) |
+| `queue_delete_trigger` | Удалить триггер насовсем; `active: false` оставляет его выключенным | `queue_id`, `trigger_id` |
 | `queue_get_trigger_logs` | Запуски HTTP-запросов триггера: задача, отправленный запрос, код ответа | `queue_id`, `trigger_id`, `issue_id`, `limit` (по умолчанию 10, не больше 100), `created_from`, `created_to` |
 | `queue_get_autoactions` | Автодействия очереди | `queue_id` |
 | `queue_get_autoaction` | Одно автодействие с фильтром или запросом, действиями, интервалом и последним запуском | `queue_id`, `autoaction_id` |
@@ -502,7 +504,7 @@ claude mcp add yandex-tracker docker "run --rm -i -e TRACKER_TOKEN=ваш_ток
 | `queue_update_macro` | Изменить макрос; `issue_update` заменяет все его изменения полей, `clear_body` убирает комментарий | `queue_id`, `macro_id` |
 | `queue_delete_macro` | Удалить макрос | `queue_id`, `macro_id` |
 
-- В API нет удаления триггера и нет изменения и удаления автодействия: `queue_update_trigger` с `active: false` выключает триггер, автодействие меняют в интерфейсе Трекера.
+- В API нет изменения и удаления автодействия: автодействие меняют в интерфейсе Трекера. Триггер удаляется недокументированным `DELETE`, `version` ему не нужна.
 - Учётные данные и заголовки вебхуков в ответ не попадают; в очереди, запрещающей доступ AI-инструментам, инструменты логов не отдают тело запроса и названия задач.
 - Чтение учитывает `TRACKER_LIMIT_QUEUES`, запись — ещё и `TRACKER_READ_ONLY_QUEUES`.
 
@@ -729,6 +731,8 @@ claude mcp add yandex-tracker docker "run --rm -i -e TRACKER_TOKEN=ваш_ток
 | `issue_add_comment` | Добавить комментарий; уведомляет именно `summonees`, а `@login` в тексте не уведомляет никого | `issue_id`, `text`, `summonees`, `maillist_summonees`, `markup_type`, `is_add_to_followers`, `attachment_ids` (из `attachment_create`) |
 | `issue_update_comment` | Изменить комментарий | `issue_id`, `comment_id`, `text`, `summonees`, `maillist_summonees` |
 | `issue_delete_comment` | Удалить комментарий | `issue_id`, `comment_id` |
+| `issue_add_comment_reaction` | Поставить реакцию на комментарий; возвращает комментарий с `reactionsCount` и `ownReactions`, уже поставленную реакцию Трекер отклоняет | `issue_id`, `comment_id` (`id` или `longId`), `reaction` (`LIKE`, `DISLIKE`, `LAUGH`, `HOORAY`, `CONFUSED`, `HEART`, `ROCKET`, `EYES`, `FIRE`, `OK`, `FACEPALM`, `CHECK`) |
+| `issue_delete_comment_reaction` | Снять свою реакцию с комментария | `issue_id`, `comment_id`, `reaction` |
 | `issue_get_links` | Связи со связанными, блокирующими и дублирующими задачами | `issue_id` |
 | `issue_add_link` | Связать две задачи | `issue_id`, `relationship`, `issue` |
 | `issue_delete_link` | Удалить связь | `issue_id`, `link_id` (из `issue_get_links`) |
@@ -783,12 +787,19 @@ claude mcp add yandex-tracker docker "run --rm -i -e TRACKER_TOKEN=ваш_ток
 
 | Инструмент | Что делает | Ключевые аргументы |
 | --- | --- | --- |
-| `issues_find` | Поиск задач на [языке запросов Яндекс Трекера](https://yandex.ru/support/tracker/ru/user/query-filter); возвращает `{values, hits, pages}` | `query`, `fields`, `include_description`, `page`, `per_page` |
-| `issues_count` | Сколько задач подходит под запрос; возвращает `{"count": N}` | `query` |
+| `issues_find` | Поиск задач на [языке запросов Яндекс Трекера](https://yandex.ru/support/tracker/ru/user/query-filter) или по сохранённому фильтру; возвращает `{values, hits, pages}` | `query`, `filter_id`, `fields`, `include_description`, `page`, `per_page` |
+| `issues_count` | Сколько задач подходит под запрос или сохранённый фильтр; возвращает `{"count": N}` | `query`, `filter_id` |
+| `issues_suggest` | Быстрый поиск по фрагменту названия: до 20 задач с ключом, названием и статусом | `text`, `queue` |
+| `filter_get` | Сохранённый фильтр: название, условия в `query` или `filter`, сортировка, владелец | `filter_id` |
+| `filter_create` | Сохранить фильтр; по умолчанию его видят все сотрудники | `name`, `query` или `filter`, `sorts`, `fields` (колонки в интерфейсе) |
+| `filter_update` | Изменить сохранённый фильтр; новые условия заменяют старые целиком | `filter_id`, `name`, `query` или `filter`, `sorts`, `fields` |
+| `filter_delete` | Удалить сохранённый фильтр | `filter_id` |
 
 - `fields` использует написание самого Трекера (`storyPoints`, а не `story_points`) и принимает любое имя поля, включая локальные поля очереди и пользовательские поля организации — передавайте `id` поля из `queue_get_fields`. Неизвестное Трекеру имя молча отбрасывается.
 - `include_description` игнорируется, если `description` перечислен в `fields`: указание его там и есть явный запрос.
 - `per_page` по умолчанию 100 и может быть уменьшен, если страница не влезает в контекст.
+- С `query` и `filter_id` вместе возвращаются задачи, подходящие под оба. Списка сохранённых фильтров в API нет: id берётся из `filter_create` или из ссылки на фильтр в Трекере. Условия фильтра задаются либо `query`, либо `filter`, но не обоими.
+- Сохранённый фильтр не принадлежит очереди, поэтому `TRACKER_LIMIT_QUEUES` и `TRACKER_READ_ONLY_QUEUES` на инструменты `filter_*` не действуют. `issues_suggest` отбрасывает задачи очередей вне `TRACKER_LIMIT_QUEUES` и сам применяет `queue`, потому что Трекер его игнорирует.
 
 </details>
 

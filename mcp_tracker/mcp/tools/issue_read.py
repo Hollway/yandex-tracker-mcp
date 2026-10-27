@@ -7,6 +7,7 @@ from mcp.types import ToolAnnotations
 from pydantic import Field
 
 from mcp_tracker.mcp.context import AppContext
+from mcp_tracker.mcp.errors import TrackerError
 from mcp_tracker.mcp.params import (
     CommentsCursorParam,
     CursorPerPageParam,
@@ -16,11 +17,13 @@ from mcp_tracker.mcp.params import (
     IssueSearchIncludeDescriptionParam,
     PageParam,
     PerPageParam,
+    SearchFilterIDParam,
     YTQuery,
 )
 from mcp_tracker.mcp.tools._access import (
     check_fetched_issue_access,
     check_issue_access,
+    is_queue_allowed,
     queue_of_key,
 )
 from mcp_tracker.mcp.tools._ai_access import (
@@ -60,14 +63,16 @@ from mcp_tracker.tracker.proto.types.pagination import PaginatedResult
 async def find_issues(
     ctx: Context[AppContext],
     settings: Settings,
-    query: str,
+    query: str | None,
     *,
+    filter_id: int | None = None,
     include_description: bool,
     fields: list[str] | None,
     page: int,
     per_page: int,
 ) -> PaginatedResult[Issue]:
-    """One page of a YQL search, the way the issue search tools return it.
+    """One page of a YQL or saved-filter search, the way the issue search tools
+    return it.
 
     Issues of a queue that forbids AI tools come back as bare restricted rows,
     the description is dropped unless asked for, and a `fields` projection is
@@ -87,6 +92,7 @@ async def find_issues(
 
     result = await ctx.request_context.lifespan_context.issues.issues_find(
         query=query,
+        filter_id=filter_id,
         per_page=per_page,
         page=page,
         fields=api_fields,
@@ -229,21 +235,24 @@ def register_issue_read_tools(settings: Settings, mcp: MCPServer[AppContext]) ->
         title="Find Issues",
         description="Find Yandex Tracker issues matching a Yandex Tracker Query (YQL) - not limited to "
         "queue/date, any indexed field can be used (assignee, status, tags, etc., see the `query` "
-        "parameter for the full syntax).",
+        "parameter for the full syntax) - or a saved filter ('фильтр').",
         annotations=ToolAnnotations(read_only_hint=True),
     )
     async def issues_find(
         ctx: Context[AppContext],
-        query: YTQuery,
+        query: YTQuery = None,
+        filter_id: SearchFilterIDParam = None,
         include_description: IssueSearchIncludeDescriptionParam = False,
         fields: IssueSearchFieldsParam = None,
         page: PageParam = 1,
         per_page: PerPageParam = 100,
     ) -> PaginatedResult[Issue]:
+        _require_query_or_filter(query, filter_id)
         return await find_issues(
             ctx,
             settings,
             query,
+            filter_id=filter_id,
             include_description=include_description,
             fields=fields,
             page=page,
@@ -252,18 +261,60 @@ def register_issue_read_tools(settings: Settings, mcp: MCPServer[AppContext]) ->
 
     @mcp.tool(
         title="Count Issues",
-        description="Get the count of Yandex Tracker issues matching a query.",
+        description="Get the count of Yandex Tracker issues matching a query or "
+        "a saved filter.",
         annotations=ToolAnnotations(read_only_hint=True),
     )
     async def issues_count(
         ctx: Context[AppContext],
-        query: YTQuery,
+        query: YTQuery = None,
+        filter_id: SearchFilterIDParam = None,
     ) -> IssuesCount:
+        _require_query_or_filter(query, filter_id)
         count = await ctx.request_context.lifespan_context.issues.issues_count(
             query,
+            filter_id=filter_id,
             auth=get_yandex_auth(ctx),
         )
         return IssuesCount(count=count)
+
+    @mcp.tool(
+        title="Suggest Issues",
+        description="Quick lookup of Yandex Tracker issues ('задачи') whose "
+        "summary contains a text: up to 20 rows of key, summary and status, "
+        "e.g. to turn a title the user mentions into a key. issues_find searches "
+        "by any field.",
+        annotations=ToolAnnotations(read_only_hint=True),
+    )
+    async def issues_suggest(
+        ctx: Context[AppContext],
+        text: Annotated[
+            str,
+            Field(
+                min_length=1,
+                description="Fragment of the summary; a space matches any text.",
+            ),
+        ],
+        queue: Annotated[
+            str | None,
+            Field(description="Keep only issues of this queue key."),
+        ] = None,
+    ) -> list[Issue]:
+        issues = await ctx.request_context.lifespan_context.issues.issues_suggest(
+            text, auth=get_yandex_auth(ctx)
+        )
+        # Tracker accepts a `queue` parameter here but ignores it, so both the
+        # caller's queue and the allow-list are applied to the keys.
+        wanted = queue.upper() if queue else None
+        kept = []
+        for issue in issues:
+            issue_queue = queue_of_key(issue.key or "")
+            if issue_queue is None or not is_queue_allowed(settings, issue_queue):
+                continue
+            if wanted is not None and issue_queue != wanted:
+                continue
+            kept.append(issue)
+        return await hide_ai_restricted(ctx, settings, kept)
 
     @mcp.tool(
         title="Get Issue Comment",
@@ -503,3 +554,8 @@ def register_issue_attachment_download_tools(
             mime_type=attachment.mimetype,
             size=size,
         )
+
+
+def _require_query_or_filter(query: str | None, filter_id: int | None) -> None:
+    if query is None and filter_id is None:
+        raise TrackerError("Pass `query`, `filter_id` or both.")

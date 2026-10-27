@@ -143,6 +143,36 @@ class IssueComment(CreatedUpdatedMixin, BaseTrackerEntity):
         exclude_if=none_excluder,
     )
     attachments: list[AttachmentReference] | None = NoneExcludedField
+    reactions_count: dict[str, int] | None = Field(
+        None,
+        validation_alias=AliasChoices("reactionsCount", "reactions_count"),
+        serialization_alias="reactionsCount",
+        exclude_if=none_excluder,
+    )
+    own_reactions: list[str] | None = Field(
+        None,
+        validation_alias=AliasChoices("ownReactions", "own_reactions"),
+        serialization_alias="ownReactions",
+        exclude_if=none_excluder,
+    )
+
+
+# The reactions Tracker offers on a comment; the API takes the name in any case
+# and reports it back in lower case.
+CommentReaction = Literal[
+    "LIKE",
+    "DISLIKE",
+    "LAUGH",
+    "HOORAY",
+    "CONFUSED",
+    "HEART",
+    "ROCKET",
+    "EYES",
+    "FIRE",
+    "OK",
+    "FACEPALM",
+    "CHECK",
+]
 
 
 CommentFieldsEnum = Enum(  # type: ignore[misc]

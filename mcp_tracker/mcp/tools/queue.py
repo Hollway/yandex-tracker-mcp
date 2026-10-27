@@ -37,6 +37,7 @@ from mcp_tracker.tracker.proto.types.queue_automation import (
     QueueAutoaction,
     QueueAutoactionRun,
     QueueAutoactionRunIssue,
+    QueueForms,
     QueueMacro,
     QueueTriggerLog,
 )
@@ -185,6 +186,23 @@ def register_queue_tools(settings: Settings, mcp: MCPServer[AppContext]) -> None
         return await ctx.request_context.lifespan_context.queues.queues_get_tags(
             queue_id,
             auth=get_yandex_auth(ctx),
+        )
+
+    @mcp.tool(
+        title="Get Queue Forms",
+        description="Get the issue-intake forms of a Yandex Tracker queue "
+        "('формы'): id, name, description and the Yandex Forms path, in "
+        "configured order. A form is filled in by people; to file an issue "
+        "use issue_create.",
+        annotations=ToolAnnotations(read_only_hint=True),
+    )
+    async def queue_get_forms(
+        ctx: Context[AppContext],
+        queue_id: QueueID,
+    ) -> QueueForms:
+        check_queue_access(settings, queue_id)
+        return await ctx.request_context.lifespan_context.queues.queue_get_forms(
+            queue_id, auth=get_yandex_auth(ctx)
         )
 
     @mcp.tool(

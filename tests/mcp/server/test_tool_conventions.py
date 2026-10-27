@@ -27,6 +27,7 @@ TOOL_NAME_ENTITIES = frozenset(
         "component",
         "field",
         "fields",
+        "filter",
         "goal",
         "groups",
         "issue",
