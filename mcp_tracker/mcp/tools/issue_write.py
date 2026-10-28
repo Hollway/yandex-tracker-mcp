@@ -56,6 +56,9 @@ from mcp_tracker.mcp.tools._ai_access import (
 from mcp_tracker.mcp.tools._files import (
     UploadFilenameParam,
     UploadFilePathParam,
+    UploadFileUrlParam,
+    UploadUrlFilenameParam,
+    fetch_upload_url,
     read_upload_file,
 )
 from mcp_tracker.mcp.tools._issue_access import check_issue
@@ -1116,6 +1119,38 @@ def register_issue_file_upload_tools(
             issue_id,
             content=content,
             filename=filename or path.name,
+            auth=get_yandex_auth(ctx),
+        )
+
+
+def register_issue_url_upload_tools(
+    settings: Settings, mcp: MCPServer[AppContext]
+) -> None:
+    """Register the tool that attaches a file fetched by URL
+    (`TRACKER_ATTACHMENT_URL_PREFIXES`, writable server)."""
+
+    @mcp.tool(
+        title="Attach File from URL to Issue",
+        description="Attach a file the server fetches from an https URL to a "
+        "Yandex Tracker issue ('вложение'), returning the attachment with its `id`; "
+        "only URLs under the prefixes in TRACKER_ATTACHMENT_URL_PREFIXES are "
+        "fetched (requires it).",
+        annotations=ToolAnnotations(read_only_hint=False, open_world_hint=True),
+    )
+    async def issue_add_attachment_from_url(
+        ctx: Context[AppContext],
+        issue_id: IssueID,
+        file_url: UploadFileUrlParam,
+        filename: UploadUrlFilenameParam = None,
+    ) -> IssueAttachment:
+        await check_issue(ctx, settings, issue_id, write=True, ai=False)
+
+        content, name = await fetch_upload_url(settings, file_url)
+
+        return await ctx.request_context.lifespan_context.issues.issue_add_attachment(
+            issue_id,
+            content=content,
+            filename=filename or name,
             auth=get_yandex_auth(ctx),
         )
 

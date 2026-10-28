@@ -19,9 +19,11 @@ This package organizes MCP tools by category:
 - issue_read.py: Issue read-only tools; the attachment download tool additionally
   needs tracker_attachment_download_enabled
 - attachment_write.py: Temporary attachment upload (conditional on read-only
-  mode and tracker_file_upload_enabled)
+  mode and tracker_file_upload_enabled, or tracker_attachment_url_prefixes for
+  the upload by URL)
 - issue_write.py: Issue write tools (conditional on read-only mode); the file upload
-  tool additionally needs tracker_file_upload_enabled
+  tool additionally needs tracker_file_upload_enabled, the upload by URL
+  tracker_attachment_url_prefixes
 - dashboard.py: Dashboard tools (read-only)
 - dashboard_write.py: Dashboard write tools (conditional on read-only mode)
 - report.py: Issue report tools (read-only)
@@ -52,6 +54,7 @@ from mcp_tracker.mcp.context import AppContext
 from mcp_tracker.mcp.tools.application import register_application_tools
 from mcp_tracker.mcp.tools.attachment_write import (
     register_attachment_file_upload_tools,
+    register_attachment_url_upload_tools,
 )
 from mcp_tracker.mcp.tools.board import register_board_tools
 from mcp_tracker.mcp.tools.board_write import (
@@ -79,6 +82,7 @@ from mcp_tracker.mcp.tools.issue_read import (
 from mcp_tracker.mcp.tools.issue_write import (
     register_issue_bulk_tools,
     register_issue_file_upload_tools,
+    register_issue_url_upload_tools,
     register_issue_write_tools,
 )
 from mcp_tracker.mcp.tools.portfolio import register_portfolio_tools
@@ -116,7 +120,8 @@ def register_all_tools(settings: Settings, mcp: MCPServer[AppContext]) -> None:
         settings: Application settings. If tracker_read_only is True,
             write tools will not be registered. Project/portfolio/goal tools
             are registered only if tracker_entities_enabled is True, and the
-            file upload tools only if tracker_file_upload_enabled is True. The
+            file upload tools only if tracker_file_upload_enabled is True, the
+            upload-by-URL tools only with tracker_attachment_url_prefixes. The
             attachment download tool needs tracker_attachment_download_enabled,
             in read-only mode as well. The administration tools need
             tracker_admin_enabled; the workflow reads come with it or with
@@ -185,6 +190,10 @@ def register_all_tools(settings: Settings, mcp: MCPServer[AppContext]) -> None:
         if settings.tracker_file_upload_enabled:
             register_issue_file_upload_tools(settings, mcp)
             register_attachment_file_upload_tools(settings, mcp)
+
+        if settings.tracker_attachment_url_prefixes:
+            register_issue_url_upload_tools(settings, mcp)
+            register_attachment_url_upload_tools(settings, mcp)
 
         if settings.tracker_entities_enabled:
             register_project_write_tools(settings, mcp)

@@ -101,6 +101,10 @@ def get_tool_result_content(result: CallToolResult) -> Any:
     return structured
 
 
+# What the default test server may fetch attachments from.
+TEST_URL_PREFIX = "https://files.example.com/"
+
+
 def create_test_settings(
     limit_queues: list[str] | None = None,
     read_only: bool = False,
@@ -112,14 +116,13 @@ def create_test_settings(
     workflows_write_enabled: bool = True,
     admin_enabled: bool = True,
     attachments_dir: str | None = None,
+    attachment_url_prefixes: tuple[str, ...] = (TEST_URL_PREFIX,),
 ) -> Settings:
     """Create Settings for testing with minimal required configuration.
 
     The opt-in groups (entity tools, file upload, attachment download, bulk,
-    administration,
-    workflow writes) default
-    to on, so the default server exposes the whole tool surface the docs have
-    to cover.
+    administration, workflow writes, upload by URL) default to on, so the
+    default server exposes the whole tool surface the docs have to cover.
 
     `model_construct` skips validation, so the queue lists go through
     `decode_queue_keys` explicitly - tests must see the same normalised sets a
@@ -140,6 +143,10 @@ def create_test_settings(
         tracker_admin_enabled=admin_enabled,
         tracker_attachments_dir=attachments_dir,
         tracker_max_attachment_bytes=50 * 1024 * 1024,
+        tracker_attachment_url_prefixes=Settings.decode_url_prefixes(
+            attachment_url_prefixes
+        ),
+        tracker_attachment_timeout=300.0,
         tools_cache_enabled=False,
         oauth_enabled=False,
         host="0.0.0.0",

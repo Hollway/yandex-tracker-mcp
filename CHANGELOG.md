@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Features
+
+- **Attachments by URL** - `issue_add_attachment_from_url` and `attachment_create_from_url` attach a file the server fetches from an https URL, on any transport ([aikts#50](https://github.com/aikts/yandex-tracker-mcp/issues/50))
+  - Registered only when `TRACKER_ATTACHMENT_URL_PREFIXES` lists the URL prefixes they may fetch from; redirects are not followed and `TRACKER_MAX_ATTACHMENT_BYTES` applies
+
 ### Bug Fixes
 
 - **AI tools access** - the summary of an issue in a queue that forbids AI tools no longer shows where another issue names it (parent, epic, links, changelog, worklogs), and a write to such an issue answers with its key, id and version instead of its content; a write used to return the whole issue

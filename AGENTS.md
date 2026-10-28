@@ -50,6 +50,7 @@ uv run yandex-tracker-mcp # Run the server
   - `*_write.py` modules are only registered when `settings.tracker_read_only=False`
   - project/portfolio/goal modules are only registered when `settings.tracker_entities_enabled=True`
   - `issue_add_attachment` (`register_issue_file_upload_tools` in `issue_write.py`) and `attachment_create` (`attachment_write.py`) are only registered when writes are on and `settings.tracker_file_upload_enabled=True`; both read the file through `_files.read_upload_file`
+  - `issue_add_attachment_from_url` (`register_issue_url_upload_tools` in `issue_write.py`) and `attachment_create_from_url` (`attachment_write.py`) are only registered when writes are on and `settings.tracker_attachment_url_prefixes` is set; both fetch through `_files.fetch_upload_url` (prefix check, no redirects, a session without the Tracker credentials, `TRACKER_MAX_ATTACHMENT_BYTES`), and unlike the local-file flag they are allowed on any transport
   - `issue_download_attachment` (`register_issue_attachment_download_tools` in `issue_read.py`) is only registered when `settings.tracker_attachment_download_enabled=True` - in read-only mode too, since it changes nothing in Tracker
 - **Settings** (`mcp_tracker/settings.py`): Pydantic settings from environment variables
 - All protocol methods accept optional `auth: YandexAuth | None` parameter for OAuth support.
@@ -255,6 +256,7 @@ Optional:
 - `TRACKER_READ_ONLY_QUEUES`: Per-queue read-only allow-list. Write tools stay registered, but mutating calls targeting a listed queue are rejected via `check_*_access(..., write=True)` in `_access.py`; reads still work.
 - `TRACKER_ENTITIES_ENABLED`: When `true`, registers the project/portfolio/goal tools (`project*.py`, `portfolio*.py`, `goal*.py`). Default `false`: they add a large tool manifest and are not covered by the queue restrictions above, since an entity isn't mappable to a single queue.
 - `TRACKER_FILE_UPLOAD_ENABLED`: When `true` (and not read-only), registers `issue_add_attachment`, which reads a file from the server's filesystem by a caller-given path. Default `false`. `Settings` refuses it unless `TRANSPORT=stdio` and `OAUTH_ENABLED=false`: on a networked server a client, or a prompt injected into issue text, could upload `.env`, `~/.ssh/*` or `/proc/self/environ` to an issue.
+- `TRACKER_ATTACHMENT_URL_PREFIXES`: Comma-separated https URL prefixes the upload-by-URL tools may fetch from; without it they are not registered. A prefix naming only a host gets the `/` after it, so `https://files.example.com` cannot match `https://files.example.com.attacker.net/`. Listed in `URL_UPLOAD_TOOL_NAMES`.
 - `TRACKER_API_TIMEOUT`: Per-request budget in seconds (default `10`), covering the whole request including the body.
 - `TRACKER_AI_ACCESS_IGNORED_QUEUES`: Comma-separated queue keys whose 'AI tools access' setting is ignored (see *AI tools access* above).
 - `TRACKER_BULK_ENABLED`: When `true` (and not read-only), registers the bulk-change tools; listed in `BULK_TOOL_NAMES`. Default `false`.

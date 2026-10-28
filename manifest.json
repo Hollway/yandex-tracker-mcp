@@ -26,6 +26,7 @@
         "TRACKER_ORG_ID": "${user_config.tracker_org_id}",
         "TRACKER_ENTITIES_ENABLED": "${user_config.tracker_entities_enabled}",
         "TRACKER_FILE_UPLOAD_ENABLED": "${user_config.tracker_file_upload_enabled}",
+        "TRACKER_ATTACHMENT_URL_PREFIXES": "${user_config.tracker_attachment_url_prefixes}",
         "TRACKER_ATTACHMENT_DOWNLOAD_ENABLED": "${user_config.tracker_attachment_download_enabled}",
         "TRACKER_BULK_ENABLED": "${user_config.tracker_bulk_enabled}",
         "TRACKER_WORKFLOWS_WRITE_ENABLED": "${user_config.tracker_workflows_write_enabled}",
@@ -929,12 +930,20 @@
       "description": "Upload a file from this computer as a temporary attachment for a comment (requires TRACKER_FILE_UPLOAD_ENABLED)"
     },
     {
+      "name": "attachment_create_from_url",
+      "description": "Fetch a file from an allowed https URL as a temporary attachment for a comment (requires TRACKER_ATTACHMENT_URL_PREFIXES)"
+    },
+    {
       "name": "issue_download_attachment",
       "description": "Save an issue attachment to this computer and return its path (requires TRACKER_ATTACHMENT_DOWNLOAD_ENABLED)"
     },
     {
       "name": "issue_add_attachment",
       "description": "Attach a file from this computer to an issue (requires TRACKER_FILE_UPLOAD_ENABLED)"
+    },
+    {
+      "name": "issue_add_attachment_from_url",
+      "description": "Attach a file fetched from an allowed https URL to an issue (requires TRACKER_ATTACHMENT_URL_PREFIXES)"
     },
     {
       "name": "issue_add_checklist_items",
@@ -1061,6 +1070,14 @@
       "required": false,
       "sensitive": false,
       "default": false
+    },
+    "tracker_attachment_url_prefixes": {
+      "type": "string",
+      "title": "Attachment URL Prefixes",
+      "description": "Comma-separated https URL prefixes the server may fetch files from to attach them to issues and comments. Empty leaves the upload-by-URL tools off.",
+      "required": false,
+      "sensitive": false,
+      "default": ""
     },
     "tracker_bulk_enabled": {
       "type": "boolean",

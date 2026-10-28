@@ -794,8 +794,10 @@ A workflow ('рабочий процесс') is the set of statuses an issue typ
 | `issue_get_attachments` | Attachment metadata | `issue_id`, `fields` |
 | `issue_download_attachment` | Save an attachment to the machine the server runs on, returning its absolute path, MIME type and size; with `thumbnail`, Tracker's 140x140 PNG preview of an image instead | `issue_id`, `attachment_id` from `issue_get_attachments`, `thumbnail` |
 | `issue_add_attachment` | Upload a file from the machine the server runs on, returning the attachment; an image shows inline in a description only when embedded as `![name](/ajax/v2/attachments/<id>?inline=true)` | `issue_id`, `file_path`, `filename` |
+| `issue_add_attachment_from_url` | Attach a file the server fetches from an https URL under `TRACKER_ATTACHMENT_URL_PREFIXES`, returning the attachment | `issue_id`, `file_url`, `filename` |
 | `issue_delete_attachment` | Delete a file attached to an issue - it cannot be restored | `issue_id`, `attachment_id` |
 | `attachment_create` | Upload a file from the machine the server runs on as a temporary attachment, returning the `id` that `attachment_ids` of `issue_add_comment` takes | `file_path`, `filename` |
+| `attachment_create_from_url` | The same for a file the server fetches from an https URL under `TRACKER_ATTACHMENT_URL_PREFIXES` | `file_url`, `filename` |
 | `issue_get_checklist` | The checklist, with the item ids the write tools need | `issue_id` |
 | `issue_add_checklist_items` | Append items in order, creating the checklist if there is none | `issue_id`, `items` (`text`, `checked`, `assignee`, `deadline`) |
 | `issue_update_checklist_item` | Change one item; the fields you omit keep their value | `issue_id`, `checklist_item_id`, `text`, `checked`, `assignee`, `deadline`, `clear_assignee`, `clear_deadline` |
@@ -824,6 +826,8 @@ Every tool here respects `TRACKER_LIMIT_QUEUES` and `TRACKER_READ_ONLY_QUEUES`; 
 The bulk tools are opt-in: registered only with `TRACKER_BULK_ENABLED=true` on a writable server. A bulk change cannot be undone and runs in the background - poll `issues_get_bulk_change` until its status is `COMPLETE` or `FAILED`. Every issue is checked against the queue restrictions before anything is sent, and where the client supports elicitation the user confirms the change first.
 
 The attachment file tools are opt-in and local-only. `issue_add_attachment` and `attachment_create` are registered only with `TRACKER_FILE_UPLOAD_ENABLED=true`, because they read any file the server process can; `issue_download_attachment` only with `TRACKER_ATTACHMENT_DOWNLOAD_ENABLED=true`, read-only mode included. Both default to `false`, and the server refuses to start with either on a network transport or with `OAUTH_ENABLED`, where a client - or a prompt injected into an issue - could upload the host's secrets to an issue.
+
+`issue_add_attachment_from_url` and `attachment_create_from_url` are registered only when `TRACKER_ATTACHMENT_URL_PREFIXES` lists the https URL prefixes they may fetch from, and work on any transport: the server fetches only under those prefixes, follows no redirect, sends none of the Tracker credentials and refuses a file over `TRACKER_MAX_ATTACHMENT_BYTES`. The fetch goes out directly, not through a proxy.
 
 Downloads are saved under `TRACKER_ATTACHMENTS_DIR` (default `<system temp>/yandex-tracker-mcp/attachments`), one folder per issue, as `<attachment id>-<name>`. They are kept, so downloading the same attachment again returns the file already there; attachments over `TRACKER_MAX_ATTACHMENT_BYTES` (default 50 MiB) are refused before the download starts. Uploads and downloads have their own time budget, `TRACKER_ATTACHMENT_TIMEOUT`.
 
@@ -1251,7 +1255,8 @@ TRACKER_ADMIN_ENABLED=true                # Default: false - Register the tools 
 TRACKER_WORKFLOWS_WRITE_ENABLED=true      # Default: false - Register the workflow write tools (a change applies to every queue sharing the workflow; screens get new ids on each write)
 TRACKER_ATTACHMENT_DOWNLOAD_ENABLED=true  # Default: false - Register issue_download_attachment, which saves attachments to this machine (stdio only, like the flag above)
 TRACKER_ATTACHMENTS_DIR=/path/to/dir      # Default: <system temp>/yandex-tracker-mcp/attachments - Where downloaded attachments are saved
-TRACKER_MAX_ATTACHMENT_BYTES=52428800     # Default: 52428800 (50 MiB) - Larger attachments are not downloaded
+TRACKER_MAX_ATTACHMENT_BYTES=52428800     # Default: 52428800 (50 MiB) - Larger attachments are not downloaded, nor fetched by URL
+TRACKER_ATTACHMENT_URL_PREFIXES=https://files.example.com/reports/  # Default: none - https URL prefixes issue_add_attachment_from_url and attachment_create_from_url may fetch from; without it they are not registered
 
 # Server Configuration
 HOST=0.0.0.0                              # Default: 0.0.0.0

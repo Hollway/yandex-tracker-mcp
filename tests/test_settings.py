@@ -158,3 +158,52 @@ def test_ai_access_ignored_queues_are_parsed_like_the_queue_lists(
     monkeypatch.setenv("TRACKER_AI_ACCESS_IGNORED_QUEUES", "sap, Dev")
 
     assert load_settings().tracker_ai_access_ignored_queues == {"SAP", "DEV"}
+
+
+class TestAttachmentUrlPrefixes:
+    """`TRACKER_ATTACHMENT_URL_PREFIXES` lists what the upload-by-URL tools may
+    fetch; the prefixes are compared as plain strings, so each must end where a
+    host does."""
+
+    def test_none_by_default(self) -> None:
+        assert load_settings().tracker_attachment_url_prefixes is None
+
+    @pytest.mark.parametrize(
+        ("raw", "expected"),
+        [
+            pytest.param(
+                "https://files.example.com",
+                ["https://files.example.com/"],
+                id="host-gets-a-slash",
+            ),
+            pytest.param(
+                " https://a.example/reports/ , https://b.example/x",
+                ["https://a.example/reports/", "https://b.example/x"],
+                id="list",
+            ),
+            pytest.param(" , ", None, id="blank"),
+        ],
+    )
+    def test_parsed_from_the_environment(
+        self, monkeypatch: pytest.MonkeyPatch, raw: str, expected: list[str] | None
+    ) -> None:
+        monkeypatch.setenv("TRACKER_ATTACHMENT_URL_PREFIXES", raw)
+
+        assert load_settings().tracker_attachment_url_prefixes == expected
+
+    def test_plain_http_is_refused(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv(
+            "TRACKER_ATTACHMENT_URL_PREFIXES", "http://files.example.com/"
+        )
+
+        with pytest.raises(ValidationError, match="https://"):
+            load_settings()
+
+    def test_allowed_on_a_network_transport(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("TRACKER_ATTACHMENT_URL_PREFIXES", "https://a.example/")
+
+        settings = load_settings(transport="streamable-http")
+
+        assert settings.tracker_attachment_url_prefixes == ["https://a.example/"]

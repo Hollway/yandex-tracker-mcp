@@ -255,6 +255,13 @@ FILE_UPLOAD_TOOL_NAMES = [
     "attachment_create",
 ]
 
+# Tools that fetch a file by URL - require both write mode and
+# TRACKER_ATTACHMENT_URL_PREFIXES
+URL_UPLOAD_TOOL_NAMES = [
+    "issue_add_attachment_from_url",
+    "attachment_create_from_url",
+]
+
 # Tools that write to the server's disk without changing Tracker - require
 # TRACKER_ATTACHMENT_DOWNLOAD_ENABLED, and stay registered in read-only mode
 ATTACHMENT_DOWNLOAD_TOOL_NAMES = [
@@ -299,6 +306,7 @@ ALL_WRITE_TOOL_NAMES = (
     WRITE_TOOL_NAMES
     + ENTITY_WRITE_TOOL_NAMES
     + FILE_UPLOAD_TOOL_NAMES
+    + URL_UPLOAD_TOOL_NAMES
     + BULK_TOOL_NAMES
     + WORKFLOW_WRITE_TOOL_NAMES
 )
@@ -405,6 +413,7 @@ class TestEntityToolRegistration:
         READ_ONLY_TOOL_NAMES
         + WRITE_TOOL_NAMES
         + FILE_UPLOAD_TOOL_NAMES
+        + URL_UPLOAD_TOOL_NAMES
         + BULK_TOOL_NAMES
         + ATTACHMENT_DOWNLOAD_TOOL_NAMES
         + WORKFLOW_WRITE_TOOL_NAMES,
@@ -429,6 +438,7 @@ class TestEntityToolRegistration:
             len(READ_ONLY_TOOL_NAMES)
             + len(WRITE_TOOL_NAMES)
             + len(FILE_UPLOAD_TOOL_NAMES)
+            + len(URL_UPLOAD_TOOL_NAMES)
             + len(BULK_TOOL_NAMES)
             + len(ATTACHMENT_DOWNLOAD_TOOL_NAMES)
             + len(WORKFLOW_WRITE_TOOL_NAMES)
@@ -480,6 +490,49 @@ class TestFileUploadToolRegistration:
         disabled_names = {tool.name for tool in await disabled.list_tools()}
 
         assert enabled_names - disabled_names == set(FILE_UPLOAD_TOOL_NAMES)
+
+
+class TestUrlUploadToolRegistration:
+    """The upload-by-URL tools fetch only under the prefixes the operator
+    lists (TRACKER_ATTACHMENT_URL_PREFIXES); with none they are not
+    registered, and a read-only server never registers them."""
+
+    @pytest.mark.parametrize(
+        ("read_only", "prefixes", "registered"),
+        [
+            pytest.param(False, (), False, id="no-prefixes"),
+            pytest.param(True, ("https://a.example/",), False, id="read-only"),
+            pytest.param(False, ("https://a.example/",), True, id="enabled"),
+        ],
+    )
+    @pytest.mark.parametrize("tool_name", URL_UPLOAD_TOOL_NAMES)
+    async def test_registered_only_with_prefixes_and_writable(
+        self,
+        tool_name: str,
+        read_only: bool,
+        prefixes: tuple[str, ...],
+        registered: bool,
+    ) -> None:
+        server = create_mcp_server(
+            settings=create_test_settings(
+                read_only=read_only, attachment_url_prefixes=prefixes
+            )
+        )
+
+        tool_names = {tool.name for tool in await server.list_tools()}
+
+        assert (tool_name in tool_names) is registered
+
+    async def test_the_prefixes_gate_nothing_else(self) -> None:
+        enabled = create_mcp_server(settings=create_test_settings())
+        disabled = create_mcp_server(
+            settings=create_test_settings(attachment_url_prefixes=())
+        )
+
+        enabled_names = {tool.name for tool in await enabled.list_tools()}
+        disabled_names = {tool.name for tool in await disabled.list_tools()}
+
+        assert enabled_names - disabled_names == set(URL_UPLOAD_TOOL_NAMES)
 
 
 class TestAttachmentDownloadToolRegistration:

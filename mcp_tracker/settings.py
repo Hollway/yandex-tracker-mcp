@@ -67,6 +67,11 @@ class Settings(BaseSettings):
     # Larger attachments are refused before the download starts. Tracker itself
     # accepts up to 1024 MB, which an agent has no use for.
     tracker_max_attachment_bytes: int = 50 * 1024 * 1024
+    # URL prefixes `issue_add_attachment_from_url` / `attachment_create_from_url`
+    # may fetch from; none (the default) leaves both tools unregistered. Unlike
+    # the local-file flag this is safe on any transport: the server fetches only
+    # what the operator listed. See `decode_url_prefixes`.
+    tracker_attachment_url_prefixes: Annotated[list[str] | None, NoDecode] = None
 
     tracker_sa_key_id: str | None = None
     tracker_sa_service_account_id: str | None = None
@@ -197,6 +202,39 @@ class Settings(BaseSettings):
             raise TypeError(f"Expected str, list, set or None, got {type(v)}")
 
         return {key.strip().upper() for key in keys if key.strip()}
+
+    @field_validator("tracker_attachment_url_prefixes", mode="before")
+    @classmethod
+    def decode_url_prefixes(cls, v: Any) -> list[str] | None:
+        """Parse the comma-separated URL prefixes the upload-by-URL tools may
+        fetch from.
+
+        Each must be `https://`, and one that names only a host gets the `/`
+        after it: compared as a plain string prefix, `https://files.example.com`
+        would also let through `https://files.example.com.attacker.net/`.
+        """
+        if v is None:
+            return None
+        if isinstance(v, str):
+            raw: Iterable[str] = v.split(",")
+        elif isinstance(v, (list, set, tuple, frozenset)):
+            raw = v
+        else:
+            raise TypeError(f"Expected str, list or None, got {type(v)}")
+
+        prefixes = []
+        for item in raw:
+            prefix = item.strip()
+            if not prefix:
+                continue
+            if not prefix.lower().startswith("https://"):
+                raise ValueError(
+                    f"TRACKER_ATTACHMENT_URL_PREFIXES: `{prefix}` is not an https:// URL"
+                )
+            if "/" not in prefix[len("https://") :]:
+                prefix += "/"
+            prefixes.append(prefix)
+        return prefixes or None
 
     def cache_kwargs(self) -> dict[str, Any]:
         return {
