@@ -42,8 +42,10 @@ from mcp_tracker.mcp.params import (
 )
 from mcp_tracker.mcp.tools._access import (
     check_issue_access,
+    check_issue_queue_access,
     check_queue_access,
     is_queue_allowed,
+    queue_checks_needed,
     queue_of_key,
 )
 from mcp_tracker.mcp.tools._ai_access import (
@@ -1153,7 +1155,7 @@ class BulkConfirmation(BaseModel):
 
 
 def _bulk_question(
-    ctx: Context, what: str, count: int
+    ctx: Context[Any], what: str, count: int
 ) -> BulkConfirmation | Elicit[BulkConfirmation]:
     """Ask the user to confirm a bulk change, where the client can be asked.
 
@@ -1200,12 +1202,52 @@ def _template_checklist(template: IssueTemplate) -> list[ChecklistItemInput]:
     return checklist
 
 
-def _check_bulk_issues(settings: Settings, issues: list[str]) -> None:
-    """The write check of every issue of a bulk change, by the queue each key
-    names: up to 10 000 issues are not read one by one, so the old key of a
-    moved issue is checked against its old queue here."""
+def _check_bulk_keys(settings: Settings, issues: list[str]) -> None:
+    """The write check of every issue of a bulk change by the queue its key
+    names, which costs no request: a queue out of reach is refused at once."""
     for issue_id in issues:
-        check_issue_access(settings, issue_id, write=True)
+        if queue_of_key(issue_id) is not None:
+            check_issue_access(settings, issue_id, write=True)
+
+
+async def _check_bulk_issues(
+    ctx: Context[AppContext], settings: Settings, issues: list[str]
+) -> None:
+    """The write check of every issue of a bulk change against the queue it is
+    in now.
+
+    Tracker serves a moved issue under its old key too, so under the queue
+    restrictions one search per thousand issues (`issues_find_by_keys`) gives
+    the key each one is under now, and that queue is checked - up to 10 000
+    issues are not read one by one. An internal id the search does not find is
+    refused, as its queue cannot be known; an unknown key is left to Tracker,
+    which reports it among the failures of the change.
+    """
+    _check_bulk_keys(settings, issues)
+    if not queue_checks_needed(settings, write=True):
+        return
+
+    found = await ctx.request_context.lifespan_context.issues.issues_find_by_keys(
+        issues, auth=get_yandex_auth(ctx)
+    )
+    current: dict[str, str] = {}
+    for issue in found:
+        if not issue.key:
+            continue
+        extra = issue.model_extra or {}
+        for name in (issue.key, extra.get("id"), *(extra.get("aliases") or ())):
+            if isinstance(name, str):
+                current[name.upper()] = issue.key
+
+    for issue_id in issues:
+        queue = queue_of_key(current.get(issue_id.upper(), ""))
+        if queue is not None:
+            check_issue_queue_access(settings, issue_id, queue, write=True)
+        elif queue_of_key(issue_id) is None:
+            raise TrackerError(
+                f"Issue `{issue_id}` was not found, so its queue cannot be "
+                f"checked against the queue restrictions; refusing."
+            )
 
 
 def _bulk_failure_allowed(settings: Settings, failure: BulkChangeFailure) -> bool:
@@ -1226,24 +1268,26 @@ def _bulk_resolvers(
 ) -> dict[str, Callable[..., Awaitable[BulkConfirmation | Elicit[BulkConfirmation]]]]:
     """The confirmation resolvers of the bulk tools. A resolver runs before the
     tool body, so the access checks run here first: the user is not asked to
-    confirm a change the body would refuse anyway."""
+    confirm a change the body would refuse anyway. The search for the queues
+    the issues are in now is made here only; the body repeats the free check
+    by the keys."""
 
     async def confirm_update(
-        ctx: Context, issues: list[str], values: dict[str, Any]
+        ctx: Context[AppContext], issues: list[str], values: dict[str, Any]
     ) -> BulkConfirmation | Elicit[BulkConfirmation]:
-        _check_bulk_issues(settings, issues)
+        await _check_bulk_issues(ctx, settings, issues)
         return _bulk_question(ctx, f"Update fields {sorted(values)}", len(issues))
 
     async def confirm_transition(
-        ctx: Context, issues: list[str], transition: str
+        ctx: Context[AppContext], issues: list[str], transition: str
     ) -> BulkConfirmation | Elicit[BulkConfirmation]:
-        _check_bulk_issues(settings, issues)
+        await _check_bulk_issues(ctx, settings, issues)
         return _bulk_question(ctx, f"Run transition `{transition}`", len(issues))
 
     async def confirm_move(
-        ctx: Context, issues: list[str], queue: str
+        ctx: Context[AppContext], issues: list[str], queue: str
     ) -> BulkConfirmation | Elicit[BulkConfirmation]:
-        _check_bulk_issues(settings, issues)
+        await _check_bulk_issues(ctx, settings, issues)
         check_queue_access(settings, queue, write=True)
         return _bulk_question(ctx, f"Move to queue `{queue}`", len(issues))
 
@@ -1288,7 +1332,7 @@ def register_issue_bulk_tools(settings: Settings, mcp: MCPServer[AppContext]) ->
         ],
         notify: BulkNotifyParam = False,
     ) -> BulkChange:
-        _check_bulk_issues(settings, issues)
+        _check_bulk_keys(settings, issues)
         _confirmed(confirmation, "The bulk update")
         return await ctx.request_context.lifespan_context.issues.issues_bulk_update(
             issues, values=values, notify=notify, auth=get_yandex_auth(ctx)
@@ -1314,7 +1358,7 @@ def register_issue_bulk_tools(settings: Settings, mcp: MCPServer[AppContext]) ->
         values: BulkValuesParam = None,
         notify: BulkNotifyParam = False,
     ) -> BulkChange:
-        _check_bulk_issues(settings, issues)
+        _check_bulk_keys(settings, issues)
         _confirmed(confirmation, "The bulk transition")
         return await ctx.request_context.lifespan_context.issues.issues_bulk_transition(
             issues,
@@ -1355,7 +1399,7 @@ def register_issue_bulk_tools(settings: Settings, mcp: MCPServer[AppContext]) ->
         values: BulkValuesParam = None,
         notify: BulkNotifyParam = False,
     ) -> BulkChange:
-        _check_bulk_issues(settings, issues)
+        _check_bulk_keys(settings, issues)
         check_queue_access(settings, queue, write=True)
         _confirmed(confirmation, "The bulk move")
         return await ctx.request_context.lifespan_context.issues.issues_bulk_move(

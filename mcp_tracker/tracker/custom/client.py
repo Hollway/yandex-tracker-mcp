@@ -553,6 +553,10 @@ _TRIGGERS_PER_PAGE = 100
 # A guard against a `next` link that never ends, not a page size.
 _MAX_WORKLOG_SEARCH_PAGES = 50
 
+# Keys per `issues_find_by_keys` search: ten requests for the 10 000 issues a
+# bulk change takes.
+_KEYS_PER_SEARCH = 1000
+
 
 _CatalogT = TypeVar("_CatalogT", bound=BaseModel)
 
@@ -3547,6 +3551,34 @@ class TrackerClient(
             "POST", "v3/issues/_count", auth=auth, json=body
         ) as response:
             return int(await response.text())
+
+    async def issues_find_by_keys(
+        self, keys: Sequence[str], *, auth: YandexAuth | None = None
+    ) -> list[Issue]:
+        """The issues behind `keys` - keys, internal ids or the old key of a
+        moved issue, in any case - each with its current `key` and `aliases`.
+
+        `keys` in the search body is the one lookup that follows a move (a
+        `query` or `filter` by key does not) and skips an unknown key instead
+        of failing; verified 2026-10-28. It took 1200 keys in one request, and
+        `perPage` 2000; a batch of `_KEYS_PER_SEARCH` keeps the answers small.
+        """
+        found: list[Issue] = []
+        for start in range(0, len(keys), _KEYS_PER_SEARCH):
+            batch = list(keys[start : start + _KEYS_PER_SEARCH])
+            found.extend(
+                IssueList.model_validate_json(
+                    await self._read(
+                        "POST",
+                        "v3/issues/_search",
+                        auth=auth,
+                        # One page holds the batch: no key matches two issues.
+                        params={"fields": "key,aliases", "perPage": len(batch)},
+                        json={"keys": batch},
+                    )
+                ).root
+            )
+        return found
 
     # Saved filters - see AGENTS.md, *Saved filters*.
 

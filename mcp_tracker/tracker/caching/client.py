@@ -1097,6 +1097,14 @@ def make_cached_protocols(
                 query, filter_id=filter_id, auth=auth
             )
 
+        # Not cached: it tells the access checks which queue each issue is in
+        # now, and an issue moved after a cached read would be checked
+        # against the queue it left.
+        async def issues_find_by_keys(
+            self, keys: Sequence[str], *, auth: YandexAuth | None = None
+        ) -> list[Issue]:
+            return await self._original.issues_find_by_keys(keys, auth=auth)
+
         @cached(**cache_config)
         async def issue_get_checklist(
             self, issue_id: str, *, auth: YandexAuth | None = None

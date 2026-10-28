@@ -40,6 +40,8 @@ from mcp_tracker.tracker.proto.types.issues import (
 )
 from tests.mcp.conftest import get_tool_result_content, safe_client_session
 
+INTERNAL_ID = "6ad1d166dc7d9f59dec67d79"
+
 # The shapes a client can declare `elicitation` in, oldest first: a bare `{}`
 # predates the form/url modes and means form support.
 _CAPS_BARE = ClientCapabilities(elicitation=ElicitationCapability())
@@ -1978,6 +1980,90 @@ class TestBulkTools:
 
         assert result.is_error
         mock_issues_protocol.issues_bulk_update.assert_not_called()
+
+    async def test_the_old_key_of_an_issue_moved_to_a_read_only_queue_is_refused(
+        self,
+        client_session_with_read_only_queues: Client,
+        mock_issues_protocol: AsyncMock,
+    ) -> None:
+        """Tracker serves a moved issue under its old key too; the search by
+        keys gives the key it is under now."""
+        mock_issues_protocol.issues_find_by_keys.return_value = [
+            Issue.model_validate({"key": "READONLY-3", "aliases": ["TEST-1"]}),
+            Issue(key="TEST-2"),
+        ]
+
+        result = await client_session_with_read_only_queues.call_tool(
+            "issues_bulk_update",
+            {"issues": ["test-1", "TEST-2"], "values": {"tags": ["x"]}},
+        )
+
+        assert result.is_error
+        assert "`READONLY`" in error_text(result)
+        mock_issues_protocol.issues_bulk_update.assert_not_called()
+
+    async def test_an_internal_id_is_checked_by_the_key_found_for_it(
+        self,
+        client_session_with_limits: Client,
+        mock_issues_protocol: AsyncMock,
+    ) -> None:
+        mock_issues_protocol.issues_find_by_keys.return_value = [
+            Issue.model_validate({"key": "ALLOWED-2", "id": INTERNAL_ID})
+        ]
+        mock_issues_protocol.issues_bulk_update.return_value = BulkChange(id="b1")
+
+        result = await client_session_with_limits.call_tool(
+            "issues_bulk_update", {"issues": [INTERNAL_ID], "values": {"tags": ["x"]}}
+        )
+
+        assert not result.is_error
+        assert mock_issues_protocol.issues_find_by_keys.call_args.args == (
+            [INTERNAL_ID],
+        )
+        mock_issues_protocol.issues_bulk_update.assert_awaited_once()
+
+    async def test_an_internal_id_not_found_is_refused(
+        self,
+        client_session_with_limits: Client,
+        mock_issues_protocol: AsyncMock,
+    ) -> None:
+        mock_issues_protocol.issues_find_by_keys.return_value = []
+
+        result = await client_session_with_limits.call_tool(
+            "issues_bulk_update", {"issues": [INTERNAL_ID], "values": {"tags": ["x"]}}
+        )
+
+        assert result.is_error
+        mock_issues_protocol.issues_bulk_update.assert_not_called()
+
+    async def test_an_unknown_key_is_left_to_tracker(
+        self,
+        client_session_with_limits: Client,
+        mock_issues_protocol: AsyncMock,
+    ) -> None:
+        mock_issues_protocol.issues_find_by_keys.return_value = []
+        mock_issues_protocol.issues_bulk_update.return_value = BulkChange(id="b1")
+
+        result = await client_session_with_limits.call_tool(
+            "issues_bulk_update", {"issues": ["ALLOWED-404"], "values": {"tags": ["x"]}}
+        )
+
+        assert not result.is_error
+        mock_issues_protocol.issues_bulk_update.assert_awaited_once()
+
+    async def test_no_search_without_queue_restrictions(
+        self,
+        client_session: Client,
+        mock_issues_protocol: AsyncMock,
+    ) -> None:
+        mock_issues_protocol.issues_bulk_update.return_value = BulkChange(id="b1")
+
+        await client_session.call_tool(
+            "issues_bulk_update", {"issues": [INTERNAL_ID], "values": {"tags": ["x"]}}
+        )
+
+        mock_issues_protocol.issues_find_by_keys.assert_not_called()
+        mock_issues_protocol.issues_bulk_update.assert_awaited_once()
 
     async def test_move_checks_the_target_queue(
         self,

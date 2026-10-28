@@ -292,6 +292,9 @@ class IssueProtocol(Protocol):
         filter_id: int | None = None,
         auth: YandexAuth | None = None,
     ) -> int: ...
+    async def issues_find_by_keys(
+        self, keys: Sequence[str], *, auth: YandexAuth | None = None
+    ) -> list[Issue]: ...
     async def issue_get_checklist(
         self, issue_id: str, *, auth: YandexAuth | None = None
     ) -> list[ChecklistItem]: ...

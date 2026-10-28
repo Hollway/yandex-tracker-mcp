@@ -1,3 +1,4 @@
+import re
 from typing import Any
 
 import pytest
@@ -8,6 +9,7 @@ from mcp_tracker.tracker.custom.errors import BulkChangeNotFound
 from tests.aioresponses_utils import RequestCapture
 
 BULK_URL = "https://api.tracker.yandex.net/v3/bulkchange"
+SEARCH_URL = re.compile(r"https://api\.tracker\.yandex\.net/v3/issues/_search.*")
 
 
 @pytest.fixture
@@ -132,3 +134,26 @@ class TestBulkChanges:
 
             with pytest.raises(BulkChangeNotFound):
                 await tracker_client.bulk_change_get("abc")
+
+
+class TestFindByKeys:
+    async def test_asks_for_the_keys_a_thousand_at_a_time(
+        self, tracker_client: TrackerClient
+    ) -> None:
+        keys = [f"TEST-{n}" for n in range(1, 1502)]
+        first = RequestCapture(
+            payload=[{"key": "NEW-1", "id": "a1", "aliases": ["TEST-1"]}]
+        )
+        second = RequestCapture(payload=[{"key": "TEST-1501", "id": "a2"}])
+
+        with aioresponses() as m:
+            m.post(SEARCH_URL, callback=first.callback)
+            m.post(SEARCH_URL, callback=second.callback)
+
+            found = await tracker_client.issues_find_by_keys(keys)
+
+        assert [issue.key for issue in found] == ["NEW-1", "TEST-1501"]
+        assert first.last_request.get_json_body() == {"keys": keys[:1000]}
+        assert second.last_request.get_json_body() == {"keys": keys[1000:]}
+        first.last_request.assert_params({"fields": "key,aliases", "perPage": 1000})
+        second.last_request.assert_params({"fields": "key,aliases", "perPage": 501})
