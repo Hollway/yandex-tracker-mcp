@@ -8,7 +8,7 @@ from mcp import Client
 
 from mcp_tracker.tracker.proto.types.issues import Issue, IssueComment
 from mcp_tracker.tracker.proto.types.queues import Queue
-from tests.mcp.conftest import get_tool_result_content
+from tests.mcp.conftest import get_tool_result_content, page
 
 REACTION_TOOLS = [
     ("issue_add_comment_reaction", "issue_add_comment_reaction"),
@@ -35,6 +35,10 @@ def forbid_ai_for(mock_queues_protocol: AsyncMock, *keys: str) -> None:
         return Queue.model_validate({"key": key, "aiAccessLevel": level})
 
     mock_queues_protocol.queue_get.side_effect = queue_get
+    # The listing is what tells the server some queue forbids AI tools at all.
+    mock_queues_protocol.queues_list.return_value = page(
+        [Queue.model_validate({"key": key, "aiAccessLevel": "none"}) for key in keys]
+    )
 
 
 class TestCommentReactions:
@@ -106,6 +110,7 @@ class TestCommentReactions:
         method: str,
     ) -> None:
         forbid_ai_for(mock_queues_protocol, "TEST")
+        mock_issues_protocol.issue_get.return_value = Issue(key="TEST-1")
         getattr(mock_issues_protocol, method).return_value = comment()
 
         result = await client_session.call_tool(

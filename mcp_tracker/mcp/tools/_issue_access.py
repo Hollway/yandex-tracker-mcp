@@ -34,10 +34,12 @@ async def check_issue(
     *,
     write: bool = False,
     ai: bool = True,
-) -> None:
+) -> bool:
     """Check a read (or a ``write``) of one issue against the queue restrictions
-    and - for a read whose answer carries the issue's content (``ai``) - against
-    the AI tools access setting.
+    and - when the answer carries the issue's content (``ai``) - against the AI
+    tools access setting: a read of an issue whose queue forbids AI tools is
+    refused, a write goes through and gets True back, telling the tool to leave
+    the content out of its answer.
 
     A key is checked as it is first, so a queue it names that is out of reach is
     refused without a request. The issue is then read for its current key only
@@ -46,16 +48,16 @@ async def check_issue(
     neither, an issue's queue cannot change the answer and costs nothing. An
     internal id, which names no queue, is checked the same way.
     """
-    check_ai = ai and not write
     queue = queue_of_key(issue_id)
     if queue is not None:
         check_issue_access(settings, issue_id, write=write)
-        if check_ai:
+        if ai and not write:
             await check_ai_access(ctx, settings, issue_id)
 
     restricted = queue_checks_needed(settings, write=write)
-    if not restricted and not (check_ai and await ai_forbidden_anywhere(ctx, settings)):
-        return
+    check_ai = ai and await ai_forbidden_anywhere(ctx, settings)
+    if not restricted and not check_ai:
+        return False
 
     issue = await ctx.request_context.lifespan_context.issues.issue_get(
         issue_id, auth=get_yandex_auth(ctx)
@@ -67,9 +69,10 @@ async def check_issue(
                 f"Issue `{issue_id}` came back without a key, so its queue cannot "
                 f"be checked against the queue restrictions; refusing."
             )
-        return
-    if current == queue:
-        return
-    check_issue_queue_access(settings, issue_id, current, write=write)
-    if check_ai and await is_ai_restricted(ctx, settings, current):
+        return False
+    if current != queue:
+        check_issue_queue_access(settings, issue_id, current, write=write)
+    hidden = check_ai and await is_ai_restricted(ctx, settings, current)
+    if hidden and not write:
         raise AiAccessRestricted(issue_id, current)
+    return hidden

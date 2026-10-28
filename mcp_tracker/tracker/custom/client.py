@@ -2836,15 +2836,16 @@ class TrackerClient(
             issue_id: Ключ задачи (например, "QUEUE-123")
             duration: Длительность в формате ISO 8601 (например, "PT1H30M")
             comment: Комментарий к записи
-            start: Время начала работ. Если не задано — используется текущее время на стороне Трекера.
+            start: Время начала работ. Если не задано — текущее время: Трекер
+                сам его не подставляет и отвечает 422 «start: Требуется параметр»
+                (проверено 2026-10-28).
             auth: Опциональная auth-структура (OAuth/Org) поверх конфигурации клиента
         """
         body: dict[str, Any] = {"duration": duration}
         if comment is not None:
             body["comment"] = comment
-        if start is not None:
-            # Если tz отсутствует — считаем, что время задано в UTC.
-            body["start"] = _tracker_datetime(start)
+        # Если tz отсутствует — считаем, что время задано в UTC.
+        body["start"] = _tracker_datetime(start or datetime.datetime.now(datetime.UTC))
 
         return Worklog.model_validate_json(
             await self._read(

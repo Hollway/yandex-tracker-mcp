@@ -31,6 +31,7 @@ from mcp_tracker.mcp.tools._ai_access import (
     check_ai_access,
     check_fetched_issue_ai_access,
     hide_ai_restricted,
+    hide_restricted_refs,
     is_restricted_row,
 )
 from mcp_tracker.mcp.tools._issue_access import check_issue
@@ -161,6 +162,7 @@ def register_issue_read_tools(settings: Settings, mcp: MCPServer[AppContext]) ->
         if not include_description:
             issue.description = None
 
+        await hide_restricted_refs(ctx, settings, issue)
         return issue
 
     @mcp.tool(
@@ -206,13 +208,15 @@ def register_issue_read_tools(settings: Settings, mcp: MCPServer[AppContext]) ->
         ctx: Context[AppContext],
         issue_id: IssueID,
     ) -> list[IssueLink]:
-        # Each link carries the linked issue's summary and status.
         await check_issue(ctx, settings, issue_id)
 
-        return await ctx.request_context.lifespan_context.issues.issues_get_links(
+        links = await ctx.request_context.lifespan_context.issues.issues_get_links(
             issue_id,
             auth=get_yandex_auth(ctx),
         )
+        # Each link carries the linked issue's summary.
+        await hide_restricted_refs(ctx, settings, links)
+        return links
 
     @mcp.tool(
         title="Get Issue Remote Links",
@@ -469,14 +473,19 @@ def register_issue_read_tools(settings: Settings, mcp: MCPServer[AppContext]) ->
     ) -> ChangelogPage:
         await check_issue(ctx, settings, issue_id)
 
-        return await ctx.request_context.lifespan_context.issues.issue_get_changelog(
-            issue_id,
-            per_page=per_page,
-            cursor=cursor,
-            field=field,
-            type=type,
-            auth=get_yandex_auth(ctx),
+        changelog = (
+            await ctx.request_context.lifespan_context.issues.issue_get_changelog(
+                issue_id,
+                per_page=per_page,
+                cursor=cursor,
+                field=field,
+                type=type,
+                auth=get_yandex_auth(ctx),
+            )
         )
+        # A changed parent or link names the other issue with its summary.
+        await hide_restricted_refs(ctx, settings, changelog)
+        return changelog
 
 
 def register_issue_attachment_download_tools(

@@ -2,7 +2,7 @@ from typing import Any
 
 from pydantic import AliasChoices, BaseModel, Field
 
-from mcp_tracker.tracker.proto.types.base import BaseTrackerEntity
+from mcp_tracker.tracker.proto.types.base import BaseTrackerEntity, none_excluder
 
 
 class BaseReference(BaseTrackerEntity):
@@ -70,6 +70,12 @@ class UserReference(BaseReference):
 class IssueReference(BaseReference):
     key: str | None = None
     display: str | None = None
+    restricted: bool | None = Field(
+        None,
+        exclude_if=none_excluder,
+        description="Set when the issue's queue forbids AI tools access: the "
+        "summary (`display`) is then left out.",
+    )
 
 
 class ComponentReference(BaseReference):

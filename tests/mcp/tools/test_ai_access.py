@@ -20,7 +20,15 @@ from mcp_tracker.tracker.custom.errors import (
     TrackerAPITimeout,
     TrackerRateLimited,
 )
-from mcp_tracker.tracker.proto.types.issues import Issue, IssueComment
+from mcp_tracker.tracker.proto.types.issues import (
+    ChangelogEntry,
+    ChangelogPage,
+    ChecklistItem,
+    Issue,
+    IssueComment,
+    IssueLink,
+    Worklog,
+)
 from mcp_tracker.tracker.proto.types.queues import Queue
 from tests.mcp.conftest import (
     create_test_settings,
@@ -294,3 +302,238 @@ class TestListings:
             )
 
         assert not result.is_error
+
+
+SECRET = "secret summary"
+
+
+def ref(key: str) -> dict[str, Any]:
+    """An issue as another record names it: id, key and its summary."""
+    return {"id": f"id-{key}", "key": key, "display": SECRET}
+
+
+HIDDEN_REF = {
+    "id": "id-CLOSED-7",
+    "key": "CLOSED-7",
+    "display": None,
+    "restricted": True,
+}
+
+
+class TestReferences:
+    """An issue that may be read can name one that may not; the summary it
+    carries of that one is left out, its key and id stay."""
+
+    async def test_issue_get_hides_a_forbidden_parent(
+        self, session: Client, mock_issues_protocol: AsyncMock
+    ) -> None:
+        mock_issues_protocol.issue_get.return_value = Issue.model_validate(
+            {"key": "OPEN-1", "parent": ref("CLOSED-7"), "epic": ref("OPEN-2")}
+        )
+
+        result = await session.call_tool("issue_get", {"issue_id": "OPEN-1"})
+
+        content = get_tool_result_content(result)
+        assert content["parent"] == HIDDEN_REF
+        assert content["epic"]["display"] == SECRET
+
+    async def test_issues_find_hides_a_forbidden_parent(
+        self, session: Client, mock_issues_protocol: AsyncMock
+    ) -> None:
+        mock_issues_protocol.issues_find.return_value = page(
+            [Issue.model_validate({"key": "OPEN-1", "parent": ref("CLOSED-7")})]
+        )
+
+        result = await session.call_tool(
+            "issues_find", {"query": "Queue: OPEN", "fields": ["parent"]}
+        )
+
+        assert get_tool_result_content(result)["values"][0]["parent"] == HIDDEN_REF
+
+    async def test_links_hide_a_forbidden_linked_issue(
+        self, session: Client, mock_issues_protocol: AsyncMock
+    ) -> None:
+        mock_issues_protocol.issues_get_links.return_value = [
+            IssueLink.model_validate({"id": 1, "object": ref("CLOSED-7")}),
+            IssueLink.model_validate({"id": 2, "object": ref("OPEN-2")}),
+        ]
+
+        result = await session.call_tool("issue_get_links", {"issue_id": "OPEN-1"})
+
+        links = get_tool_result_content(result)
+        assert links[0]["object"] == HIDDEN_REF
+        assert links[1]["object"]["display"] == SECRET
+
+    async def test_changelog_hides_a_forbidden_issue_in_a_field_change(
+        self, session: Client, mock_issues_protocol: AsyncMock
+    ) -> None:
+        mock_issues_protocol.issue_get_changelog.return_value = ChangelogPage(
+            entries=[
+                ChangelogEntry.model_validate(
+                    {
+                        "id": "c1",
+                        "fields": [
+                            {
+                                "field": {"id": "parent"},
+                                "from": None,
+                                "to": ref("CLOSED-7"),
+                            }
+                        ],
+                    }
+                )
+            ]
+        )
+
+        result = await session.call_tool("issue_get_changelog", {"issue_id": "OPEN-1"})
+
+        change = get_tool_result_content(result)["entries"][0]["fields"][0]
+        assert change["to"] == HIDDEN_REF
+
+    async def test_worklogs_find_hides_the_summary(
+        self, session: Client, mock_issues_protocol: AsyncMock
+    ) -> None:
+        mock_issues_protocol.worklogs_find.return_value = [
+            Worklog.model_validate(
+                {"id": 1, "issue": ref("CLOSED-7"), "comment": "secret comment"}
+            )
+        ]
+
+        result = await session.call_tool(
+            "worklogs_find", {"author": "someone", "created_from": "2026-10-28"}
+        )
+
+        worklog = get_tool_result_content(result)[0]
+        assert worklog["issue"] == HIDDEN_REF
+        assert "comment" not in worklog
+
+    async def test_nothing_is_hidden_when_no_queue_forbids_ai(
+        self,
+        session: Client,
+        mock_issues_protocol: AsyncMock,
+        mock_queues_protocol: AsyncMock,
+    ) -> None:
+        mock_queues_protocol.queues_list.return_value = page([])
+        mock_issues_protocol.issue_get.return_value = Issue.model_validate(
+            {"key": "OPEN-1", "parent": ref("OPEN-7")}
+        )
+
+        result = await session.call_tool("issue_get", {"issue_id": "OPEN-1"})
+
+        assert get_tool_result_content(result)["parent"]["display"] == SECRET
+
+
+class TestWriteAnswers:
+    """A write to an issue of a forbidding queue goes through, but its answer
+    leaves the content out - otherwise any write would read the issue."""
+
+    async def test_update_answers_with_key_id_and_version(
+        self, session: Client, mock_issues_protocol: AsyncMock
+    ) -> None:
+        mock_issues_protocol.issue_update.return_value = Issue.model_validate(
+            {
+                "key": "CLOSED-1",
+                "id": "abc",
+                "version": 7,
+                "summary": SECRET,
+                "description": "secret description",
+            }
+        )
+
+        result = await session.call_tool(
+            "issue_update", {"issue_id": "CLOSED-1", "tags": ["x"]}
+        )
+
+        assert not result.is_error
+        assert get_tool_result_content(result) == {
+            "key": "CLOSED-1",
+            "id": "abc",
+            "version": 7,
+            "restricted": True,
+        }
+        mock_issues_protocol.issue_update.assert_awaited_once()
+
+    async def test_create_in_a_forbidding_queue_answers_with_the_key(
+        self, session: Client, mock_issues_protocol: AsyncMock
+    ) -> None:
+        mock_issues_protocol.issue_create.return_value = Issue.model_validate(
+            {"key": "CLOSED-5", "version": 1, "summary": SECRET}
+        )
+
+        result = await session.call_tool(
+            "issue_create", {"queue": "CLOSED", "summary": SECRET}
+        )
+
+        assert get_tool_result_content(result) == {
+            "key": "CLOSED-5",
+            "version": 1,
+            "restricted": True,
+        }
+
+    async def test_update_of_an_allowed_issue_hides_a_forbidden_parent(
+        self, session: Client, mock_issues_protocol: AsyncMock
+    ) -> None:
+        mock_issues_protocol.issue_update.return_value = Issue.model_validate(
+            {"key": "OPEN-1", "summary": "visible", "parent": ref("CLOSED-7")}
+        )
+
+        result = await session.call_tool(
+            "issue_update", {"issue_id": "OPEN-1", "parent": "CLOSED-7"}
+        )
+
+        content = get_tool_result_content(result)
+        assert content["summary"] == "visible"
+        assert content["parent"] == HIDDEN_REF
+
+    async def test_checklist_write_keeps_only_ids_and_checks(
+        self, session: Client, mock_issues_protocol: AsyncMock
+    ) -> None:
+        mock_issues_protocol.issue_get.return_value = Issue(key="CLOSED-1")
+        mock_issues_protocol.issue_add_checklist_items.return_value = [
+            ChecklistItem.model_validate(
+                {
+                    "id": "i1",
+                    "text": "secret item",
+                    "checked": True,
+                    "assignee": {"id": "1"},
+                }
+            )
+        ]
+
+        result = await session.call_tool(
+            "issue_add_checklist_items",
+            {"issue_id": "CLOSED-1", "items": [{"text": "new"}]},
+        )
+
+        assert get_tool_result_content(result) == [
+            {"id": "i1", "text": "", "checked": True}
+        ]
+
+    async def test_worklog_write_hides_comment_and_summary(
+        self, session: Client, mock_issues_protocol: AsyncMock
+    ) -> None:
+        mock_issues_protocol.issue_get.return_value = Issue(key="CLOSED-7")
+        mock_issues_protocol.issue_add_worklog.return_value = Worklog.model_validate(
+            {"id": 1, "issue": ref("CLOSED-7"), "comment": "secret comment"}
+        )
+
+        result = await session.call_tool(
+            "issue_add_worklog", {"issue_id": "CLOSED-7", "duration": "PT1H"}
+        )
+
+        worklog = get_tool_result_content(result)
+        assert worklog["issue"] == HIDDEN_REF
+        assert "comment" not in worklog
+
+    async def test_link_to_a_forbidden_issue_hides_its_summary(
+        self, session: Client, mock_issues_protocol: AsyncMock
+    ) -> None:
+        mock_issues_protocol.issue_add_link.return_value = IssueLink.model_validate(
+            {"id": 1, "object": ref("CLOSED-7")}
+        )
+
+        result = await session.call_tool(
+            "issue_add_link",
+            {"issue_id": "OPEN-1", "relationship": "relates", "issue": "CLOSED-7"},
+        )
+
+        assert get_tool_result_content(result)["object"] == HIDDEN_REF

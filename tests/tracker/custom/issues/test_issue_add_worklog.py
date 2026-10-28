@@ -39,14 +39,22 @@ class TestIssueAddWorklog:
                 callback=capture.callback,
             )
 
+            before = datetime.datetime.now(datetime.UTC)
             result = await tracker_client.issue_add_worklog("TEST-123", duration="PT4H")
+            after = datetime.datetime.now(datetime.UTC)
 
             assert isinstance(result, Worklog)
             assert result.id == 123
             assert result.comment == "Work done on the issue"
 
         capture.assert_called_once()
-        capture.last_request.assert_json_body({"duration": "PT4H"})
+        # Tracker does not default `start`: without it the API answers 422
+        # "start: Требуется параметр", so the client sends the current time.
+        body = capture.last_request.get_json_body()
+        assert body.keys() == {"duration", "start"}
+        assert body["duration"] == "PT4H"
+        sent = datetime.datetime.strptime(body["start"], "%Y-%m-%dT%H:%M:%S.%f%z")
+        assert before <= sent <= after
 
     async def test_success_with_comment_and_start(
         self, tracker_client: TrackerClient

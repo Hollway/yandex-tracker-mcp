@@ -46,7 +46,11 @@ from mcp_tracker.mcp.tools._access import (
     is_queue_allowed,
     queue_of_key,
 )
-from mcp_tracker.mcp.tools._ai_access import AiAccessRestricted, check_ai_access
+from mcp_tracker.mcp.tools._ai_access import (
+    answer_hidden,
+    hide_restricted_refs,
+    restricted_issue,
+)
 from mcp_tracker.mcp.tools._files import (
     UploadFilenameParam,
     UploadFilePathParam,
@@ -156,7 +160,7 @@ def _move_options_resolver(
           runs cannot deliver (`NoBackChannelError`). Modern connections carry
           the question in the tool result instead and are not affected.
         """
-        await check_issue(ctx, settings, issue_id, write=True)
+        await check_issue(ctx, settings, issue_id, write=True, ai=False)
         check_queue_access(settings, queue, write=True)
 
         if not _can_ask(ctx):
@@ -215,7 +219,7 @@ def register_issue_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -
             ),
         ] = None,
     ) -> list[IssueTransition]:
-        await check_issue(ctx, settings, issue_id, write=True)
+        await check_issue(ctx, settings, issue_id, write=True, ai=False)
 
         return (
             await ctx.request_context.lifespan_context.issues.issue_execute_transition(
@@ -259,7 +263,7 @@ def register_issue_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -
             Field(description="Optional comment to add when closing the issue."),
         ] = None,
     ) -> list[IssueTransition]:
-        await check_issue(ctx, settings, issue_id, write=True)
+        await check_issue(ctx, settings, issue_id, write=True, ai=False)
 
         return await ctx.request_context.lifespan_context.issues.issue_close(
             issue_id,
@@ -404,7 +408,7 @@ def register_issue_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -
             await app.issues.issue_add_checklist_items(
                 issue.key, items=checklist, auth=auth
             )
-        return issue
+        return await _issue_answer(ctx, settings, issue)
 
     @mcp.tool(
         title="Update Issue",
@@ -480,9 +484,9 @@ def register_issue_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -
             ),
         ] = None,
     ) -> Issue:
-        await check_issue(ctx, settings, issue_id, write=True)
+        await check_issue(ctx, settings, issue_id, write=True, ai=False)
 
-        return await ctx.request_context.lifespan_context.issues.issue_update(
+        issue = await ctx.request_context.lifespan_context.issues.issue_update(
             issue_id,
             summary=summary,
             description=description,
@@ -500,6 +504,7 @@ def register_issue_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -
             auth=get_yandex_auth(ctx),
             fields=fields,
         )
+        return await _issue_answer(ctx, settings, issue)
 
     @mcp.tool(
         title="Add Worklog",
@@ -522,20 +527,21 @@ def register_issue_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -
         start: Annotated[
             datetime.datetime | None,
             Field(
-                description="Optional start datetime for the worklog. "
+                description="When the work started; omitted, now. "
                 "If timezone is not provided, UTC is assumed."
             ),
         ] = None,
     ) -> Worklog:
-        await check_issue(ctx, settings, issue_id, write=True)
+        hidden = await check_issue(ctx, settings, issue_id, write=True)
 
-        return await ctx.request_context.lifespan_context.issues.issue_add_worklog(
+        worklog = await ctx.request_context.lifespan_context.issues.issue_add_worklog(
             issue_id,
             duration=duration,
             comment=comment,
             start=start,
             auth=get_yandex_auth(ctx),
         )
+        return await _worklog_answer(ctx, settings, worklog, hidden)
 
     @mcp.tool(
         title="Update Worklog",
@@ -567,16 +573,19 @@ def register_issue_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -
             ),
         ] = None,
     ) -> Worklog:
-        await check_issue(ctx, settings, issue_id, write=True)
+        hidden = await check_issue(ctx, settings, issue_id, write=True)
 
-        return await ctx.request_context.lifespan_context.issues.issue_update_worklog(
-            issue_id,
-            worklog_id,
-            duration=duration,
-            comment=comment,
-            start=start,
-            auth=get_yandex_auth(ctx),
+        worklog = (
+            await ctx.request_context.lifespan_context.issues.issue_update_worklog(
+                issue_id,
+                worklog_id,
+                duration=duration,
+                comment=comment,
+                start=start,
+                auth=get_yandex_auth(ctx),
+            )
         )
+        return await _worklog_answer(ctx, settings, worklog, hidden)
 
     @mcp.tool(
         title="Delete Worklog",
@@ -591,7 +600,7 @@ def register_issue_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -
             Field(description="Worklog entry ID (integer)."),
         ],
     ) -> None:
-        await check_issue(ctx, settings, issue_id, write=True)
+        await check_issue(ctx, settings, issue_id, write=True, ai=False)
 
         return await ctx.request_context.lifespan_context.issues.issue_delete_worklog(
             issue_id,
@@ -651,7 +660,7 @@ def register_issue_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -
             ),
         ] = None,
     ) -> IssueComment:
-        await check_issue(ctx, settings, issue_id, write=True)
+        await check_issue(ctx, settings, issue_id, write=True, ai=False)
 
         return await ctx.request_context.lifespan_context.issues.issue_add_comment(
             issue_id,
@@ -703,7 +712,7 @@ def register_issue_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -
             ),
         ] = None,
     ) -> IssueComment:
-        await check_issue(ctx, settings, issue_id, write=True)
+        await check_issue(ctx, settings, issue_id, write=True, ai=False)
 
         return await ctx.request_context.lifespan_context.issues.issue_update_comment(
             issue_id,
@@ -760,7 +769,7 @@ def register_issue_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -
             ),
         ] = False,
     ) -> Issue:
-        await check_issue(ctx, settings, issue_id, write=True)
+        await check_issue(ctx, settings, issue_id, write=True, ai=False)
         check_queue_access(settings, queue, write=True)
 
         # `options` is resolved before the body runs: either the values the user
@@ -771,7 +780,7 @@ def register_issue_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -
                 f"Move of issue `{issue_id}` to queue `{queue}` was cancelled by the user."
             )
 
-        return await ctx.request_context.lifespan_context.issues.issue_move(
+        issue = await ctx.request_context.lifespan_context.issues.issue_move(
             issue_id,
             queue,
             notify=options.data.notify,
@@ -780,6 +789,7 @@ def register_issue_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -
             initial_status=options.data.initial_status,
             auth=get_yandex_auth(ctx),
         )
+        return await _issue_answer(ctx, settings, issue)
 
     @mcp.tool(
         title="Delete Issue Comment",
@@ -794,7 +804,7 @@ def register_issue_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -
             Field(description="Comment ID (integer)."),
         ],
     ) -> None:
-        await check_issue(ctx, settings, issue_id, write=True)
+        await check_issue(ctx, settings, issue_id, write=True, ai=False)
 
         return await ctx.request_context.lifespan_context.issues.issue_delete_comment(
             issue_id,
@@ -815,11 +825,11 @@ def register_issue_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -
         comment_id: CommentReactionCommentIDParam,
         reaction: CommentReactionParam,
     ) -> IssueComment:
-        await check_issue(ctx, settings, issue_id, write=True)
+        hidden = await check_issue(ctx, settings, issue_id, write=True)
         comment = await ctx.request_context.lifespan_context.issues.issue_add_comment_reaction(
             issue_id, comment_id, reaction, auth=get_yandex_auth(ctx)
         )
-        return await _hide_restricted_text(ctx, settings, issue_id, comment)
+        return _comment_answer(comment, hidden)
 
     @mcp.tool(
         title="Delete Comment Reaction",
@@ -834,11 +844,11 @@ def register_issue_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -
         comment_id: CommentReactionCommentIDParam,
         reaction: CommentReactionParam,
     ) -> IssueComment:
-        await check_issue(ctx, settings, issue_id, write=True)
+        hidden = await check_issue(ctx, settings, issue_id, write=True)
         comment = await ctx.request_context.lifespan_context.issues.issue_delete_comment_reaction(
             issue_id, comment_id, reaction, auth=get_yandex_auth(ctx)
         )
-        return await _hide_restricted_text(ctx, settings, issue_id, comment)
+        return _comment_answer(comment, hidden)
 
     @mcp.tool(
         title="Add Issue Remote Link",
@@ -864,7 +874,7 @@ def register_issue_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -
             Field(description="Also create the mirror link in the other application."),
         ] = False,
     ) -> RemoteLink:
-        await check_issue(ctx, settings, issue_id, write=True)
+        await check_issue(ctx, settings, issue_id, write=True, ai=False)
 
         return await ctx.request_context.lifespan_context.issues.issue_add_remote_link(
             issue_id,
@@ -888,7 +898,7 @@ def register_issue_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -
             Field(description="Link `id` from issue_get_remote_links."),
         ],
     ) -> None:
-        await check_issue(ctx, settings, issue_id, write=True)
+        await check_issue(ctx, settings, issue_id, write=True, ai=False)
 
         await ctx.request_context.lifespan_context.issues.issue_delete_remote_link(
             issue_id, link_id, auth=get_yandex_auth(ctx)
@@ -909,7 +919,7 @@ def register_issue_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -
             Field(description="Attachment `id` from issue_get_attachments."),
         ],
     ) -> None:
-        await check_issue(ctx, settings, issue_id, write=True)
+        await check_issue(ctx, settings, issue_id, write=True, ai=False)
 
         await ctx.request_context.lifespan_context.issues.issue_delete_attachment(
             issue_id, attachment_id, auth=get_yandex_auth(ctx)
@@ -939,14 +949,16 @@ def register_issue_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -
             Field(description="ID or key of the issue to link to, e.g. 'TEST-123'."),
         ],
     ) -> IssueLink:
-        await check_issue(ctx, settings, issue_id, write=True)
+        await check_issue(ctx, settings, issue_id, write=True, ai=False)
 
-        return await ctx.request_context.lifespan_context.issues.issue_add_link(
+        link = await ctx.request_context.lifespan_context.issues.issue_add_link(
             issue_id,
             relationship=relationship,
             issue=issue,
             auth=get_yandex_auth(ctx),
         )
+        await hide_restricted_refs(ctx, settings, link)
+        return link
 
     @mcp.tool(
         title="Delete Issue Link",
@@ -962,7 +974,7 @@ def register_issue_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -
             Field(description="Link ID (integer) as returned by issue_get_links."),
         ],
     ) -> None:
-        await check_issue(ctx, settings, issue_id, write=True)
+        await check_issue(ctx, settings, issue_id, write=True, ai=False)
 
         return await ctx.request_context.lifespan_context.issues.issue_delete_link(
             issue_id,
@@ -983,15 +995,16 @@ def register_issue_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -
         issue_id: IssueID,
         items: IssueChecklistItemsParam,
     ) -> list[ChecklistItem]:
-        await check_issue(ctx, settings, issue_id, write=True)
+        hidden = await check_issue(ctx, settings, issue_id, write=True)
 
-        return (
+        checklist = (
             await ctx.request_context.lifespan_context.issues.issue_add_checklist_items(
                 issue_id,
                 items=items,
                 auth=get_yandex_auth(ctx),
             )
         )
+        return _checklist_answer(checklist, hidden)
 
     @mcp.tool(
         title="Update Issue Checklist Item",
@@ -1013,9 +1026,9 @@ def register_issue_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -
         clear_assignee: IssueChecklistItemClearAssigneeParam = False,
         clear_deadline: IssueChecklistItemClearDeadlineParam = False,
     ) -> list[ChecklistItem]:
-        await check_issue(ctx, settings, issue_id, write=True)
+        hidden = await check_issue(ctx, settings, issue_id, write=True)
 
-        return await ctx.request_context.lifespan_context.issues.issue_update_checklist_item(
+        checklist = await ctx.request_context.lifespan_context.issues.issue_update_checklist_item(
             issue_id,
             checklist_item_id,
             text=text,
@@ -1026,6 +1039,7 @@ def register_issue_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -
             clear_deadline=clear_deadline,
             auth=get_yandex_auth(ctx),
         )
+        return _checklist_answer(checklist, hidden)
 
     @mcp.tool(
         title="Delete Issue Checklist Item",
@@ -1039,13 +1053,14 @@ def register_issue_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -
         issue_id: IssueID,
         checklist_item_id: IssueChecklistItemIDParam,
     ) -> list[ChecklistItem]:
-        await check_issue(ctx, settings, issue_id, write=True)
+        hidden = await check_issue(ctx, settings, issue_id, write=True)
 
-        return await ctx.request_context.lifespan_context.issues.issue_delete_checklist_item(
+        checklist = await ctx.request_context.lifespan_context.issues.issue_delete_checklist_item(
             issue_id,
             checklist_item_id,
             auth=get_yandex_auth(ctx),
         )
+        return _checklist_answer(checklist, hidden)
 
     @mcp.tool(
         title="Delete Issue Checklist",
@@ -1059,7 +1074,7 @@ def register_issue_write_tools(settings: Settings, mcp: MCPServer[AppContext]) -
         ctx: Context[AppContext],
         issue_id: IssueID,
     ) -> None:
-        await check_issue(ctx, settings, issue_id, write=True)
+        await check_issue(ctx, settings, issue_id, write=True, ai=False)
 
         await ctx.request_context.lifespan_context.issues.issue_delete_checklist(
             issue_id, auth=get_yandex_auth(ctx)
@@ -1091,7 +1106,7 @@ def register_issue_file_upload_tools(
         file_path: UploadFilePathParam,
         filename: UploadFilenameParam = None,
     ) -> IssueAttachment:
-        await check_issue(ctx, settings, issue_id, write=True)
+        await check_issue(ctx, settings, issue_id, write=True, ai=False)
 
         content, path = await read_upload_file(file_path)
 
@@ -1384,14 +1399,45 @@ def register_issue_bulk_tools(settings: Settings, mcp: MCPServer[AppContext]) ->
         return BulkChangeReport(change=change, failures=failures)
 
 
-async def _hide_restricted_text(
-    ctx: Context[AppContext], settings: Settings, issue_id: str, comment: IssueComment
-) -> IssueComment:
-    """A reaction is a write and goes through, but the comment it answers with
-    is someone's text, which a queue forbidding AI tools keeps back."""
-    try:
-        await check_ai_access(ctx, settings, issue_id)
-    except AiAccessRestricted:
+# A write to an issue whose queue forbids AI tools goes through, but its answer
+# leaves the issue's content out - otherwise any write would read the issue.
+
+
+async def _issue_answer(
+    ctx: Context[AppContext], settings: Settings, issue: Issue
+) -> Issue:
+    """The issue a create, update or move answers with. The key it comes back
+    under names the queue it is in now, so a move is judged by its target."""
+    if await answer_hidden(ctx, settings, issue.key):
+        return restricted_issue(issue)
+    await hide_restricted_refs(ctx, settings, issue)
+    return issue
+
+
+async def _worklog_answer(
+    ctx: Context[AppContext], settings: Settings, worklog: Worklog, hidden: bool
+) -> Worklog:
+    if hidden:
+        worklog.comment = None
+    await hide_restricted_refs(ctx, settings, worklog)
+    return worklog
+
+
+def _comment_answer(comment: IssueComment, hidden: bool) -> IssueComment:
+    """A reaction answers with the comment, which is someone else's text."""
+    if hidden:
         comment.text = None
         comment.text_html = None
     return comment
+
+
+def _checklist_answer(
+    checklist: list[ChecklistItem], hidden: bool
+) -> list[ChecklistItem]:
+    """A checklist write answers with every item; under a forbidding queue only
+    what the next write needs stays - the ids, and whether each is checked."""
+    if not hidden:
+        return checklist
+    return [
+        ChecklistItem(id=item.id, text="", checked=item.checked) for item in checklist
+    ]
