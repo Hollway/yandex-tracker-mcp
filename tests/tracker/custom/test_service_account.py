@@ -70,9 +70,7 @@ class TestServiceAccountStore:
         self, mock_settings: ServiceAccountSettings, mocker: MockerFixture
     ) -> None:
         # Mock the yandexcloud SDK at import level
-        mock_sdk_class = mocker.patch(
-            "mcp_tracker.tracker.custom.client.yandexcloud.SDK"
-        )
+        mock_sdk_class = mocker.patch("yandexcloud.SDK")
         mock_sdk = mocker.Mock()
         mock_iam_service = mocker.Mock()
         mock_sdk.client.return_value = mock_iam_service
@@ -92,9 +90,7 @@ class TestServiceAccountStore:
     async def test_prepare_starts_refresh_task(
         self, mock_settings: ServiceAccountSettings, mocker: MockerFixture
     ) -> None:
-        mock_sdk_class = mocker.patch(
-            "mcp_tracker.tracker.custom.client.yandexcloud.SDK"
-        )
+        mock_sdk_class = mocker.patch("yandexcloud.SDK")
         mock_sdk = mocker.Mock()
         mock_iam_service = mocker.Mock()
         mock_sdk.client.return_value = mock_iam_service
@@ -117,9 +113,7 @@ class TestServiceAccountStore:
     async def test_close_cancels_refresh_task(
         self, mock_settings: ServiceAccountSettings, mocker: MockerFixture
     ) -> None:
-        mock_sdk_class = mocker.patch(
-            "mcp_tracker.tracker.custom.client.yandexcloud.SDK"
-        )
+        mock_sdk_class = mocker.patch("yandexcloud.SDK")
         mock_sdk = mocker.Mock()
         mock_iam_service = mocker.Mock()
         mock_sdk.client.return_value = mock_iam_service
@@ -144,9 +138,7 @@ class TestServiceAccountStore:
         mock_iam_service: Any,
         mocker: MockerFixture,
     ) -> None:
-        mock_sdk_class = mocker.patch(
-            "mcp_tracker.tracker.custom.client.yandexcloud.SDK"
-        )
+        mock_sdk_class = mocker.patch("yandexcloud.SDK")
         mock_jwt_encode = mocker.patch("jwt.encode")
         mock_sdk = mocker.Mock()
         mock_sdk.client.return_value = mock_iam_service
@@ -171,9 +163,7 @@ class TestServiceAccountStore:
         mock_iam_service: Any,
         mocker: MockerFixture,
     ) -> None:
-        mock_sdk_class = mocker.patch(
-            "mcp_tracker.tracker.custom.client.yandexcloud.SDK"
-        )
+        mock_sdk_class = mocker.patch("yandexcloud.SDK")
         mock_sdk = mocker.Mock()
         mock_sdk.client.return_value = mock_iam_service
         mock_sdk_class.return_value = mock_sdk
@@ -191,9 +181,7 @@ class TestServiceAccountStore:
         mock_iam_service: Any,
         mocker: MockerFixture,
     ) -> None:
-        mock_sdk_class = mocker.patch(
-            "mcp_tracker.tracker.custom.client.yandexcloud.SDK"
-        )
+        mock_sdk_class = mocker.patch("yandexcloud.SDK")
         mock_sdk = mocker.Mock()
         mock_sdk.client.return_value = mock_iam_service
         mock_sdk_class.return_value = mock_sdk
@@ -216,9 +204,7 @@ class TestServiceAccountStore:
         mock_iam_service: Any,
         mocker: MockerFixture,
     ) -> None:
-        mock_sdk_class = mocker.patch(
-            "mcp_tracker.tracker.custom.client.yandexcloud.SDK"
-        )
+        mock_sdk_class = mocker.patch("yandexcloud.SDK")
         mock_jwt_encode = mocker.patch("jwt.encode")
         mock_sdk = mocker.Mock()
         mock_sdk.client.return_value = mock_iam_service
@@ -258,9 +244,7 @@ class TestServiceAccountStore:
         mock_iam_service: Any,
         mocker: MockerFixture,
     ) -> None:
-        mock_sdk_class = mocker.patch(
-            "mcp_tracker.tracker.custom.client.yandexcloud.SDK"
-        )
+        mock_sdk_class = mocker.patch("yandexcloud.SDK")
         mock_sdk = mocker.Mock()
         mock_sdk.client.return_value = mock_iam_service
         mock_sdk_class.return_value = mock_sdk
@@ -287,9 +271,7 @@ class TestServiceAccountStore:
     def test_init_with_custom_refresh_interval(
         self, mock_settings: ServiceAccountSettings, mocker: MockerFixture
     ) -> None:
-        mock_sdk_class = mocker.patch(
-            "mcp_tracker.tracker.custom.client.yandexcloud.SDK"
-        )
+        mock_sdk_class = mocker.patch("yandexcloud.SDK")
         mock_sdk = mocker.Mock()
         mock_sdk.client.return_value = mocker.Mock()
         mock_sdk_class.return_value = mock_sdk
@@ -302,9 +284,7 @@ class TestServiceAccountStore:
     def test_init_uses_default_refresh_interval(
         self, mock_settings: ServiceAccountSettings, mocker: MockerFixture
     ) -> None:
-        mock_sdk_class = mocker.patch(
-            "mcp_tracker.tracker.custom.client.yandexcloud.SDK"
-        )
+        mock_sdk_class = mocker.patch("yandexcloud.SDK")
         mock_sdk = mocker.Mock()
         mock_sdk.client.return_value = mocker.Mock()
         mock_sdk_class.return_value = mock_sdk
@@ -316,9 +296,7 @@ class TestServiceAccountStore:
     def test_init_with_custom_retry_interval(
         self, mock_settings: ServiceAccountSettings, mocker: MockerFixture
     ) -> None:
-        mock_sdk_class = mocker.patch(
-            "mcp_tracker.tracker.custom.client.yandexcloud.SDK"
-        )
+        mock_sdk_class = mocker.patch("yandexcloud.SDK")
         mock_sdk = mocker.Mock()
         mock_sdk.client.return_value = mocker.Mock()
         mock_sdk_class.return_value = mock_sdk
@@ -331,9 +309,7 @@ class TestServiceAccountStore:
     def test_init_uses_default_retry_interval(
         self, mock_settings: ServiceAccountSettings, mocker: MockerFixture
     ) -> None:
-        mock_sdk_class = mocker.patch(
-            "mcp_tracker.tracker.custom.client.yandexcloud.SDK"
-        )
+        mock_sdk_class = mocker.patch("yandexcloud.SDK")
         mock_sdk = mocker.Mock()
         mock_sdk.client.return_value = mocker.Mock()
         mock_sdk_class.return_value = mock_sdk
@@ -345,9 +321,7 @@ class TestServiceAccountStore:
     async def test_refresher_calls_get_iam_token_with_force_refresh(
         self, mock_settings: ServiceAccountSettings, mocker: MockerFixture
     ) -> None:
-        mock_sdk_class = mocker.patch(
-            "mcp_tracker.tracker.custom.client.yandexcloud.SDK"
-        )
+        mock_sdk_class = mocker.patch("yandexcloud.SDK")
         mock_sdk = mocker.Mock()
         mock_sdk.client.return_value = mocker.Mock()
         mock_sdk_class.return_value = mock_sdk
@@ -383,9 +357,7 @@ class TestServiceAccountStore:
     async def test_refresher_runs_multiple_times(
         self, mock_settings: ServiceAccountSettings, mocker: MockerFixture
     ) -> None:
-        mock_sdk_class = mocker.patch(
-            "mcp_tracker.tracker.custom.client.yandexcloud.SDK"
-        )
+        mock_sdk_class = mocker.patch("yandexcloud.SDK")
         mock_sdk = mocker.Mock()
         mock_sdk.client.return_value = mocker.Mock()
         mock_sdk_class.return_value = mock_sdk
@@ -421,9 +393,7 @@ class TestServiceAccountStore:
     async def test_refresher_continues_after_error(
         self, mock_settings: ServiceAccountSettings, mocker: MockerFixture
     ) -> None:
-        mock_sdk_class = mocker.patch(
-            "mcp_tracker.tracker.custom.client.yandexcloud.SDK"
-        )
+        mock_sdk_class = mocker.patch("yandexcloud.SDK")
         mock_sdk = mocker.Mock()
         mock_sdk.client.return_value = mocker.Mock()
         mock_sdk_class.return_value = mock_sdk
@@ -463,9 +433,7 @@ class TestServiceAccountStore:
     async def test_refresher_uses_retry_interval_on_error(
         self, mock_settings: ServiceAccountSettings, mocker: MockerFixture
     ) -> None:
-        mock_sdk_class = mocker.patch(
-            "mcp_tracker.tracker.custom.client.yandexcloud.SDK"
-        )
+        mock_sdk_class = mocker.patch("yandexcloud.SDK")
         mock_sdk = mocker.Mock()
         mock_sdk.client.return_value = mocker.Mock()
         mock_sdk_class.return_value = mock_sdk
@@ -520,9 +488,7 @@ class TestServiceAccountStore:
     async def test_refresher_uses_configured_interval(
         self, mock_settings: ServiceAccountSettings, mocker: MockerFixture
     ) -> None:
-        mock_sdk_class = mocker.patch(
-            "mcp_tracker.tracker.custom.client.yandexcloud.SDK"
-        )
+        mock_sdk_class = mocker.patch("yandexcloud.SDK")
         mock_sdk = mocker.Mock()
         mock_sdk.client.return_value = mocker.Mock()
         mock_sdk_class.return_value = mock_sdk

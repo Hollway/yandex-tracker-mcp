@@ -10,6 +10,10 @@ All notable changes to this project will be documented in this file.
 - **`issue_add_worklog`** - `start` defaults to now; without it Tracker refused the call
 - **Bulk changes and moved issues** - the queue restrictions check each issue of a bulk change in the queue it is in now; the old key of a moved issue was checked against the queue it had left, and an internal id was refused
 
+### Internal
+
+- **Faster start** - the Yandex Cloud SDK is loaded only for a service account, which takes about 0.6 s off every start
+
 ## [0.11.0] - 2026-10-27
 
 ### Features

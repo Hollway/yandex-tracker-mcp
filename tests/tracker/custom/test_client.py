@@ -37,9 +37,7 @@ class TestTrackerClientInit:
         assert client._org_id is None
 
     async def test_init_with_service_account(self, mocker: MockerFixture):
-        mock_sdk_class = mocker.patch(
-            "mcp_tracker.tracker.custom.client.yandexcloud.SDK"
-        )
+        mock_sdk_class = mocker.patch("yandexcloud.SDK")
         mock_sdk = mocker.Mock()
         mock_sdk_class.return_value = mock_sdk
         service_account = ServiceAccountSettings(
@@ -59,9 +57,7 @@ class TestTrackerClientInit:
         await client.close()
 
     async def test_prepare_with_service_account(self, mocker: MockerFixture):
-        mock_sdk_class = mocker.patch(
-            "mcp_tracker.tracker.custom.client.yandexcloud.SDK"
-        )
+        mock_sdk_class = mocker.patch("yandexcloud.SDK")
         mock_sdk = mocker.Mock()
         mock_sdk_class.return_value = mock_sdk
         service_account = ServiceAccountSettings(
@@ -87,9 +83,7 @@ class TestTrackerClientInit:
         await client.close()
 
     async def test_close_with_service_account(self, mocker: MockerFixture):
-        mock_sdk_class = mocker.patch(
-            "mcp_tracker.tracker.custom.client.yandexcloud.SDK"
-        )
+        mock_sdk_class = mocker.patch("yandexcloud.SDK")
         mock_sdk = mocker.Mock()
         mock_sdk_class.return_value = mock_sdk
         service_account = ServiceAccountSettings(

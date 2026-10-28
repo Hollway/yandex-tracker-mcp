@@ -64,7 +64,7 @@ class TestIAMAuthentication:
         mock_store.get_iam_token = mocker.AsyncMock(return_value="dynamic-iam-token")
 
         # Mock the yandexcloud.SDK to avoid real initialization
-        mocker.patch("mcp_tracker.tracker.custom.client.yandexcloud.SDK")
+        mocker.patch("yandexcloud.SDK")
 
         # Create client and replace the store after initialization
         client = TrackerClient(
@@ -92,7 +92,7 @@ class TestAuthenticationPriority:
         mock_store.get_iam_token = mocker.AsyncMock(return_value="sa-iam-token")
 
         # Mock the yandexcloud.SDK to avoid real initialization
-        mocker.patch("mcp_tracker.tracker.custom.client.yandexcloud.SDK")
+        mocker.patch("yandexcloud.SDK")
 
         # Create client and replace the store after initialization
         client = TrackerClient(
@@ -118,7 +118,7 @@ class TestAuthenticationPriority:
         mock_store.get_iam_token = mocker.AsyncMock(return_value="sa-iam-token")
 
         # Mock the yandexcloud.SDK to avoid real initialization
-        mocker.patch("mcp_tracker.tracker.custom.client.yandexcloud.SDK")
+        mocker.patch("yandexcloud.SDK")
 
         # Create client and replace the store after initialization
         client = TrackerClient(
@@ -145,7 +145,7 @@ class TestAuthenticationPriority:
         mock_store.get_iam_token = mocker.AsyncMock(return_value="sa-iam-token")
 
         # Mock the yandexcloud.SDK to avoid real initialization
-        mocker.patch("mcp_tracker.tracker.custom.client.yandexcloud.SDK")
+        mocker.patch("yandexcloud.SDK")
 
         # Create client and replace the store after initialization
         client = TrackerClient(

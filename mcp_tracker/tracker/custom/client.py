@@ -16,11 +16,8 @@ from typing import Any, Literal, TypeVar
 from urllib.parse import quote
 
 import jwt
-import yandexcloud
 from aiohttp import ClientError, ClientResponse, ClientSession, ClientTimeout, FormData
 from pydantic import BaseModel, Field, RootModel
-from yandex.cloud.iam.v1.iam_token_service_pb2 import CreateIamTokenRequest
-from yandex.cloud.iam.v1.iam_token_service_pb2_grpc import IamTokenServiceStub
 from yarl import URL
 
 from mcp_tracker.tracker.custom.errors import (
@@ -432,6 +429,16 @@ class ServiceAccountStore:
         self._refresh_interval = refresh_interval or self.DEFAULT_REFRESH_INTERVAL
         self._retry_interval = retry_interval or self.DEFAULT_RETRY_INTERVAL
 
+        # Imported here rather than at the top: the Yandex Cloud SDK pulls in
+        # grpc and its generated services, about 0.6 s of every server start,
+        # and only a service account needs it.
+        import yandexcloud
+        from yandex.cloud.iam.v1.iam_token_service_pb2 import CreateIamTokenRequest
+        from yandex.cloud.iam.v1.iam_token_service_pb2_grpc import (
+            IamTokenServiceStub,
+        )
+
+        self._create_request = CreateIamTokenRequest
         self._yc_sdk = yandexcloud.SDK(
             service_account_key=self._settings.to_yandexcloud_dict()
         )
@@ -500,7 +507,7 @@ class ServiceAccountStore:
             headers={"kid": service_account.key_id},
         )
 
-        iam_token = self._iam_service.Create(CreateIamTokenRequest(jwt=jwt_token))
+        iam_token = self._iam_service.Create(self._create_request(jwt=jwt_token))
         return IAMTokenInfo(token=iam_token.iam_token)
 
 
