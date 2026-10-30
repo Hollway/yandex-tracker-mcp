@@ -12,7 +12,7 @@ from mcp_tracker.mcp.oauth.provider import YandexOAuthAuthorizationServerProvide
 from mcp_tracker.mcp.oauth.store import OAuthStore
 from mcp_tracker.mcp.oauth.stores.memory import InMemoryOAuthStore
 from mcp_tracker.mcp.oauth.stores.redis import RedisOAuthStore
-from mcp_tracker.mcp.params import instructions
+from mcp_tracker.mcp.params import make_instructions
 from mcp_tracker.mcp.resources import register_resources
 from mcp_tracker.mcp.tools import register_all_tools
 from mcp_tracker.settings import Settings
@@ -227,7 +227,7 @@ def create_mcp_server(
     # to `run()` by `mcp_tracker.__main__`, not to the constructor.
     server: MCPServer[AppContext] = MCPServer(
         name="Yandex Tracker MCP Server",
-        instructions=instructions,
+        instructions=make_instructions(entities=settings.tracker_entities_enabled),
         version=_package_version(),
         lifespan=lifespan,
         auth_server_provider=auth_server_provider,

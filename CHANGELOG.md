@@ -14,6 +14,7 @@ All notable changes to this project will be documented in this file.
 - **AI tools access** - the summary of an issue in a queue that forbids AI tools no longer shows where another issue names it (parent, epic, links, changelog, worklogs), and a write to such an issue answers with its key, id and version instead of its content; a write used to return the whole issue
 - **`issue_add_worklog`** - `start` defaults to now; without it Tracker refused the call
 - **Bulk changes and moved issues** - the queue restrictions check each issue of a bulk change in the queue it is in now; the old key of a moved issue was checked against the queue it had left, and an internal id was refused
+- **Server instructions** - fit the 4096 characters Claude Code keeps, and describe projects, portfolios and goals only when `TRACKER_ENTITIES_ENABLED` registers their tools; the pagination rules at the end used to be cut off
 
 ### Internal
 

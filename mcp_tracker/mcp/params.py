@@ -1177,17 +1177,20 @@ YTQuery = Annotated[
     ),
 ]
 
-instructions = """Tools for interacting with Yandex Tracker issue tracking system.
+# Claude Code cuts server instructions at 4096 characters, so whatever the
+# configuration, the text stays under that (`test_instructions.py` checks it).
+INSTRUCTIONS_LIMIT = 4096
+
+_instructions = """Tools for interacting with Yandex Tracker issue tracking system.
 Use these tools to:
 - Search and browse queues and issues, with Yandex Query Language (YQL)
-- Search and manage projects, portfolios, and goals (project-management entities, distinct from queues)
 - View issue details, comments, attachments, worklogs and change history
 - Get information about users, statuses and issue types
 - Look up agile boards, their columns and their sprints
 - Read and manage queue components, which group a queue's issues by product, process or owner
 - Create and edit issues, comments, worklogs and links (unless the server runs read-only)
 
-In russian Yandex Tracker is called "Яндекс Трекер", "Трекер"; queues - "Очереди"; issues - "Задачи", "Таски", "ишью"; projects - "Проекты"; portfolios - "Портфели"; goals - "Цели"; boards - "доски"; sprints - "спринты"; components - "компоненты".
+In russian Yandex Tracker is called "Яндекс Трекер", "Трекер"; queues - "Очереди"; issues - "Задачи", "Таски", "ишью"; boards - "доски"; sprints - "спринты"; components - "компоненты".
 
 Boards have no queue field - a board collects whatever its own filter matches. To find the boards of a queue, try both ways: `boards_get_all` with `queue` matches the board's own filter, while reading a few issues of the queue with `issues_find` and looking at their `boards` field catches the boards that filter by something else (personal boards, for one).
 
@@ -1200,21 +1203,24 @@ Tools that accept a `fields` argument return only the fields you select. Use it 
 
 The server may be configured read-only, or to allow only some queues: a write tool that is missing, a rejected write, or a queue reported as "not found or not allowed" can be that configuration rather than missing data. Say so instead of retrying.
 
-## Queues vs. projects/portfolios/goals
-
-A "queue" (e.g. `SOMEPROJECT` in an issue key like `SOMEPROJECT-1`) is where issues live and get numbered - use `queues_get_all`, `issues_find`, etc. A "project"/"portfolio"/"goal" (`project_*`, `portfolio_*`, `goal_*` tools) is a separate project-management entity grouping progress across issues from possibly many queues. Entity ids come from `*_find` / `*_get` results, never from issue keys. Entity tools are also not covered by the server's queue restrictions, since an entity has no single queue.
-
-## Linking issues, projects, portfolios, and goals together
-
-- Issue -> project: set the issue's `project` field (on `issue_create`/`issue_update`) to `{"primary": <project shortId>, "secondary": [<other shortIds>]}`; the `shortId` comes from `project_get`/`project_find`. There is no issue-to-portfolio or issue-to-goal link; portfolios and goals track progress through the projects (and, for goals, other goals) linked into them.
-- Containment - project/portfolio into a portfolio, goal into a parent goal: set `parent_entity` on the entity's create/update tool to `{"primary": <id>, "secondary": [<other ids>]}`.
-- Other relationships (a project "depends on" another project, or "works towards" a goal): use the `links` param on `*_create`/`*_update`, e.g. `[{"relationship": "works towards", "entity": <goal id>}]`. `links` ADDS links and never replaces them: pass only new ones, since linking an already-linked pair fails. On `*_update` they are applied only when the call also changes a field to a new value or carries a `comment`, so a links-only update is rejected. `*_get_links` lists an entity's links with the linked entity's id, and `*_delete_link` removes one by that id - from either side, a link is one relationship seen from both ends.
-
-## Fields and pagination
-
-Every `project_*`/`portfolio_*`/`goal_*` read tool takes a `fields` selector; omitting it returns that tool's default subset, which is deliberately small. Custom (organization-defined) attributes cannot be requested through these tools.
+## Pagination
 
 With `page`/`per_page` tools, keep increasing `page` until the result set is exhausted. Tools answering with `{values, hits, pages}` tell you when to stop: the current page is the last one when `page` equals `pages`, and a null `pages` means no total is available, so keep paging until a page comes back empty. If you hit the context size limit, lower `per_page` and restart from `page=1`.
 
 `boards_get_all`, `issue_get_changelog` and every `*_get_comments` tool use cursor pagination instead: pass the previous `next_cursor` as `cursor` until it is null. Do not change `per_page` mid-pagination; if you must, restart with `cursor` empty.
 """
+
+_entity_instructions = """
+## Projects, portfolios and goals
+
+These ("Проекты", "Портфели", "Цели"; `project_*`, `portfolio_*`, `goal_*` tools) are project-management entities, distinct from queues (`SOMEPROJECT` in `SOMEPROJECT-1`), where issues live: an entity tracks progress across issues of many queues. Entity ids come from `*_find` / `*_get`, never from issue keys, and the queue restrictions do not cover entities. Their reads return a small default subset unless `fields` asks for more; custom attributes cannot be requested.
+
+- Issue -> project: set the issue's `project` (on `issue_create` / `issue_update`) to `{"primary": <project shortId>, "secondary": [...]}`. Portfolios and goals have no issue link; they go through projects.
+- Containment (into a portfolio, a goal into a parent goal): `parent_entity` = `{"primary": <id>, "secondary": [...]}`.
+- Other relationships ("depends on", "works towards"): `links` on `*_create` / `*_update`, e.g. `[{"relationship": "works towards", "entity": <goal id>}]`. `links` only adds - pass new links only. On `*_update` they need a field changed to a new value, or a `comment`, in the same call. `*_get_links` and `*_delete_link` list and remove them, from either side.
+"""
+
+
+def make_instructions(*, entities: bool) -> str:
+    """The server instructions; the entity part only when the entity tools are registered."""
+    return _instructions + _entity_instructions if entities else _instructions
