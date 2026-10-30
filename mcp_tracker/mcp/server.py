@@ -11,12 +11,10 @@ from mcp_tracker.mcp.context import AppContext
 from mcp_tracker.mcp.oauth.provider import YandexOAuthAuthorizationServerProvider
 from mcp_tracker.mcp.oauth.store import OAuthStore
 from mcp_tracker.mcp.oauth.stores.memory import InMemoryOAuthStore
-from mcp_tracker.mcp.oauth.stores.redis import RedisOAuthStore
 from mcp_tracker.mcp.params import make_instructions
 from mcp_tracker.mcp.resources import register_resources
 from mcp_tracker.mcp.tools import register_all_tools
 from mcp_tracker.settings import Settings
-from mcp_tracker.tracker.caching.client import make_cached_protocols
 from mcp_tracker.tracker.custom.client import ServiceAccountSettings, TrackerClient
 from mcp_tracker.tracker.proto.boards import BoardsProtocol
 from mcp_tracker.tracker.proto.components import ComponentsProtocol
@@ -112,6 +110,10 @@ def make_tracker_lifespan(settings: Settings) -> Lifespan:
         reports: ReportsProtocol = tracker
         dashboards: DashboardsProtocol = tracker
         if settings.tools_cache_enabled:
+            # Imported here rather than at the top, like the Redis OAuth store
+            # below: aiocache pulls in redis, which only the cache needs.
+            from mcp_tracker.tracker.caching.client import make_cached_protocols
+
             cache_collection = make_cached_protocols(settings.cache_kwargs())
             queues = cache_collection.queues(queues)
             issues = cache_collection.issues(issues)
@@ -180,6 +182,10 @@ def create_mcp_server(
                     "Generate a key with: "
                     'python3 -c "import base64, os; print(base64.b64encode(os.urandom(32)).decode())"'
                 )
+
+            # Imported here rather than at the top: aiocache, redis and
+            # cryptography cost every server start a third of a second.
+            from mcp_tracker.mcp.oauth.stores.redis import RedisOAuthStore
 
             oauth_store = RedisOAuthStore(
                 endpoint=settings.redis_endpoint,

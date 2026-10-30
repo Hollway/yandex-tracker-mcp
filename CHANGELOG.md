@@ -18,7 +18,7 @@ All notable changes to this project will be documented in this file.
 
 ### Internal
 
-- **Faster start** - the Yandex Cloud SDK is loaded only for a service account, which takes about 0.6 s off every start
+- **Faster start** - the Yandex Cloud SDK is loaded only for a service account, and aiocache and redis only for `TOOLS_CACHE_ENABLED` or the Redis OAuth store, which takes about 1 s off every start
 
 ## [0.11.0] - 2026-10-27
 

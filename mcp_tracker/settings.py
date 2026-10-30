@@ -3,8 +3,6 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
-from aiocache import Cache
-from aiocache.serializers import PickleSerializer
 from pydantic import AnyHttpUrl, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
@@ -237,6 +235,11 @@ class Settings(BaseSettings):
         return prefixes or None
 
     def cache_kwargs(self) -> dict[str, Any]:
+        # Imported here rather than at the top: aiocache pulls in redis, which
+        # every server start paid for while only TOOLS_CACHE_ENABLED uses it.
+        from aiocache import Cache
+        from aiocache.serializers import PickleSerializer
+
         return {
             "cache": Cache.REDIS,
             "endpoint": self.redis_endpoint,
